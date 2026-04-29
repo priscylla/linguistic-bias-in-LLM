@@ -119,5 +119,5 @@ def check_all_results(results_dir: str = "results") -> bool:
 
 
 if __name__ == "__main__":
-    ok = check_results()
+    ok = check_all_results()
     sys.exit(0 if ok else 1)
