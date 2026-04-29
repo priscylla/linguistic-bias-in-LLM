@@ -137,14 +137,19 @@ class LogitLensExtractor:
         self,
         prompt: str,
         keyword: Optional[str] = None,
-        last_relevant_pos: Optional[int] = None  # NOVO PARÂMETRO
+        last_relevant_pos: Optional[int] = None,
+        keyword_pos_override: Optional[int] = None
     ) -> Dict:
         """
         Extrai distribuições Logit Lens para um prompt.
         
         Args:
-            prompt:  texto do prompt
-            keyword: palavra-chave central (opcional)
+            prompt:               texto do prompt (já com chat template aplicado)
+            keyword:              palavra-chave central (opcional)
+            last_relevant_pos:    posição do último token relevante
+                                  (fornecida pelo chat_template.py)
+            keyword_pos_override: posição da keyword já calculada
+                                  (fornecida pelo keyword_finder.py)
         
         Returns:
             Dicionário com:
@@ -162,24 +167,29 @@ class LogitLensExtractor:
         ).to(self.device)
         
         input_ids = inputs["input_ids"][0]  # [seq_len]
-
-        # Usar posição fornecida ou inferir
-        last_pos = (
-            last_relevant_pos 
-            if last_relevant_pos is not None 
-            else len(input_ids) - 1
-        )
         
-        # Decodificar tokens para visualização
+        # Decodificar tokens para visualização e debug
         tokens = [
-            self.tokenizer.decode([t]) 
+            self.tokenizer.decode([t])
             for t in input_ids.tolist()
         ]
         
-        # Encontrar posição da keyword se fornecida
-        keyword_pos = None
-        if keyword is not None:
+        # Determinar posição do último token relevante
+        # Prioridade: parâmetro explícito > inferência automática
+        last_pos = (
+            last_relevant_pos
+            if last_relevant_pos is not None
+            else len(input_ids) - 1
+        )
+        
+        # Determinar posição da keyword
+        # Prioridade: override explícito > busca automática > None
+        if keyword_pos_override is not None:
+            keyword_pos = keyword_pos_override
+        elif keyword is not None:
             keyword_pos = self.find_keyword_position(input_ids, keyword)
+        else:
+            keyword_pos = None
         
         # Forward pass — capturar todos os hidden states
         with torch.no_grad():
@@ -194,27 +204,23 @@ class LogitLensExtractor:
         hidden_states = outputs.hidden_states
         n_layers = len(hidden_states) - 1  # excluindo embedding
         
-        # Posição do último token
-        #last_pos = len(input_ids) - 1
-        
         # Estruturas para armazenar resultados
         results = {
-            "tokens":       tokens,
-            "n_layers":     n_layers,
-            "keyword_pos":  keyword_pos,
-            "last_token":   [],
+            "tokens":        tokens,
+            "n_layers":      n_layers,
+            "keyword_pos":   keyword_pos,
+            "last_token":    [],
             "keyword_token": [] if keyword_pos is not None else None
         }
         
-        # Iterar sobre camadas (excluindo embedding layer)
+        # Iterar sobre camadas (excluindo embedding layer no index 0)
         for layer_idx in range(1, len(hidden_states)):
             layer_hidden = hidden_states[layer_idx][0]  # [seq_len, hidden_size]
             
-            # === Análise do último token ===
-            last_hidden = layer_hidden[last_pos]  # [hidden_size]
-            last_probs = self._apply_logit_lens(last_hidden)
+            # ── Análise do último token ──
+            last_hidden = layer_hidden[last_pos]        # [hidden_size]
+            last_probs  = self._apply_logit_lens(last_hidden)
             
-            # Top-K tokens e probabilidades
             top_probs, top_indices = torch.topk(last_probs, self.top_k)
             top_tokens = [
                 self.tokenizer.decode([idx.item()])
@@ -227,10 +233,10 @@ class LogitLensExtractor:
                 "top_probs":  top_probs.cpu().numpy().tolist()
             })
             
-            # === Análise do token da keyword ===
+            # ── Análise do token da keyword ──
             if keyword_pos is not None:
-                kw_hidden = layer_hidden[keyword_pos]  # [hidden_size]
-                kw_probs = self._apply_logit_lens(kw_hidden)
+                kw_hidden = layer_hidden[keyword_pos]   # [hidden_size]
+                kw_probs  = self._apply_logit_lens(kw_hidden)
                 
                 top_probs_kw, top_indices_kw = torch.topk(kw_probs, self.top_k)
                 top_tokens_kw = [
@@ -246,10 +252,21 @@ class LogitLensExtractor:
         
         return results
     
-    def get_final_response(self, prompt: str, max_new_tokens: int = 200) -> str:
+    def get_final_response(
+        self,
+        prompt: str,
+        max_new_tokens: int = 200
+    ) -> str:
         """
         Gera a resposta final do modelo para o ground truth.
         Usado na Fase 1 de validação comportamental.
+        
+        Args:
+            prompt:         prompt já formatado com chat template
+            max_new_tokens: número máximo de tokens a gerar
+        
+        Returns:
+            Texto gerado pelo modelo (sem o prompt)
         """
         inputs = self.tokenizer(
             prompt,
@@ -260,11 +277,11 @@ class LogitLensExtractor:
             output = self.model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
-                do_sample=False,       # greedy
-                temperature=1.0,       # ignorado com do_sample=False
+                do_sample=False,        # greedy decoding
+                temperature=1.0,        # ignorado com do_sample=False
                 pad_token_id=self.tokenizer.pad_token_id
             )
         
-        # Decodificar apenas os tokens gerados (não o prompt)
+        # Decodificar apenas os tokens gerados — não o prompt
         generated = output[0][inputs["input_ids"].shape[1]:]
         return self.tokenizer.decode(generated, skip_special_tokens=True)
