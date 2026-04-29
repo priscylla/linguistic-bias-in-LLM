@@ -2,16 +2,30 @@
 Linguistic Bias in LLM Outputs
 
 
+## Execution — Step by Step
 
-# 1. Instalar dependências
+
+```bash
+# 0. Setup
 pip install -r requirements.txt
+export HF_TOKEN="hf_your_token_here"
 
-# 2. Rodar
-# Precisa de no mínimo 24GB de VRAM
-# Cada modelo deve gerar um JSON entre 2 e 5 GB
-# Deve demorar +/- 16hrs para rodar tudo
-python run_experiment.py
+# 1. Verify (fast — tokenizers only)
+python verify_setup.py
 
-# 3. Gerar visualizações
+# 2. Test visualizations with synthetic data
+python generate_mock_data.py
 python run_visualization.py
 
+# 3. Run experiments (one model at a time)
+python run_single_model.py mistral    # ~45 min
+python run_single_model.py llama      # ~50 min
+python run_single_model.py qwen       # ~40 min
+python run_single_model.py gemma      # ~65 min
+
+# 4. Check integrity
+python check_results.py
+
+# 5. Generate final figures
+python run_visualization.py
+```

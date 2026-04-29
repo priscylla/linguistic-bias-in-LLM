@@ -1,9 +1,19 @@
+"""
+models/chat_template.py
+Aplicação padronizada de chat templates para cada modelo.
+
+Cada modelo instruct usa um formato diferente de template.
+Este módulo garante que todos os prompts sejam formatados
+corretamente e que a posição do último token relevante
+para o Logit Lens seja identificada de forma consistente.
+"""
+
 from transformers import AutoTokenizer
-from typing import Tuple
-import torch
+from typing import Tuple, Dict
 
 
-# System prompt neutro — sem instrução cultural
+# System prompt neutro — sem instrução cultural que possa
+# introduzir viés adicional nos experimentos
 SYSTEM_PROMPT = (
     "You are a helpful assistant that answers questions "
     "accurately and concisely."
@@ -16,33 +26,37 @@ def apply_template(
     user_message: str
 ) -> Tuple[str, int]:
     """
-    Aplica o chat template correto para cada modelo e
-    retorna o prompt formatado e a posição do último
-    token relevante para o Logit Lens.
-    
-    A posição retornada é sempre o índice do último token
-    ANTES do início da geração — independente do template.
-    
+    Aplica o chat template correto para cada modelo e retorna
+    o prompt formatado e a posição do último token relevante
+    para o Logit Lens.
+
+    "Último token relevante" = último token antes do início
+    da geração do assistente. É desse ponto que o modelo
+    "decide" qual token gerar, logo é o ponto correto para
+    aplicar o Logit Lens.
+
+    Usa add_generation_prompt=True para garantir que o template
+    inclua o marcador de início do turno do assistente, que é
+    exatamente onde a geração começa.
+
     Args:
         tokenizer:    tokenizer do modelo
-        model_key:    chave do modelo (llama, mistral, etc.)
-        user_message: pergunta do usuário
-    
+        model_key:    chave do modelo (llama, mistral, qwen, gemma)
+        user_message: texto da pergunta do usuário (sem template)
+
     Returns:
-        Tupla (prompt_formatado, last_relevant_pos)
-        onde last_relevant_pos é o índice do último token
-        a ser analisado no Logit Lens
+        Tupla (prompt_formatado, last_relevant_pos) onde:
+        - prompt_formatado: string com template completo aplicado
+        - last_relevant_pos: índice do último token (0-based)
     """
-    
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user",   "content": user_message}
     ]
-    
-    # Aplicar template via HuggingFace
-    # add_generation_prompt=True adiciona o início do turno
-    # do assistente, que é o ponto exato onde a geração começa
+
     try:
+        # add_generation_prompt=True adiciona o início do turno
+        # do assistente — ponto exato onde a geração começa
         formatted = tokenizer.apply_chat_template(
             messages,
             tokenize=False,
@@ -50,40 +64,65 @@ def apply_template(
         )
     except Exception:
         # Fallback para modelos sem chat template definido
-        formatted = f"{SYSTEM_PROMPT}\n\nUser: {user_message}\nAssistant:"
-    
-    # Tokenizar para identificar posições
+        formatted = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"User: {user_message}\n"
+            f"Assistant:"
+        )
+
+    # Tokenizar para identificar a posição do último token
     tokens = tokenizer.encode(formatted, add_special_tokens=False)
-    
-    # O último token relevante é sempre o último da sequência
-    # (seja ele um token de abertura do assistente ou outro)
-    # pois é desse ponto que a geração parte
     last_relevant_pos = len(tokens) - 1
-    
+
     return formatted, last_relevant_pos
 
 
-def verify_templates(models_dict: dict, tokenizers_dict: dict):
+def verify_templates(
+    models_dict: Dict[str, str],
+    tokenizers_dict: Dict
+):
     """
     Utilitário de verificação — imprime o template formatado
     de cada modelo para inspeção visual antes de rodar
     o experimento completo.
+
+    Deve ser executado via verify_setup.py antes dos experimentos.
+
+    Args:
+        models_dict:    dict {model_key: model_name}
+        tokenizers_dict: dict {model_key: tokenizer}
     """
     test_prompt = "Quem inventou o avião?"
-    
-    print("\n" + "="*60)
-    print("VERIFICAÇÃO DE CHAT TEMPLATES")
-    print("="*60)
-    
+
+    print("\n" + "=" * 60)
+    print("VERIFICAÇÃO: CHAT TEMPLATES")
+    print("=" * 60)
+
     for model_key, tokenizer in tokenizers_dict.items():
+
         formatted, last_pos = apply_template(
             tokenizer, model_key, test_prompt
         )
         tokens = tokenizer.encode(formatted, add_special_tokens=False)
-        
+        decoded_tokens = [tokenizer.decode([t]) for t in tokens]
+        last_token_decoded = tokenizer.decode([tokens[last_pos]])
+
         print(f"\n[{model_key.upper()}]")
-        print(f"Template formatado:")
-        print(formatted)
-        print(f"\nNúmero de tokens: {len(tokens)}")
-        print(f"Último token relevante: pos={last_pos} → '{tokenizer.decode([tokens[last_pos]])}'")
-        print("-"*40)
+        print(f"  Template formatado:")
+        print(f"  {repr(formatted[:200])}...")
+        print(f"\n  Tokens ({len(tokens)} total):")
+
+        # Mostrar apenas os últimos 8 tokens — mais relevantes
+        start = max(0, len(tokens) - 8)
+        for i in range(start, len(tokens)):
+            marker = " ← LAST (análise aqui)" if i == last_pos else ""
+            print(
+                f"    [{i:3d}] id={tokens[i]:6d}  "
+                f"'{decoded_tokens[i]}'{marker}"
+            )
+
+        print(
+            f"\n  ✅ Último token relevante: "
+            f"pos={last_pos} → '{last_token_decoded}'"
+        )
+        print("-" * 40)

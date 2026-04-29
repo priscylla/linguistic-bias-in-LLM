@@ -1,13 +1,26 @@
+# requirements.txt
+
+# ── Core ML ──
 torch>=2.1.0
 transformers>=4.40.0
-einops>=0.7.0
 accelerate>=0.27.0
+einops>=0.7.0
+
+# ── Hugging Face ──
 huggingface_hub>=0.23.0
 safetensors>=0.4.0
+
+# ── Dados e Análise ──
 numpy>=1.24.0
 pandas>=2.0.0
 scipy>=1.11.0
+
+# ── Visualização ──
 matplotlib>=3.8.0
+
+# ── Utilidades ──
 tqdm>=4.65.0
 python-dotenv>=1.0.0
+
+# ── Reprodutibilidade ──
 setuptools>=68.0.0

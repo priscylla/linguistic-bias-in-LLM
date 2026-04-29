@@ -1,3 +1,8 @@
+"""
+data/prompts.py
+Todas as formulações de prompts por fato, idioma e formulação.
+"""
+
 PROMPTS = {
     "aviao": {
         "pt": {
