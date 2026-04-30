@@ -894,12 +894,28 @@ def generate_all_figures(
 ):
     Path(figures_dir).mkdir(exist_ok=True)
 
+    # Gerar metrics_comparison.csv automaticamente se nao existir.
+    # Isso permite rodar run_visualization.py diretamente apos
+    # os experimentos, sem precisar chamar consolidate_results.py
+    # manualmente.
+    csv_path = os.path.join(results_dir, "metrics_comparison.csv")
+    if not os.path.exists(csv_path):
+        print("metrics_comparison.csv nao encontrado -- consolidando...")
+        from consolidate_results import consolidate
+        consolidate(results_dir)
+
     print("Carregando resultados...")
     results = load_results(results_dir)
-    df      = pd.read_csv(os.path.join(results_dir, "metrics_comparison.csv"))
 
+    if not results:
+        print("Nenhum resultado encontrado em results/")
+        print("Execute primeiro: python run_single_model.py [modelo]")
+        return
+
+    df = pd.read_csv(csv_path)
     print(f"Modelos carregados: {list(results.keys())}")
-    print(f"Runs no DataFrame: {len(df)}\n")
+    print(f"Runs no DataFrame: {len(df)}")
+
 
     # ── Fig 1: Heatmap ──
     print("[Fig 1] Logit Lens Heatmap...")

@@ -1,14 +1,15 @@
 """
 logit_lens/analyzer.py
-Cálculo das métricas definidas no design experimental
+Calculo das metricas definidas no design experimental
 a partir dos resultados brutos do LogitLensExtractor.
 
-Métricas implementadas:
-    PCC — Ponto de Convergência Cultural
-    DL  — Divergência entre Línguas
-    ED  — Estabilidade da Decisão
-    IV  — Intensidade do Viés
-    CM  — Consistência entre Modelos
+Metricas implementadas:
+    PCC        -- Ponto de Convergencia Cultural
+    ED         -- Estabilidade da Decisao
+    IV_local   -- Intensidade do Vies (entidade local)
+    IV_competing -- Probabilidade da entidade concorrente
+    CS         -- Commitment Score = IV_local - IV_competing
+    DL         -- Divergencia entre Linguas
 """
 
 import numpy as np
@@ -17,13 +18,12 @@ from typing import Dict, List, Optional, Tuple
 
 class LogitLensAnalyzer:
     """
-    Calcula métricas de viés cultural a partir de layer_results.
+    Calcula metricas de vies cultural a partir de layer_results.
 
     Args:
-        expected_entities: dict mapeando idioma → lista de tokens
-                           que representam a entidade cultural esperada.
-                           Ex: {"pt": ["Santos", "Dumont"],
-                                "en": ["Wright", "Brothers"]}
+        expected_entities:  dict {lang: [tokens da entidade local]}
+                            Ex: {"pt": ["Santos", "Dumont"],
+                                 "en": ["Wright", "Brothers"]}
     """
 
     def __init__(self, expected_entities: Dict[str, List[str]]):
@@ -35,12 +35,11 @@ class LogitLensAnalyzer:
         entities: List[str]
     ) -> float:
         """
-        Calcula probabilidade acumulada das entidades esperadas
-        nos top-K tokens de uma camada.
+        Calcula probabilidade acumulada das entidades nos top-K tokens.
 
-        Soma as probabilidades de todos os top-K tokens que
-        contêm alguma das strings de entidade esperada.
-        Usa break para evitar double-counting de um mesmo token.
+        Soma as probabilidades de todos os top-K tokens que contem
+        alguma das strings de entidade. Usa break para evitar
+        double-counting de um mesmo token.
 
         Args:
             layer_data: dict com 'top_tokens' e 'top_probs'
@@ -65,23 +64,22 @@ class LogitLensAnalyzer:
         threshold: float = 0.10
     ) -> Optional[int]:
         """
-        Ponto de Convergência Cultural (PCC).
+        Ponto de Convergencia Cultural (PCC).
 
-        Primeira camada onde a entidade esperada para esse idioma
-        entra no top-K com probabilidade >= threshold E permanece
-        estável nas próximas 3 camadas.
+        Primeira camada onde P(entidade local) >= threshold
+        e permanece estavel nas proximas 3 camadas.
 
-        A verificação de estabilidade (tolerância de 50%) filtra
-        ativações espúrias — picos momentâneos que não representam
-        comprometimento real do modelo com aquela entidade.
+        A verificacao de estabilidade (tolerancia de 50%) filtra
+        ativacoes espurias -- picos momentaneos que nao representam
+        comprometimento real do modelo.
 
         Args:
             layer_results: lista de dicts por camada
             language:      idioma atual
-            threshold:     probabilidade mínima (default: 0.10)
+            threshold:     probabilidade minima (default: 0.10)
 
         Returns:
-            Índice absoluto da camada de convergência, ou None.
+            Indice absoluto da camada de convergencia, ou None.
         """
         entities = self.expected_entities.get(language, [])
         if not entities:
@@ -93,13 +91,12 @@ class LogitLensAnalyzer:
             prob = self._entity_prob_at_layer(layer_data, entities)
 
             if prob >= threshold:
-                # Verificar estabilidade nas próximas 3 camadas
                 stable = True
                 for j in range(i + 1, min(i + 4, n_layers)):
                     next_prob = self._entity_prob_at_layer(
                         layer_results[j], entities
                     )
-                    if next_prob < threshold * 0.5:   # 50% de tolerância
+                    if next_prob < threshold * 0.5:
                         stable = False
                         break
 
@@ -113,19 +110,16 @@ class LogitLensAnalyzer:
         layer_results: List[Dict]
     ) -> Optional[int]:
         """
-        Estabilidade da Decisão (ED).
+        Estabilidade da Decisao (ED).
 
-        Primeira camada a partir da qual o token top-1 não muda
-        nas próximas 4 camadas consecutivas.
-
-        Indica quando o modelo "cristalizou" sua decisão de geração,
-        independente de qual seja a entidade escolhida.
+        Primeira camada a partir da qual o token top-1 nao muda
+        nas proximas 4 camadas consecutivas.
 
         Args:
             layer_results: lista de dicts por camada
 
         Returns:
-            Índice absoluto da camada de estabilização, ou None.
+            Indice absoluto da camada de estabilizacao, ou None.
         """
         n_layers = len(layer_results)
 
@@ -142,54 +136,15 @@ class LogitLensAnalyzer:
 
         return None
 
-    def compute_dl(
-        self,
-        layer_results_lang1: List[Dict],
-        layer_results_lang2: List[Dict],
-        language1: str,
-        language2: str
-    ) -> List[float]:
-        """
-        Divergência entre Línguas (DL).
-
-        Diferença absoluta entre as probabilidades das entidades
-        locais de cada idioma, calculada camada a camada.
-
-        Usada para a visualização do Cultural Divergence Map:
-        valores crescentes indicam que as línguas estão se
-        "separando" em suas crenças culturais internas.
-
-        Args:
-            layer_results_lang1: resultados por camada do idioma 1
-            layer_results_lang2: resultados por camada do idioma 2
-            language1:           código do idioma 1 (ex: "pt")
-            language2:           código do idioma 2 (ex: "en")
-
-        Returns:
-            Lista de floats com DL por camada.
-        """
-        entities1 = self.expected_entities.get(language1, [])
-        entities2 = self.expected_entities.get(language2, [])
-        divergences = []
-
-        for l1, l2 in zip(layer_results_lang1, layer_results_lang2):
-            prob1 = self._entity_prob_at_layer(l1, entities1)
-            prob2 = self._entity_prob_at_layer(l2, entities2)
-            divergences.append(abs(prob1 - prob2))
-
-        return divergences
-
     def compute_iv(
         self,
         layer_results: List[Dict],
         language: str
     ) -> float:
         """
-        Intensidade do Viés (IV).
+        Intensidade do Vies -- entidade local (IV_local).
 
-        Probabilidade da entidade local na última camada (output).
-        Permite rankear modelos por grau de viés cultural:
-        IV alto = modelo fortemente comprometido com a narrativa local.
+        P(entidade local) na ultima camada.
 
         Args:
             layer_results: lista de dicts por camada
@@ -201,42 +156,149 @@ class LogitLensAnalyzer:
         entities = self.expected_entities.get(language, [])
         if not entities:
             return 0.0
-
         return self._entity_prob_at_layer(layer_results[-1], entities)
+
+    def compute_commitment_score(
+        self,
+        layer_results: List[Dict],
+        language: str,
+        competing_entities: Dict[str, List[str]]
+    ) -> List[float]:
+        """
+        Commitment Score por camada:
+
+            CS[layer] = P(entidade local) - P(entidade concorrente)
+
+        Interpretacao:
+            CS > 0  -> modelo favorece narrativa local
+            CS ~= 0 -> modelo ambiguo (as narrativas competem)
+            CS < 0  -> modelo favorece narrativa concorrente
+                       mesmo quando perguntado naquele idioma
+
+        Esse e o sinal mais rico do paper -- distingue:
+            Cenario A (vies forte):   PT: Santos=0.40, Wright=0.05 -> CS=+0.35
+            Cenario B (ambiguidade):  PT: Santos=0.22, Wright=0.20 -> CS=+0.02
+
+        Ambos teriam IV_local similar mas CS completamente diferente.
+
+        Args:
+            layer_results:      lista de dicts por camada
+            language:           idioma atual
+            competing_entities: dict {lang: [tokens da entidade concorrente]}
+
+        Returns:
+            Lista de floats com CS por camada (mesmo comprimento que layer_results).
+        """
+        local_ents     = self.expected_entities.get(language, [])
+        competing_ents = competing_entities.get(language, [])
+
+        scores = []
+        for layer in layer_results:
+            p_local      = self._entity_prob_at_layer(layer, local_ents)
+            p_competing  = self._entity_prob_at_layer(layer, competing_ents)
+            scores.append(round(p_local - p_competing, 6))
+
+        return scores
+
+    def compute_dl(
+        self,
+        layer_results_lang1: List[Dict],
+        layer_results_lang2: List[Dict],
+        language1: str,
+        language2: str
+    ) -> List[float]:
+        """
+        Divergencia entre Linguas (DL).
+
+        Diferenca absoluta entre P(entidade local) de cada idioma,
+        calculada camada a camada.
+
+        Usada no Cultural Divergence Map: valores crescentes indicam
+        que as linguas estao se "separando" culturalmente.
+
+        Args:
+            layer_results_lang1: resultados por camada do idioma 1
+            layer_results_lang2: resultados por camada do idioma 2
+            language1:           codigo do idioma 1 (ex: "pt")
+            language2:           codigo do idioma 2 (ex: "en")
+
+        Returns:
+            Lista de floats com DL por camada.
+        """
+        entities1 = self.expected_entities.get(language1, [])
+        entities2 = self.expected_entities.get(language2, [])
+        divergences = []
+
+        for l1, l2 in zip(layer_results_lang1, layer_results_lang2):
+            prob1 = self._entity_prob_at_layer(l1, entities1)
+            prob2 = self._entity_prob_at_layer(l2, entities2)
+            divergences.append(round(abs(prob1 - prob2), 6))
+
+        return divergences
 
     def compute_all_metrics(
         self,
         layer_results: List[Dict],
-        language: str
+        language: str,
+        competing_entities: Dict[str, List[str]] = None
     ) -> Dict:
         """
-        Calcula todas as métricas para um único run.
+        Calcula todas as metricas para um unico run.
 
-        Retorna tanto valores absolutos (índices de camada)
-        quanto normalizados (0-1) para facilitar comparação
-        entre modelos com números diferentes de camadas.
+        Se competing_entities for fornecido, calcula tambem
+        iv_competing, commitment_final e commitment_curve.
 
         Args:
-            layer_results: lista de dicts por camada
-            language:      idioma
+            layer_results:      lista de dicts por camada
+            language:           idioma
+            competing_entities: dict {lang: [tokens concorrentes]}
+                                (opcional -- se None, metricas CS nao sao calculadas)
 
         Returns:
-            Dict com pcc, pcc_norm, ed, ed_norm, iv.
+            Dict com todas as metricas. Campos garantidos:
+                pcc, pcc_norm, ed, ed_norm,
+                iv_local, iv_competing, commitment_final, commitment_curve
         """
         n_layers = len(layer_results)
 
-        pcc = self.compute_pcc(layer_results, language)
-        ed  = self.compute_ed(layer_results)
-        iv  = self.compute_iv(layer_results, language)
+        pcc      = self.compute_pcc(layer_results, language)
+        ed       = self.compute_ed(layer_results)
+        iv_local = self.compute_iv(layer_results, language)
 
-        # Normalizar para escala 0-1
+        # Normalizar indices de camada para [0, 1]
         pcc_norm = round((pcc - 1) / (n_layers - 1), 4) if pcc else None
         ed_norm  = round((ed  - 1) / (n_layers - 1), 4) if ed  else None
 
+        # Metricas de Commitment Score (requerem competing_entities)
+        iv_competing     = 0.0
+        commitment_final = iv_local
+        commitment_curve = []
+
+        if competing_entities:
+            competing_ents   = competing_entities.get(language, [])
+            iv_competing     = self._entity_prob_at_layer(
+                layer_results[-1], competing_ents
+            )
+            commitment_final = iv_local - iv_competing
+            commitment_curve = self.compute_commitment_score(
+                layer_results, language, competing_entities
+            )
+
         return {
-            "pcc":      pcc,
-            "pcc_norm": pcc_norm,
-            "ed":       ed,
-            "ed_norm":  ed_norm,
-            "iv":       round(iv, 6)
+            # Metricas de convergencia
+            "pcc":              pcc,
+            "pcc_norm":         pcc_norm,
+            "ed":               ed,
+            "ed_norm":          ed_norm,
+
+            # Probabilidades na ultima camada
+            "iv_local":         round(iv_local, 6),
+            "iv_competing":     round(iv_competing, 6),
+
+            # Commitment Score -- a metrica mais rica
+            # CS > 0: favorece local | CS ~= 0: ambiguo | CS < 0: favorece concorrente
+            "commitment_final": round(commitment_final, 6),
+
+            # Evolucao do CS por camada -- base do Cultural Divergence Map
+            "commitment_curve": commitment_curve,
         }

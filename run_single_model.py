@@ -1,6 +1,6 @@
 """
 run_single_model.py
-Roda os experimentos para um único modelo.
+Roda os experimentos para um unico modelo.
 
 Uso:
     python run_single_model.py llama
@@ -8,10 +8,11 @@ Uso:
     python run_single_model.py qwen
     python run_single_model.py gemma
 
-Características:
-    - Checkpoint automático: salva após cada run, retoma de onde parou
-    - 36 runs por modelo (3 fatos × 4 idiomas × 3 formulações)
-    - Loga progresso e métricas em tempo real
+Caracteristicas:
+    - Checkpoint automatico: salva apos cada run, retoma de onde parou
+    - 36 runs por modelo (3 fatos x 4 idiomas x 3 formulacoes)
+    - Loga progresso e metricas em tempo real
+    - Calcula Commitment Score (CS) alem das metricas originais
 """
 
 import sys
@@ -34,11 +35,11 @@ VALID_MODELS = ["llama", "mistral", "qwen", "gemma"]
 
 def run_model(model_key: str):
     """
-    Executa todos os 36 runs para um modelo específico.
+    Executa todos os 36 runs para um modelo especifico.
 
-    Usa checkpoint incremental — se o arquivo de resultados
-    já existir, pula os runs já completados e continua
-    a partir do ponto de interrupção.
+    Usa checkpoint incremental -- se o arquivo de resultados
+    ja existir, pula os runs ja completados e continua
+    a partir do ponto de interrupcao.
 
     Args:
         model_key: um de "llama", "mistral", "qwen", "gemma"
@@ -50,15 +51,15 @@ def run_model(model_key: str):
         config.results_dir, f"{model_key}_results.json"
     )
 
-    # ── Retomar de checkpoint se existir ──
+    # Retomar de checkpoint se existir
     if os.path.exists(output_path):
         with open(output_path, "r", encoding="utf-8") as f:
             model_results = json.load(f)
-        print(f"♻️  Retomando de checkpoint: {output_path}")
+        print(f"Retomando de checkpoint: {output_path}")
     else:
         model_results = {}
 
-    # ── Carregar modelo ──
+    # Carregar modelo
     model_name = config.models[model_key]
     model, tokenizer = load_model(model_name, model_key)
     extractor = LogitLensExtractor(model, tokenizer, config.top_k_tokens)
@@ -75,7 +76,11 @@ def run_model(model_key: str):
         if fact not in model_results:
             model_results[fact] = {}
 
+        # Analyzer recebe expected_entities do fato atual
         analyzer = LogitLensAnalyzer(config.expected_entities[fact])
+
+        # competing_entities do fato atual -- usado para Commitment Score
+        competing = config.competing_entities[fact]
 
         for lang in languages:
             if lang not in model_results[fact]:
@@ -86,17 +91,17 @@ def run_model(model_key: str):
             for formulation in formulations:
                 current += 1
 
-                # ── Pular se já completado ──
+                # Pular se ja completado (checkpoint)
                 existing = model_results[fact][lang].get(formulation, {})
                 if "response" in existing and "last_token" in existing:
                     print(
-                        f"  ⏭️  [{current:3d}/{total}] "
-                        f"[{fact}][{lang}][{formulation}] — checkpoint"
+                        f"  [{current:3d}/{total}] "
+                        f"[{fact}][{lang}][{formulation}] -- checkpoint"
                     )
                     continue
 
                 print(
-                    f"\n  🔄 [{current:3d}/{total}] "
+                    f"\n  [{current:3d}/{total}] "
                     f"[{fact}][{lang}][{formulation}]"
                 )
 
@@ -108,11 +113,11 @@ def run_model(model_key: str):
                         tokenizer, model_key, prompt_raw
                     )
 
-                    # Ground truth — resposta final
+                    # Ground truth -- resposta final do modelo
                     response = extractor.get_final_response(formatted)
                     print(f"     Resposta: {response[:80]}...")
 
-                    # Keyword finding via keyword_finder robusto
+                    # Keyword finding robusto
                     from data.keyword_finder import find_keyword_position_robust
                     input_ids = tokenizer.encode(
                         formatted, add_special_tokens=False
@@ -121,7 +126,7 @@ def run_model(model_key: str):
                         tokenizer, input_ids, keyword, model_key
                     )
 
-                    # Logit Lens
+                    # Logit Lens -- forward pass e extracao por camada
                     logit_data = extractor.extract(
                         prompt=formatted,
                         keyword=keyword,
@@ -129,7 +134,7 @@ def run_model(model_key: str):
                         keyword_pos_override=kw_pos
                     )
 
-                    # Normalizar índices de camada para 0-1
+                    # Normalizar indices de camada para [0, 1]
                     logit_data["last_token"] = normalize_layer_results(
                         logit_data["last_token"], model_key
                     )
@@ -138,14 +143,20 @@ def run_model(model_key: str):
                             logit_data["keyword_token"], model_key
                         )
 
-                    # Calcular métricas
+                    # Calcular metricas -- incluindo Commitment Score
+                    # competing_entities passado para habilitar CS
                     metrics_last = analyzer.compute_all_metrics(
-                        logit_data["last_token"], lang
+                        logit_data["last_token"],
+                        lang,
+                        competing_entities=competing
                     )
+
                     metrics_kw = None
                     if logit_data["keyword_token"]:
                         metrics_kw = analyzer.compute_all_metrics(
-                            logit_data["keyword_token"], lang
+                            logit_data["keyword_token"],
+                            lang,
+                            competing_entities=competing
                         )
 
                     # Armazenar resultado completo
@@ -163,33 +174,35 @@ def run_model(model_key: str):
                         "metrics_keyword":   metrics_kw
                     }
 
-                    # Log das métricas
+                    # Log resumido das metricas principais
                     m = metrics_last
                     print(
-                        f"     PCC: {m['pcc']} ({m['pcc_norm']})  "
-                        f"IV: {m['iv']:.4f}  "
-                        f"KW: {kw_strategy}"
+                        f"     P(local):    {m['iv_local']:.4f}\n"
+                        f"     P(compet.):  {m['iv_competing']:.4f}\n"
+                        f"     CS_final:    {m['commitment_final']:+.4f}  "
+                        f"({'favorece local' if m['commitment_final'] > 0.05 else 'ambiguo' if m['commitment_final'] > -0.05 else 'favorece concorrente'})\n"
+                        f"     PCC:         {m['pcc_norm']}\n"
+                        f"     KW strategy: {kw_strategy}"
                     )
 
                 except Exception as e:
-                    print(f"     ❌ ERRO: {e}")
+                    print(f"     ERRO: {e}")
                     errors.append({
                         "fact": fact, "lang": lang,
                         "form": formulation, "error": str(e)
                     })
-                    # Registrar erro mas continuar
                     model_results[fact][lang][formulation] = {
                         "error": str(e)
                     }
 
-                # ── Checkpoint após cada run ──
+                # Checkpoint apos cada run
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(
                         model_results, f,
                         ensure_ascii=False, indent=2
                     )
 
-    # ── Resumo final ──
+    # Resumo final
     completed = sum(
         1 for fact in model_results.values()
         for lang in fact.values()
@@ -198,13 +211,13 @@ def run_model(model_key: str):
     )
 
     print(f"\n{'='*50}")
-    print(f"✅ {model_key} completo")
-    print(f"   Runs concluídos: {completed}/{total}")
+    print(f"  {model_key} completo")
+    print(f"  Runs concluidos: {completed}/{total}")
     if errors:
-        print(f"   Erros: {len(errors)}")
+        print(f"  Erros: {len(errors)}")
         for e in errors:
-            print(f"     [{e['fact']}][{e['lang']}][{e['form']}]: {e['error'][:60]}")
-    print(f"   Resultados: {output_path}")
+            print(f"    [{e['fact']}][{e['lang']}][{e['form']}]: {e['error'][:60]}")
+    print(f"  Resultados: {output_path}")
     print(f"{'='*50}")
 
     del model, tokenizer, extractor
