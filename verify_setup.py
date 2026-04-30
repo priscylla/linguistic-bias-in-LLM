@@ -119,7 +119,7 @@ def check_keyword_finding(tokenizers: dict, config: ExperimentConfig):
     for model_key, tokenizer in tokenizers.items():
         print(f"\n[{model_key.upper()}]")
 
-        for fact in ["aviao", "telefone", "radio"]:
+        for fact in ["aviao", "telefone"]:
             for lang in ["pt", "en", "de", "it"]:
 
                 keyword   = config.keyword_tokens[fact][lang]

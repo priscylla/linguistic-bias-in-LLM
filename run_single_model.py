@@ -8,11 +8,13 @@ Uso:
     python run_single_model.py qwen
     python run_single_model.py gemma
 
-Caracteristicas:
-    - Checkpoint automatico: salva apos cada run, retoma de onde parou
-    - 36 runs por modelo (3 fatos x 4 idiomas x 3 formulacoes)
-    - Loga progresso e metricas em tempo real
-    - Calcula Commitment Score (CS) alem das metricas originais
+Arquitetura de dois prompts:
+    1. CHAT PROMPT    → get_final_response() → analise comportamental
+    2. COMPLETION PROMPT → extractor.extract() → Logit Lens por camada
+
+O Completion Prompt ("O aviao foi inventado por") tem o ultimo token
+como preposicao, forcando o modelo a prever o nome do inventor.
+Isso replica a metodologia do TalkTuner (2024).
 """
 
 import sys
@@ -22,7 +24,7 @@ import torch
 from pathlib import Path
 
 from config.experiment_config import ExperimentConfig
-from data.prompts import PROMPTS
+from data.prompts import PROMPTS, COMPLETION_PROMPTS
 from models.model_loader import load_model
 from models.chat_template import apply_template
 from logit_lens.extractor import LogitLensExtractor
@@ -34,16 +36,6 @@ VALID_MODELS = ["llama", "mistral", "qwen", "gemma"]
 
 
 def run_model(model_key: str):
-    """
-    Executa todos os 36 runs para um modelo especifico.
-
-    Usa checkpoint incremental -- se o arquivo de resultados
-    ja existir, pula os runs ja completados e continua
-    a partir do ponto de interrupcao.
-
-    Args:
-        model_key: um de "llama", "mistral", "qwen", "gemma"
-    """
     config = ExperimentConfig()
     Path(config.results_dir).mkdir(exist_ok=True)
 
@@ -59,7 +51,6 @@ def run_model(model_key: str):
     else:
         model_results = {}
 
-    # Carregar modelo
     model_name = config.models[model_key]
     model, tokenizer = load_model(model_name, model_key)
     extractor = LogitLensExtractor(model, tokenizer, config.top_k_tokens)
@@ -76,22 +67,19 @@ def run_model(model_key: str):
         if fact not in model_results:
             model_results[fact] = {}
 
-        # Analyzer recebe expected_entities do fato atual
-        analyzer = LogitLensAnalyzer(config.expected_entities[fact])
-
-        # competing_entities do fato atual -- usado para Commitment Score
+        analyzer  = LogitLensAnalyzer(config.expected_entities[fact])
         competing = config.competing_entities[fact]
 
         for lang in languages:
             if lang not in model_results[fact]:
                 model_results[fact][lang] = {}
 
-            keyword = config.keyword_tokens[fact][lang]
+            keyword             = config.keyword_tokens[fact][lang]
+            completion_prompt   = COMPLETION_PROMPTS[fact][lang]
 
             for formulation in formulations:
                 current += 1
 
-                # Pular se ja completado (checkpoint)
                 existing = model_results[fact][lang].get(formulation, {})
                 if "response" in existing and "last_token" in existing:
                     print(
@@ -100,41 +88,28 @@ def run_model(model_key: str):
                     )
                     continue
 
-                print(
-                    f"\n  [{current:3d}/{total}] "
-                    f"[{fact}][{lang}][{formulation}]"
-                )
+                print(f"\n  [{current:3d}/{total}] [{fact}][{lang}][{formulation}]")
 
                 try:
-                    prompt_raw = PROMPTS[fact][lang][formulation]
-
-                    # Aplicar chat template
-                    formatted, last_pos = apply_template(
-                        tokenizer, model_key, prompt_raw
+                    # ── 1. Resposta comportamental (chat template) ──
+                    chat_prompt = PROMPTS[fact][lang][formulation]
+                    formatted_chat, _ = apply_template(
+                        tokenizer, model_key, chat_prompt
                     )
-
-                    # Ground truth -- resposta final do modelo
-                    response = extractor.get_final_response(formatted)
+                    response = extractor.get_final_response(formatted_chat)
                     print(f"     Resposta: {response[:80]}...")
 
-                    # Keyword finding robusto
-                    from data.keyword_finder import find_keyword_position_robust
-                    input_ids = tokenizer.encode(
-                        formatted, add_special_tokens=False
-                    )
-                    kw_pos, kw_strategy = find_keyword_position_robust(
-                        tokenizer, input_ids, keyword, model_key
-                    )
-
-                    # Logit Lens -- forward pass e extracao por camada
+                    # ── 2. Logit Lens (completion-style prompt) ──
+                    # Sem chat template — ultimo token e a preposicao
+                    # que forca a predicao do nome do inventor
                     logit_data = extractor.extract(
-                        prompt=formatted,
-                        keyword=keyword,
-                        last_relevant_pos=last_pos,
-                        keyword_pos_override=kw_pos
+                        prompt=completion_prompt,
+                        keyword=keyword
+                        # last_relevant_pos=None → usa len-1 automaticamente
+                        # que e o ultimo token da completion ("por","by","von","da")
                     )
 
-                    # Normalizar indices de camada para [0, 1]
+                    # Normalizar indices de camada
                     logit_data["last_token"] = normalize_layer_results(
                         logit_data["last_token"], model_key
                     )
@@ -143,14 +118,12 @@ def run_model(model_key: str):
                             logit_data["keyword_token"], model_key
                         )
 
-                    # Calcular metricas -- incluindo Commitment Score
-                    # competing_entities passado para habilitar CS
+                    # Calcular metricas
                     metrics_last = analyzer.compute_all_metrics(
                         logit_data["last_token"],
                         lang,
                         competing_entities=competing
                     )
-
                     metrics_kw = None
                     if logit_data["keyword_token"]:
                         metrics_kw = analyzer.compute_all_metrics(
@@ -159,34 +132,40 @@ def run_model(model_key: str):
                             competing_entities=competing
                         )
 
-                    # Armazenar resultado completo
                     model_results[fact][lang][formulation] = {
-                        "prompt_raw":        prompt_raw,
-                        "prompt_formatted":  formatted,
-                        "response":          response,
-                        "keyword_strategy":  kw_strategy,
-                        "keyword_pos":       kw_pos,
-                        "last_relevant_pos": last_pos,
-                        "n_layers":          logit_data["n_layers"],
-                        "last_token":        logit_data["last_token"],
-                        "keyword_token":     logit_data["keyword_token"],
-                        "metrics_last":      metrics_last,
-                        "metrics_keyword":   metrics_kw
+                        # Prompts usados
+                        "prompt_raw":         chat_prompt,
+                        "completion_prompt":  completion_prompt,
+                        "prompt_formatted":   formatted_chat,
+
+                        # Resultados comportamentais
+                        "response":           response,
+
+                        # Metadados do Logit Lens
+                        "keyword_strategy":   logit_data.get("keyword_strategy", "N/A"),
+                        "keyword_pos":        logit_data["keyword_pos"],
+                        "n_layers":           logit_data["n_layers"],
+
+                        # Dados do Logit Lens por camada
+                        "last_token":         logit_data["last_token"],
+                        "keyword_token":      logit_data["keyword_token"],
+
+                        # Metricas calculadas
+                        "metrics_last":       metrics_last,
+                        "metrics_keyword":    metrics_kw
                     }
 
-                    # Log resumido das metricas principais
                     m = metrics_last
                     print(
                         f"     P(local):    {m['iv_local']:.4f}\n"
                         f"     P(compet.):  {m['iv_competing']:.4f}\n"
-                        f"     CS_final:    {m['commitment_final']:+.4f}  "
-                        f"({'favorece local' if m['commitment_final'] > 0.05 else 'ambiguo' if m['commitment_final'] > -0.05 else 'favorece concorrente'})\n"
-                        f"     PCC:         {m['pcc_norm']}\n"
-                        f"     KW strategy: {kw_strategy}"
+                        f"     CS_final:    {m['commitment_final']:+.4f}"
                     )
 
                 except Exception as e:
                     print(f"     ERRO: {e}")
+                    import traceback
+                    traceback.print_exc()
                     errors.append({
                         "fact": fact, "lang": lang,
                         "form": formulation, "error": str(e)
@@ -197,12 +176,8 @@ def run_model(model_key: str):
 
                 # Checkpoint apos cada run
                 with open(output_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        model_results, f,
-                        ensure_ascii=False, indent=2
-                    )
+                    json.dump(model_results, f, ensure_ascii=False, indent=2)
 
-    # Resumo final
     completed = sum(
         1 for fact in model_results.values()
         for lang in fact.values()
@@ -211,12 +186,11 @@ def run_model(model_key: str):
     )
 
     print(f"\n{'='*50}")
-    print(f"  {model_key} completo")
-    print(f"  Runs concluidos: {completed}/{total}")
+    print(f"  {model_key} completo: {completed}/{total} runs")
     if errors:
         print(f"  Erros: {len(errors)}")
         for e in errors:
-            print(f"    [{e['fact']}][{e['lang']}][{e['form']}]: {e['error'][:60]}")
+            print(f"    [{e['fact']}][{e['lang']}][e['form']]: {e['error'][:60]}")
     print(f"  Resultados: {output_path}")
     print(f"{'='*50}")
 
@@ -228,5 +202,4 @@ if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in VALID_MODELS:
         print(f"Uso: python run_single_model.py [{' | '.join(VALID_MODELS)}]")
         sys.exit(1)
-
     run_model(sys.argv[1])
