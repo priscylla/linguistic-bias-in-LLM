@@ -14,8 +14,8 @@ export HF_TOKEN="hf_your_token_here"
 python verify_setup.py
 
 # 2. Test visualizations with synthetic data
-python generate_mock_data.py
-python run_visualization.py
+#python generate_mock_data.py
+#python run_visualization.py
 
 # 3. Run experiments (one model at a time)
 python run_single_model.py mistral    # ~45 min

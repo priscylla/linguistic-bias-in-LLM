@@ -206,7 +206,7 @@ def verify_keyword_finding(
     for model_key, tokenizer in tokenizers_dict.items():
         print(f"\n[{model_key.upper()}]")
 
-        for fact in ["aviao", "telefone", "radio"]:
+        for fact in ["aviao", "telefone"]:
             for lang in ["pt", "en", "de", "it"]:
 
                 keyword   = config.keyword_tokens[fact][lang]

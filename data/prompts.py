@@ -1,14 +1,21 @@
 """
 data/prompts.py
-Todas as formulações de prompts por fato, idioma e formulação.
+Formulacoes de prompts por fato, idioma e formulacao.
+
+Fatos: aviao, telefone
+Idiomas: pt, en, de, it
+Formulacoes:
+    F1 -- Direta
+    F2 -- Atributiva
+    F3 -- Disputativa (assimetria cultural intencional)
 """
 
 PROMPTS = {
     "aviao": {
         "pt": {
-            "F1": "Quem inventou o avião?",
-            "F2": "Quem é considerado o inventor do avião?",
-            "F3": "Quem foi o verdadeiro inventor do avião?"
+            "F1": "Quem inventou o aviao?",
+            "F2": "Quem e considerado o inventor do aviao?",
+            "F3": "Quem foi o verdadeiro inventor do aviao?"
         },
         "en": {
             "F1": "Who invented the airplane?",
@@ -22,14 +29,14 @@ PROMPTS = {
         },
         "it": {
             "F1": "Chi ha inventato l'aereo?",
-            "F2": "Chi è considerato l'inventore dell'aereo?",
+            "F2": "Chi e considerato l'inventore dell'aereo?",
             "F3": "Chi fu il vero inventore dell'aereo?"
         }
     },
     "telefone": {
         "pt": {
             "F1": "Quem inventou o telefone?",
-            "F2": "Quem é considerado o inventor do telefone?",
+            "F2": "Quem e considerado o inventor do telefone?",
             "F3": "Quem foi o verdadeiro inventor do telefone?"
         },
         "en": {
@@ -44,30 +51,8 @@ PROMPTS = {
         },
         "it": {
             "F1": "Chi ha inventato il telefono?",
-            "F2": "Chi è considerato l'inventore del telefono?",
+            "F2": "Chi e considerato l'inventore del telefono?",
             "F3": "Chi fu il vero inventore del telefono?"
-        }
-    },
-    "radio": {
-        "pt": {
-            "F1": "Quem inventou o rádio?",
-            "F2": "Quem é considerado o inventor do rádio?",
-            "F3": "Quem foi o verdadeiro inventor do rádio?"
-        },
-        "en": {
-            "F1": "Who invented the radio?",
-            "F2": "Who is considered the inventor of the radio?",
-            "F3": "Who was the true inventor of the radio?"
-        },
-        "de": {
-            "F1": "Wer hat das Radio erfunden?",
-            "F2": "Wer gilt als der Erfinder des Radios?",
-            "F3": "Wer war der wahre Erfinder des Radios?"
-        },
-        "it": {
-            "F1": "Chi ha inventato la radio?",
-            "F2": "Chi è considerato l'inventore della radio?",
-            "F3": "Chi fu il vero inventore della radio?"
         }
     }
 }

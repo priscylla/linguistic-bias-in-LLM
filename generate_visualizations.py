@@ -50,7 +50,7 @@ MODEL_LABELS = {
 FACT_LABELS = {
     "aviao":    "Airplane",
     "telefone": "Telephone",
-    "radio":    "Radio",
+    
 }
 FORMULATION_STYLES = {
     "F1": {"linestyle": "-",  "linewidth": 2.0, "label": "F1 — Direct"},
@@ -102,12 +102,6 @@ ENTITY_MAP = {
         "en": {"local": ["Bell", "Graham"], "dominant": ["Meucci"]},
         "de": {"local": ["Bell", "Graham"], "dominant": ["Meucci"]},
         "it": {"local": ["Meucci", "Antonio"], "dominant": ["Bell", "Graham"]},
-    },
-    "radio": {
-        "pt": {"local": ["Marconi", "Guglielmo"], "dominant": ["Tesla"]},
-        "en": {"local": ["Tesla", "Nikola"], "dominant": ["Marconi"]},
-        "de": {"local": ["Marconi", "Tesla"], "dominant": []},
-        "it": {"local": ["Marconi", "Guglielmo"], "dominant": ["Tesla"]},
     },
 }
 
@@ -460,7 +454,7 @@ def plot_pcc_comparison(
     set_style()
 
     data     = df[df["formulation"] == formulation].dropna(subset=["pcc_norm"])
-    facts    = ["aviao", "telefone", "radio"]
+    facts    = ["aviao", "telefone"]
     models   = ["llama", "mistral", "qwen", "gemma"]
     langs    = ["pt", "en", "de", "it"]
 
@@ -930,7 +924,7 @@ def generate_all_figures(
 
     # ── Fig 2: Cultural Divergence Map ──
     print("\n[Fig 2] Cultural Divergence Map...")
-    for fact in ["aviao", "telefone", "radio"]:
+    for fact in ["aviao", "telefone"]:
         for form in ["F1", "F3"]:
             plot_cultural_divergence_map(
                 results, fact=fact, formulation=form,
@@ -958,7 +952,7 @@ def generate_all_figures(
 
     # ── Fig 5: Formulation Comparison ──
     print("\n[Fig 5] Formulation Comparison...")
-    for fact in ["aviao", "telefone", "radio"]:
+    for fact in ["aviao", "telefone"]:
         for model_key in ["llama", "mistral", "qwen", "gemma"]:
             plot_formulation_comparison(
                 results, fact=fact, model_key=model_key,
@@ -970,7 +964,7 @@ def generate_all_figures(
 
     # ── Fig 6: Position Comparison ──
     print("\n[Fig 6] Position Comparison (last vs keyword token)...")
-    for fact in ["aviao", "telefone", "radio"]:
+    for fact in ["aviao", "telefone"]:
         plot_position_comparison(
             results, fact=fact,
             formulation="F1", model_key="llama",

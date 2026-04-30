@@ -25,7 +25,7 @@ def check_all_results(results_dir: str = "results") -> bool:
         True se todos os 288 runs estão válidos.
     """
     models       = ["llama", "mistral", "qwen", "gemma"]
-    facts        = ["aviao", "telefone", "radio"]
+    facts        = ["aviao", "telefone"]
     languages    = ["pt", "en", "de", "it"]
     formulations = ["F1", "F2", "F3"]
 

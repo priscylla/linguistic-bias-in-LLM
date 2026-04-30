@@ -64,7 +64,7 @@ def run_model(model_key: str):
     model, tokenizer = load_model(model_name, model_key)
     extractor = LogitLensExtractor(model, tokenizer, config.top_k_tokens)
 
-    facts        = ["aviao", "telefone", "radio"]
+    facts        = ["aviao", "telefone"]
     languages    = ["pt", "en", "de", "it"]
     formulations = ["F1", "F2", "F3"]
 

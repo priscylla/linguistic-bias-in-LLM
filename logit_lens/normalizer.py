@@ -17,10 +17,12 @@ MODEL_LAYERS = {
     "gemma":   42,
 }
 
+# Idiomas com inventor local relevante para cada fato
+# aviao:    PT tem Santos Dumont
+# telefone: IT tem Meucci
 STAKE_MAP = {
     "aviao":    ["pt"],
     "telefone": ["it"],
-    "radio":    ["it"],
 }
 
 
