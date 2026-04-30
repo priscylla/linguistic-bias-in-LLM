@@ -1,9 +1,3 @@
-"""
-models/model_loader.py
-Carregamento de modelos com suporte a token HuggingFace
-para modelos restritos (LLaMA, Gemma).
-"""
-
 import os
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM

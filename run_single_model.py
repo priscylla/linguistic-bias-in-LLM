@@ -1,22 +1,3 @@
-"""
-run_single_model.py
-Roda os experimentos para um unico modelo.
-
-Uso:
-    python run_single_model.py llama
-    python run_single_model.py mistral
-    python run_single_model.py qwen
-    python run_single_model.py gemma
-
-Arquitetura de dois prompts:
-    1. CHAT PROMPT    → get_final_response() → analise comportamental
-    2. COMPLETION PROMPT → extractor.extract() → Logit Lens por camada
-
-O Completion Prompt ("O aviao foi inventado por") tem o ultimo token
-como preposicao, forcando o modelo a prever o nome do inventor.
-Isso replica a metodologia do TalkTuner (2024).
-"""
-
 import sys
 import os
 import json
@@ -24,9 +5,8 @@ import torch
 from pathlib import Path
 
 from config.experiment_config import ExperimentConfig
-from data.prompts import PROMPTS, COMPLETION_PROMPTS
+from data.prompts import COMPLETION_PROMPTS
 from models.model_loader import load_model
-from models.chat_template import apply_template
 from logit_lens.extractor import LogitLensExtractor
 from logit_lens.analyzer import LogitLensAnalyzer
 from logit_lens.normalizer import normalize_layer_results
@@ -43,7 +23,6 @@ def run_model(model_key: str):
         config.results_dir, f"{model_key}_results.json"
     )
 
-    # Retomar de checkpoint se existir
     if os.path.exists(output_path):
         with open(output_path, "r", encoding="utf-8") as f:
             model_results = json.load(f)
@@ -74,8 +53,7 @@ def run_model(model_key: str):
             if lang not in model_results[fact]:
                 model_results[fact][lang] = {}
 
-            keyword             = config.keyword_tokens[fact][lang]
-            completion_prompt   = COMPLETION_PROMPTS[fact][lang]
+            keyword = config.keyword_tokens[fact][lang]
 
             for formulation in formulations:
                 current += 1
@@ -88,28 +66,26 @@ def run_model(model_key: str):
                     )
                     continue
 
+                prompt = COMPLETION_PROMPTS[fact][lang][formulation]
+
                 print(f"\n  [{current:3d}/{total}] [{fact}][{lang}][{formulation}]")
+                print(f"     Prompt: \"{prompt}\"")
 
                 try:
-                    # ── 1. Resposta comportamental (chat template) ──
-                    chat_prompt = PROMPTS[fact][lang][formulation]
-                    formatted_chat, _ = apply_template(
-                        tokenizer, model_key, chat_prompt
-                    )
-                    response = extractor.get_final_response(formatted_chat)
+                    # ── 1. Resposta comportamental ──
+                    # Mesmo prompt completion usado diretamente
+                    # sem chat template — modelo completa a frase
+                    response = extractor.get_final_response(prompt)
                     print(f"     Resposta: {response[:80]}...")
 
-                    # ── 2. Logit Lens (completion-style prompt) ──
-                    # Sem chat template — ultimo token e a preposicao
-                    # que forca a predicao do nome do inventor
+                    # ── 2. Logit Lens ──
+                    # Mesmo prompt — analisa ativacoes internas
+                    # na posicao do ultimo token da completion
                     logit_data = extractor.extract(
-                        prompt=completion_prompt,
+                        prompt=prompt,
                         keyword=keyword
-                        # last_relevant_pos=None → usa len-1 automaticamente
-                        # que e o ultimo token da completion ("por","by","von","da")
                     )
 
-                    # Normalizar indices de camada
                     logit_data["last_token"] = normalize_layer_results(
                         logit_data["last_token"], model_key
                     )
@@ -118,54 +94,39 @@ def run_model(model_key: str):
                             logit_data["keyword_token"], model_key
                         )
 
-                    # Calcular metricas
                     metrics_last = analyzer.compute_all_metrics(
-                        logit_data["last_token"],
-                        lang,
+                        logit_data["last_token"], lang,
                         competing_entities=competing
                     )
                     metrics_kw = None
                     if logit_data["keyword_token"]:
                         metrics_kw = analyzer.compute_all_metrics(
-                            logit_data["keyword_token"],
-                            lang,
+                            logit_data["keyword_token"], lang,
                             competing_entities=competing
                         )
 
                     model_results[fact][lang][formulation] = {
-                        # Prompts usados
-                        "prompt_raw":         chat_prompt,
-                        "completion_prompt":  completion_prompt,
-                        "prompt_formatted":   formatted_chat,
-
-                        # Resultados comportamentais
-                        "response":           response,
-
-                        # Metadados do Logit Lens
-                        "keyword_strategy":   logit_data.get("keyword_strategy", "N/A"),
-                        "keyword_pos":        logit_data["keyword_pos"],
-                        "n_layers":           logit_data["n_layers"],
-
-                        # Dados do Logit Lens por camada
-                        "last_token":         logit_data["last_token"],
-                        "keyword_token":      logit_data["keyword_token"],
-
-                        # Metricas calculadas
-                        "metrics_last":       metrics_last,
-                        "metrics_keyword":    metrics_kw
+                        "prompt":          prompt,
+                        "response":        response,
+                        "keyword_strategy": logit_data.get("keyword_strategy", "N/A"),
+                        "keyword_pos":     logit_data["keyword_pos"],
+                        "n_layers":        logit_data["n_layers"],
+                        "last_token":      logit_data["last_token"],
+                        "keyword_token":   logit_data["keyword_token"],
+                        "metrics_last":    metrics_last,
+                        "metrics_keyword": metrics_kw
                     }
 
                     m = metrics_last
                     print(
-                        f"     P(local):    {m['iv_local']:.4f}\n"
-                        f"     P(compet.):  {m['iv_competing']:.4f}\n"
-                        f"     CS_final:    {m['commitment_final']:+.4f}"
+                        f"     P(local):   {m['iv_local']:.4f}\n"
+                        f"     P(compet.): {m['iv_competing']:.4f}\n"
+                        f"     CS_final:   {m['commitment_final']:+.4f}"
                     )
 
                 except Exception as e:
                     print(f"     ERRO: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    import traceback; traceback.print_exc()
                     errors.append({
                         "fact": fact, "lang": lang,
                         "form": formulation, "error": str(e)
@@ -174,14 +135,13 @@ def run_model(model_key: str):
                         "error": str(e)
                     }
 
-                # Checkpoint apos cada run
                 with open(output_path, "w", encoding="utf-8") as f:
                     json.dump(model_results, f, ensure_ascii=False, indent=2)
 
     completed = sum(
-        1 for fact in model_results.values()
-        for lang in fact.values()
-        for form in lang.values()
+        1 for f in model_results.values()
+        for l in f.values()
+        for form in l.values()
         if "response" in form
     )
 
@@ -190,7 +150,7 @@ def run_model(model_key: str):
     if errors:
         print(f"  Erros: {len(errors)}")
         for e in errors:
-            print(f"    [{e['fact']}][{e['lang']}][e['form']]: {e['error'][:60]}")
+            print(f"    [{e['fact']}][{e['lang']}][{e['form']}]: {e['error'][:60]}")
     print(f"  Resultados: {output_path}")
     print(f"{'='*50}")
 
