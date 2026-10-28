@@ -1,57 +1,44 @@
-from typing import Dict, List, Optional
+"""
+logit_lens/analyzer.py
+Métricas por run a partir das probabilidades exatas por camada.
+
+As probabilidades das entidades vêm de `entity_probs` em cada camada,
+calculadas pelo extractor como a soma exata sobre os token IDs de cada
+conjunto, na distribuição completa. Não há comparação de substrings
+nem truncamento top-k.
+"""
+
+from typing import Dict, List
+
+
+def _set_curve(layer_results: List[Dict], set_name: str) -> List[float]:
+    """Curva de P(conjunto) por camada; falha se o formato for antigo."""
+    curve = []
+    for l in layer_results:
+        if "entity_probs" not in l:
+            raise ValueError(
+                f"Camada {l.get('layer')} sem 'entity_probs': resultado no "
+                f"formato antigo (só top-k). Rode o Logit Lens de novo; "
+                f"métricas não são mais calculadas por substring no top-k."
+            )
+        curve.append(float(l["entity_probs"].get(set_name, 0.0)))
+    return curve
 
 
 class LogitLensAnalyzer:
 
-    def __init__(self, expected_entities: Dict[str, List[str]]):
-        self.expected_entities = expected_entities
+    def __init__(self, local_set: str = "local", competing_set: str = "competing"):
+        # Nomes dos conjuntos em entity_probs (definidos no extract)
+        self.local_set     = local_set
+        self.competing_set = competing_set
 
-    def _entity_prob_at_layer(
-        self,
-        layer_data: Dict,
-        entities: List[str]
-    ) -> float:
-        """
-        Probabilidade acumulada das entidades nos top-K tokens.
-
-        Para cada token no top-K:
-          1. Remove espacos e converte para minusculas (normaliza)
-          2. Verifica se alguma entidade e substring do token normalizado
-          3. Soma a probabilidade se houver match (break evita double-counting)
-
-        Normalizacao garante que " Alexander", "ALEXANDER" e "alexander"
-        sejam todos capturados corretamente.
-
-        Entidades curtas (ex: "Or" para Orville) podem causar falsos
-        positivos em tokens como "inventor" ou "original". Por isso,
-        o experiment_config nao deve incluir entidades com menos de
-        3 caracteres, exceto quando o token curto e esperado no top-K
-        (ex: "Or" como prefixo de "Orville" nos tokenizers BPE).
-        """
-        total = 0.0
-        for token, prob in zip(layer_data["top_tokens"], layer_data["top_probs"]):
-            t = token.strip().lower()
-            for entity in entities:
-                if entity.lower() in t:
-                    total += prob
-                    break  # evitar double-counting por token
-        return total
-
-    def compute_all_metrics(
-        self,
-        layer_results: List[Dict],
-        language: str,
-        competing_entities: Optional[Dict[str, List[str]]] = None
-    ) -> Dict:
+    def compute_all_metrics(self, layer_results: List[Dict]) -> Dict:
         """
         Calcula todas as metricas para um unico run.
 
         Args:
-            layer_results:      lista de dicts por camada, cada um com:
-                                  layer, layer_norm, top_tokens, top_probs
-            language:           codigo do idioma (ex: "pt", "en", "de", "it")
-            competing_entities: dict {lang: [tokens da entidade concorrente]}
-                                Se None, metricas de CS nao sao calculadas.
+            layer_results: lista de dicts por camada, cada um com:
+                           layer, layer_norm, entity_probs
 
         Returns:
             Dict com todas as metricas. Campos garantidos:
@@ -64,18 +51,9 @@ class LogitLensAnalyzer:
         if not layer_results:
             return {}
 
-        local_ents = self.expected_entities.get(language, [])
-        comp_ents  = (competing_entities or {}).get(language, [])
-
-        # ── Curvas de probabilidade por camada ──
-        p_local_curve = [
-            self._entity_prob_at_layer(l, local_ents)
-            for l in layer_results
-        ]
-        p_comp_curve = [
-            self._entity_prob_at_layer(l, comp_ents)
-            for l in layer_results
-        ]
+        # ── Curvas de probabilidade por camada (valores exatos) ──
+        p_local_curve = _set_curve(layer_results, self.local_set)
+        p_comp_curve  = _set_curve(layer_results, self.competing_set)
         cs_curve = [
             round(pl - pc, 6)
             for pl, pc in zip(p_local_curve, p_comp_curve)

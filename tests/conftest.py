@@ -82,3 +82,61 @@ def arch(request):
 @pytest.fixture
 def fake_tokenizer():
     return FakeTokenizer()
+
+
+class WordTokenizer:
+    """
+    Tokenizer de palavras com convenção de espaço inicial (estilo BPE):
+    " Bell" e " bella" são tokens distintos. Palavras em `splits` se
+    dividem em fragmentos (ex.: " Meucci" -> " Me" + "ucci").
+    Cada token novo recebe o próximo id livre (ids únicos).
+    """
+
+    pad_token_id = 0
+    BOS = 1
+
+    def __init__(self, splits=None, merges=None):
+        self.splits = splits or {}
+        # merges: {("tok_a", "tok_b"): "tok_ab"} — junta dois tokens
+        # na fronteira (simula boundary merge)
+        self.merges = merges or {}
+        self.vocab  = {"<s>": self.BOS}
+        self.inv    = {self.BOS: "<s>"}
+
+    def _id(self, tok):
+        if tok not in self.vocab:
+            i = len(self.vocab) + 1
+            self.vocab[tok] = i
+            self.inv[i] = tok
+        return self.vocab[tok]
+
+    def _pieces(self, text):
+        import re
+        pieces = []
+        for w in re.findall(r"\s?\S+", text):
+            pieces.extend(self.splits.get(w, [w]))
+        changed = True
+        while changed:
+            changed = False
+            for i in range(len(pieces) - 1):
+                m = self.merges.get((pieces[i], pieces[i + 1]))
+                if m:
+                    pieces[i:i + 2] = [m]
+                    changed = True
+                    break
+        return pieces
+
+    def __call__(self, text, return_tensors=None):
+        ids = [self.BOS] + [self._id(t) for t in self._pieces(text)]
+        if return_tensors == "pt":
+            t = torch.tensor([ids])
+            return _Batch(input_ids=t, attention_mask=torch.ones_like(t))
+        return {"input_ids": ids}
+
+    def decode(self, ids, **kwargs):
+        return "".join(self.inv.get(i, "?") for i in ids)
+
+
+@pytest.fixture
+def word_tokenizer():
+    return WordTokenizer(splits={" Meucci": [" Me", "ucci"]})

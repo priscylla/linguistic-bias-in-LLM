@@ -54,8 +54,7 @@ def compute_all(results_dir: str = "results") -> dict:
 
         for fact in facts:
             computed[model][fact] = {}
-            analyzer  = LogitLensAnalyzer(config.expected_entities[fact])
-            competing = config.competing_entities[fact]
+            analyzer  = LogitLensAnalyzer()
 
             for lang in langs:
                 computed[model][fact][lang] = {}
@@ -68,16 +67,10 @@ def compute_all(results_dir: str = "results") -> dict:
                         continue
 
                     # Calcular metricas — sem tocar no JSON original
-                    metrics_last = analyzer.compute_all_metrics(
-                        run["last_token"], lang,
-                        competing_entities=competing
-                    )
+                    metrics_last = analyzer.compute_all_metrics(run["last_token"])
                     metrics_kw = None
                     if run.get("keyword_token"):
-                        metrics_kw = analyzer.compute_all_metrics(
-                            run["keyword_token"], lang,
-                            competing_entities=competing
-                        )
+                        metrics_kw = analyzer.compute_all_metrics(run["keyword_token"])
 
                     computed[model][fact][lang][form] = {
                         "prompt":          run.get("prompt", ""),

@@ -21,6 +21,10 @@ import matplotlib.patches as mpatches
 from matplotlib.lines import Line2D
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config.experiment_config import ExperimentConfig
+from plot_utils import smooth_curve, smoothing_suffix
+
 # ── Constantes de estilo ──────────────────────────────────────
 LANG_COLORS = {"pt": "#2166AC", "en": "#D6604D", "de": "#4DAC26", "it": "#8E0152"}
 LANG_LABELS = {"pt": "Portuguese (BR)", "en": "English (US)", "de": "German", "it": "Italian"}
@@ -50,16 +54,6 @@ def set_style():
     })
 
 
-def smooth(arr, w=3):
-    """Média móvel — janela recortada nas bordas (equivalente ao JS)."""
-    result = []
-    for i in range(len(arr)):
-        s = max(0, i - w // 2)
-        e = min(len(arr), s + w)
-        result.append(sum(arr[s:e]) / (e - s))
-    return np.array(result)
-
-
 def load_computed(path="results/metrics_computed.json"):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -79,7 +73,7 @@ def save_fig(fig, path):
 # Metricas: commitment_curve de metrics_computed.json
 # ══════════════════════════════════════════════════════════════
 
-def fig1_cultural_divergence_map(computed, output):
+def fig1_cultural_divergence_map(computed, output, window=3):
     set_style()
 
     fig, axes = plt.subplots(2, 4, figsize=(14, 6.5), sharey=False)
@@ -125,7 +119,7 @@ def fig1_cultural_divergence_map(computed, output):
 
                 # Eixo X: numero absoluto da camada (1 .. n_l)
                 x = np.linspace(1, n_l, len(curve))
-                y = smooth(np.array(curve), w=3)
+                y = smooth_curve(curve, window)
 
                 ax.plot(x, y,
                         color=LANG_COLORS[lang],
@@ -308,6 +302,9 @@ FIGURES = {
     "fig6": fig6_peak_vs_final,
 }
 
+# Figuras de curva: geradas uma vez por janela de suavização
+CURVE_FIGURES = {"fig1"}
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -326,9 +323,17 @@ def main():
 
     figs_to_run = FIGURES if args.fig == "all" else {args.fig: FIGURES[args.fig]}
 
+    windows = ExperimentConfig().smoothing_windows
     for name, func in figs_to_run.items():
-        output = os.path.join(args.output_dir, f"{name}.png")
-        func(computed, output)
+        if name in CURVE_FIGURES:
+            # Uma versão por janela de suavização (_w3, _raw)
+            for w in windows:
+                output = os.path.join(args.output_dir,
+                                      f"{name}{smoothing_suffix(w)}.png")
+                func(computed, output, window=w)
+        else:
+            output = os.path.join(args.output_dir, f"{name}.png")
+            func(computed, output)
 
     print(f"\n{len(figs_to_run)} figura(s) gerada(s) em {args.output_dir}/")
 

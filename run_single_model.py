@@ -50,8 +50,7 @@ def run_model(model_key: str):
         if fact not in model_results:
             model_results[fact] = {}
 
-        analyzer  = LogitLensAnalyzer(config.expected_entities[fact])
-        competing = config.competing_entities[fact]
+        analyzer  = LogitLensAnalyzer()
 
         for lang in languages:
             if lang not in model_results[fact]:
@@ -85,9 +84,15 @@ def run_model(model_key: str):
                     # ── 2. Logit Lens ──
                     # Mesmo prompt — analisa ativacoes internas
                     # na posicao do ultimo token da completion
+                    # Probabilidades exatas por token ID dos dois
+                    # conjuntos de entidades (sem substring, sem top-k)
                     logit_data = extractor.extract(
                         prompt=prompt,
-                        keyword=keyword
+                        keyword=keyword,
+                        entity_sets={
+                            "local":     config.expected_entities[fact][lang],
+                            "competing": config.competing_entities[fact][lang],
+                        }
                     )
 
                     logit_data["last_token"] = normalize_layer_results(
@@ -99,14 +104,12 @@ def run_model(model_key: str):
                         )
 
                     metrics_last = analyzer.compute_all_metrics(
-                        logit_data["last_token"], lang,
-                        competing_entities=competing
+                        logit_data["last_token"]
                     )
                     metrics_kw = None
                     if logit_data["keyword_token"]:
                         metrics_kw = analyzer.compute_all_metrics(
-                            logit_data["keyword_token"], lang,
-                            competing_entities=competing
+                            logit_data["keyword_token"]
                         )
 
                     model_results[fact][lang][formulation] = {
@@ -117,6 +120,7 @@ def run_model(model_key: str):
                         "n_layers":        logit_data["n_layers"],
                         "last_token":      logit_data["last_token"],
                         "keyword_token":   logit_data["keyword_token"],
+                        "entity_tokens":   logit_data["entity_tokens"],
                         "metrics_last":    metrics_last,
                         "metrics_keyword": metrics_kw
                     }

@@ -21,6 +21,8 @@ import torch.nn.functional as F
 from typing import Dict, List, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from logit_lens.entity_tokens import build_token_sets, prob_mass
+
 
 class LensSanityError(RuntimeError):
     """O lens na última camada não reproduz os logits do modelo."""
@@ -280,7 +282,8 @@ class LogitLensExtractor:
         prompt: str,
         keyword: Optional[str] = None,
         last_relevant_pos: Optional[int] = None,
-        keyword_pos_override: Optional[int] = None
+        keyword_pos_override: Optional[int] = None,
+        entity_sets: Optional[Dict[str, List[str]]] = None
     ) -> Dict:
         """
         Extrai distribuições Logit Lens para um prompt.
@@ -295,6 +298,12 @@ class LogitLensExtractor:
                                   (fornecida pelo chat_template.py)
             keyword_pos_override: posição da keyword já calculada
                                   (fornecida pelo keyword_finder.py)
+            entity_sets:          {nome: [palavras]}, ex.
+                                  {"local": [...], "competing": [...]}.
+                                  Se dado, cada camada recebe a
+                                  probabilidade exata de cada conjunto
+                                  (soma sobre token IDs distintos, na
+                                  distribuição completa — sem top-k)
 
         Returns:
             Dict com:
@@ -304,11 +313,18 @@ class LogitLensExtractor:
                 'last_token':    lista de dicts por camada (último token)
                 'keyword_token': lista de dicts por camada (keyword token)
                                  ou None se keyword_pos for None
+                'entity_tokens': conjuntos de token IDs usados (auditoria)
+                                 ou None se entity_sets não for dado
 
             Cada dict de camada contém:
                 'layer':      índice da camada (1-based)
                 'top_tokens': lista de top_k tokens decodificados
+                'top_ids':    ids dos top_k tokens
                 'top_probs':  lista de top_k probabilidades
+                'entity_probs': {nome: P exata} (se entity_sets dado)
+
+            O top-k é só para inspeção qualitativa; métricas usam
+            entity_probs.
         """
 
         # Tokenizar o prompt
@@ -359,12 +375,20 @@ class LogitLensExtractor:
         # O teste de sanidade abaixo garante que isso continua valendo.
         self.check_lens_consistency(outputs, last_pos)
 
+        # Token IDs exatos de cada conjunto de entidades, construídos
+        # com o contexto do prompt (prompt + " " + palavra). Na posição
+        # da keyword usamos os mesmos ids.
+        token_sets = None
+        if entity_sets is not None:
+            token_sets = build_token_sets(self.tokenizer, prompt, entity_sets)
+
         results = {
             "tokens":        tokens,
             "n_layers":      n_layers,
             "keyword_pos":   keyword_pos,
             "last_token":    [],
-            "keyword_token": [] if keyword_pos is not None else None
+            "keyword_token": [] if keyword_pos is not None else None,
+            "entity_tokens": token_sets,
         }
 
         # Iterar sobre camadas transformer (índices 1..N)
@@ -377,32 +401,42 @@ class LogitLensExtractor:
             last_hidden = layer_hidden[last_pos]       # [hidden_size]
             last_probs  = self._apply_logit_lens(last_hidden, is_last)
 
-            top_probs_last, top_idx_last = torch.topk(last_probs, self.top_k)
-            results["last_token"].append({
-                "layer":      layer_idx,
-                "top_tokens": [
-                    self.tokenizer.decode([idx.item()])
-                    for idx in top_idx_last
-                ],
-                "top_probs":  top_probs_last.cpu().numpy().tolist()
-            })
+            results["last_token"].append(
+                self._layer_entry(layer_idx, last_probs, token_sets)
+            )
 
             # ── Token da keyword ──
             if keyword_pos is not None:
                 kw_hidden = layer_hidden[keyword_pos]  # [hidden_size]
                 kw_probs  = self._apply_logit_lens(kw_hidden, is_last)
 
-                top_probs_kw, top_idx_kw = torch.topk(kw_probs, self.top_k)
-                results["keyword_token"].append({
-                    "layer":      layer_idx,
-                    "top_tokens": [
-                        self.tokenizer.decode([idx.item()])
-                        for idx in top_idx_kw
-                    ],
-                    "top_probs":  top_probs_kw.cpu().numpy().tolist()
-                })
+                results["keyword_token"].append(
+                    self._layer_entry(layer_idx, kw_probs, token_sets)
+                )
 
         return results
+
+    def _layer_entry(
+        self,
+        layer_idx: int,
+        probs: torch.Tensor,
+        token_sets: Optional[Dict]
+    ) -> Dict:
+        """Dict de uma camada: top-k (qualitativo) + P exata por conjunto."""
+        top_probs, top_idx = torch.topk(probs, self.top_k)
+        top_ids = top_idx.tolist()
+        entry = {
+            "layer":      layer_idx,
+            "top_tokens": [self.tokenizer.decode([i]) for i in top_ids],
+            "top_ids":    top_ids,
+            "top_probs":  top_probs.cpu().numpy().tolist(),
+        }
+        if token_sets is not None:
+            entry["entity_probs"] = {
+                name: prob_mass(probs, info["ids"])
+                for name, info in token_sets["sets"].items()
+            }
+        return entry
 
     def get_final_response(
         self,

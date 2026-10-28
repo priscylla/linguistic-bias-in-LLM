@@ -65,6 +65,26 @@ class ExperimentConfig:
         }
     })
 
+    # Termos do classificador comportamental, por fato e grupo
+    # (narrativa). Busca com fronteira de palavra, sem diferenciar
+    # maiúsculas nem acentos (data/text_matching.py).
+    # Mesmos termos de antes da correção; substituídos na Fase 1/5.
+    behavioral_terms: Dict[str, Dict[str, List[str]]] = field(default_factory=lambda: {
+        "aviao": {
+            "Santos": ["santos", "dumont"],
+            "Wright": ["wright", "orville", "wilbur", "irmãos", "hermanos"],
+        },
+        "telefone": {
+            "Meucci": ["meucci", "antonio meucci"],
+            "Bell":   ["bell", "graham", "alexander"],
+        },
+    })
+
+    # Janelas de suavização das figuras de curva (só para os gráficos;
+    # métricas usam valores brutos). 1 = sem suavização. Cada figura de
+    # curva é gerada uma vez por janela (sufixos _w3 e _raw).
+    smoothing_windows: List[int] = field(default_factory=lambda: [3, 1])
+
     top_k_tokens: int = 10
     # Precisão de carregamento dos modelos (bfloat16 | float16 | float32)
     dtype: str        = "bfloat16"

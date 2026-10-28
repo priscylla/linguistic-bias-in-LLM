@@ -27,8 +27,7 @@ for model in models:
     updated = 0
 
     for fact in facts:
-        analyzer  = LogitLensAnalyzer(config.expected_entities[fact])
-        competing = config.competing_entities[fact]
+        analyzer  = LogitLensAnalyzer()
 
         for lang in langs:
             for form in forms:
@@ -36,15 +35,9 @@ for model in models:
                 if "last_token" not in run:
                     continue
 
-                run["metrics_last"] = analyzer.compute_all_metrics(
-                    run["last_token"], lang,
-                    competing_entities=competing
-                )
+                run["metrics_last"] = analyzer.compute_all_metrics(run["last_token"])
                 if run.get("keyword_token"):
-                    run["metrics_keyword"] = analyzer.compute_all_metrics(
-                        run["keyword_token"], lang,
-                        competing_entities=competing
-                    )
+                    run["metrics_keyword"] = analyzer.compute_all_metrics(run["keyword_token"])
                 updated += 1
 
     with open(path, "w", encoding="utf-8") as f:

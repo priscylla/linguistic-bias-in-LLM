@@ -30,6 +30,10 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from config.experiment_config import ExperimentConfig
+from data.text_matching import groups_by_order
+from plot_utils import smooth_curve, smoothing_suffix
+
 # ── Paletas ───────────────────────────────────────────────────
 LANG_COLORS  = {"pt":"#2166AC","en":"#D6604D","de":"#4DAC26","it":"#8E0152"}
 LANG_LABELS  = {"pt":"Portuguese (BR)","en":"English (US)",
@@ -40,19 +44,6 @@ MODEL_LABELS = {"llama":"LLaMA 3.1 8B","mistral":"Mistral 7B",
                 "qwen":"Qwen 2.5 7B","gemma":"Gemma 2 9B"}
 MODEL_LAYERS = {"llama":32,"mistral":32,"qwen":28,"gemma":42}
 FACT_LABELS  = {"aviao":"Airplane","telefone":"Telephone"}
-
-# Tokens para colorir no heatmap do Logit Lens
-ENTITY_TOKENS = {
-    "aviao": {
-        "local":    ["wright","brothers","orville","wilbur","kitty","santos","dumont"],
-        "competing":["santos","dumont","alberto"],
-    },
-    "telefone": {
-        "local":    ["bell","graham","alexander","aless","al","scot",
-                     "meucci","antonio","alessan"],
-        "competing":["meucci","antonio","bell","graham","alexander"],
-    }
-}
 
 # Cores das entidades no heatmap
 ENTITY_COLOR_LOCAL     = "#D6604D"   # vermelho — entidade esperada
@@ -75,10 +66,6 @@ def set_style():
         "savefig.dpi":300,"savefig.bbox":"tight",
     })
 
-def smooth(arr, w=3):
-    if len(arr) <= w: return np.array(arr)
-    return np.convolve(arr, np.ones(w)/w, mode="same")
-
 def load_data():
     data = {}
     for m in ["llama","mistral","qwen","gemma"]:
@@ -88,22 +75,28 @@ def load_data():
                 data[m] = json.load(f)
     return data
 
-def token_color(token, fact):
-    """Cor do token baseada no fato sendo analisado."""
-    t = token.strip().lower()
-    # Para aviao: vermelho=Wright, azul=Santos
-    # Para telefone: vermelho=Bell/Alexander, azul=Meucci/Antonio
-    if fact == "aviao":
-        if any(e in t for e in ["wright","brothers","orville","wilbur","kitty"]):
-            return ENTITY_COLOR_LOCAL
-        if any(e in t for e in ["santos","dumont","alberto"]):
-            return ENTITY_COLOR_COMPETING
-    else:  # telefone
-        if any(e in t for e in ["bell","graham","alexander","aless","al","scot"]):
-            return ENTITY_COLOR_LOCAL
-        if any(e in t for e in ["meucci","antonio","alessan"]):
-            return ENTITY_COLOR_COMPETING
+def token_color(token_id, run, fact, lang):
+    """
+    Cor do token pelo seu ID exato (nunca por substring).
+
+    Vermelho = narrativa dominante (Wright / Bell), azul = a outra
+    (Santos-Dumont / Meucci), cinza = nenhuma. Os conjuntos de ids vêm
+    de run["entity_tokens"]. No idioma com stake o conjunto "local" é o
+    da narrativa local, então os papéis se invertem.
+    """
+    sets  = (run.get("entity_tokens") or {}).get("sets", {})
+    local = set(sets.get("local", {}).get("ids", []))
+    comp  = set(sets.get("competing", {}).get("ids", []))
+    dominant, other = (comp, local) if lang == CULTURAL_STAKE[fact] else (local, comp)
+    if token_id in dominant:
+        return ENTITY_COLOR_LOCAL
+    if token_id in other:
+        return ENTITY_COLOR_COMPETING
     return "#AAAAAA"
+
+def _top_id(layer, col_i):
+    ids = layer.get("top_ids", [])
+    return ids[col_i] if col_i < len(ids) else None
 
 def get_x_axis(run, model, use_absolute):
     """Retorna (x, xlabel, xlim, xticks) para o eixo de camadas."""
@@ -159,7 +152,7 @@ def save_fig(fig, output):
 # ══════════════════════════════════════════════════════════════
 
 
-def fig1_divergence_map(data, output, use_absolute=False):
+def fig1_divergence_map(data, output, use_absolute=False, window=3):
     set_style()
     models = ["llama","mistral","qwen","gemma"]
     langs  = ["pt","en","de","it"]
@@ -188,7 +181,7 @@ def fig1_divergence_map(data, output, use_absolute=False):
                 if not curve: continue
 
                 x, xlabel, xlim, xticks = get_x_axis(run, model, use_absolute)
-                y = smooth(np.array(curve), w=3)
+                y = smooth_curve(curve, window)
 
                 ax.plot(x, y, color=LANG_COLORS[lang], alpha=0.85, linewidth=1.6)
                 ax.fill_between(x, y, 0, color=LANG_COLORS[lang], alpha=0.06)
@@ -346,7 +339,7 @@ def fig3_logit_lens_heatmap(data, fact, output, use_absolute=False):
                 if col_i >= len(layer["top_tokens"]): break
                 token = layer["top_tokens"][col_i]
                 prob  = layer["top_probs"][col_i]
-                color = token_color(token, f)
+                color = token_color(_top_id(layer, col_i), run, f, lang)
                 alpha = float(np.clip(prob*6, 0.06, 0.95))
                 x = col_i*cw
 
@@ -412,33 +405,33 @@ def fig3_logit_lens_heatmap(data, fact, output, use_absolute=False):
 # FIG 4 — BEHAVIORAL ANALYSIS (unica versao, ambos fatos)
 # ══════════════════════════════════════════════════════════════
 
+# Rótulos de exibição dos grupos de behavioral_terms
+_GROUP_LABELS = {"Santos": "Santos\nDumont", "Wright": "Wright\nBrothers",
+                 "Meucci": "Meucci", "Bell": "Bell"}
+
+
+def classify(response, fact, terms=None):
+    """
+    Classifica a resposta pela(s) narrativa(s) mencionada(s).
+
+    Busca com fronteira de palavra, sem diferenciar maiúsculas nem
+    acentos ("bell" não casa com "bella"; "dumont" casa com "Dúmont").
+    Se as duas narrativas aparecem, a ordem é a da primeira menção.
+    """
+    groups = (terms or ExperimentConfig().behavioral_terms)[fact]
+    found  = groups_by_order(response, groups)
+    if not found:
+        return "Ambiguous /\nNo name"
+    if len(found) == 1:
+        return _GROUP_LABELS.get(found[0], found[0])
+    return f"Both\n({found[0]} 1st)"
+
+
 def fig4_behavioral(data, output):
     set_style()
+    terms = ExperimentConfig().behavioral_terms
     models = ["llama","mistral","qwen","gemma"]
     langs  = ["pt","en","de","it"]
-
-    def classify(response, fact):
-        r = response.lower()
-        if fact == "aviao":
-            has_s = any(w in r for w in ["santos","dumont"])
-            has_w = any(w in r for w in ["wright","orville","wilbur","irmãos","hermanos"])
-            if has_s and has_w:
-                ps = min([r.find(w) for w in ["santos","dumont"] if w in r],default=999)
-                pw = min([r.find(w) for w in ["wright","orville","wilbur"] if w in r],default=999)
-                return "Both\n(Santos 1st)" if ps<pw else "Both\n(Wright 1st)"
-            if has_s: return "Santos\nDumont"
-            if has_w: return "Wright\nBrothers"
-            return "Ambiguous /\nNo name"
-        else:
-            has_m = any(w in r for w in ["meucci","antonio meucci"])
-            has_b = any(w in r for w in ["bell","graham","alexander"])
-            if has_m and has_b:
-                pm = min([r.find(w) for w in ["meucci"] if w in r],default=999)
-                pb = min([r.find(w) for w in ["bell","graham","alexander"] if w in r],default=999)
-                return "Both\n(Meucci 1st)" if pm<pb else "Both\n(Bell 1st)"
-            if has_m: return "Meucci"
-            if has_b: return "Bell"
-            return "Ambiguous /\nNo name"
 
     cat_colors = {
         "Santos\nDumont":"#2166AC","Wright\nBrothers":"#D6604D",
@@ -460,7 +453,7 @@ def fig4_behavioral(data, output):
             for j, lang in enumerate(langs):
                 run   = data.get(model,{}).get(fact,{}).get(lang,{}).get("F1",{})
                 resp  = run.get("response","")
-                cat   = classify(resp, fact)
+                cat   = classify(resp, fact, terms)
                 color = cat_colors.get(cat,"#AAAAAA")
 
                 ax.add_patch(mpatches.FancyBboxPatch(
@@ -518,7 +511,7 @@ def fig4_behavioral(data, output):
 # Gerada para cada fato separadamente
 # ══════════════════════════════════════════════════════════════
 
-def fig5_convergence(data, fact, output, use_absolute=False):
+def fig5_convergence(data, fact, output, use_absolute=False, window=3):
     set_style()
     langs   = ["pt","en","de","it"]
     version = "Absolute Layer Number" if use_absolute else "Relative Layer Depth (0→1)"
@@ -543,7 +536,7 @@ def fig5_convergence(data, fact, output, use_absolute=False):
             if not curve: continue
 
             x, xlabel, xlim, xticks = get_x_axis(run, model, use_absolute)
-            y = smooth(np.array(curve), w=4)
+            y = smooth_curve(curve, window)
 
             ax.plot(x, y, color=LANG_COLORS[lang],
                     linewidth=2.2, alpha=0.9, label=LANG_LABELS[lang])
@@ -613,12 +606,8 @@ def fig6_peak_vs_final(data, output):
                 # Calcular na hora se metricas novas nao existirem (JSONs antigos)
                 if pk is None:
                     layers = run.get("last_token", [])
-                    from config.experiment_config import ExperimentConfig
                     from logit_lens.analyzer import LogitLensAnalyzer
-                    _cfg  = ExperimentConfig()
-                    _ana  = LogitLensAnalyzer(_cfg.expected_entities[fact])
-                    _comp = _cfg.competing_entities[fact]
-                    _m    = _ana.compute_all_metrics(layers, lang, _comp) if layers else {}
+                    _m = LogitLensAnalyzer().compute_all_metrics(layers) if layers else {}
                     pk = _m.get("iv_local_peak",  0)
                     fn = _m.get("iv_local_final", 0)
                 else:
@@ -732,7 +721,7 @@ def _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute):
             if col_i >= len(layer["top_tokens"]): break
             token = layer["top_tokens"][col_i]
             prob  = layer["top_probs"][col_i]
-            color = token_color(token, fact)
+            color = token_color(_top_id(layer, col_i), run, fact, lang)
             alpha = float(np.clip(prob*6, 0.06, 0.95))
             x = col_i*cw
 
@@ -864,20 +853,15 @@ def _recalculate_metrics(data, results_dir):
     for model, mdata in data.items():
         for fact in facts:
             if fact not in mdata: continue
-            analyzer  = LogitLensAnalyzer(config.expected_entities[fact])
-            competing = config.competing_entities[fact]
+            analyzer  = LogitLensAnalyzer()
             for lang in langs:
                 if lang not in mdata[fact]: continue
                 for form in forms:
                     run = mdata[fact][lang].get(form, {})
                     if "last_token" not in run: continue
-                    run["metrics_last"] = analyzer.compute_all_metrics(
-                        run["last_token"], lang,
-                        competing_entities=competing)
+                    run["metrics_last"] = analyzer.compute_all_metrics(run["last_token"])
                     if run.get("keyword_token"):
-                        run["metrics_keyword"] = analyzer.compute_all_metrics(
-                            run["keyword_token"], lang,
-                            competing_entities=competing)
+                        run["metrics_keyword"] = analyzer.compute_all_metrics(run["keyword_token"])
 
         path = os.path.join(results_dir, "%s_results.json" % model)
         with open(path, "w", encoding="utf-8") as f:
@@ -912,8 +896,13 @@ def generate_all_figures(results_dir="results", figures_dir="figures"):
     facts = ["aviao", "telefone"]
 
     # ── Fig 1: divergence map — ambos fatos combinados, duas versoes ──
-    fig1_divergence_map(data, p("fig1_divergence_map.png"),     use_absolute=False)
-    fig1_divergence_map(data, p("fig1_divergence_map_abs.png"), use_absolute=True)
+    windows = ExperimentConfig().smoothing_windows
+    for w in windows:
+        sfx = smoothing_suffix(w)
+        fig1_divergence_map(data, p(f"fig1_divergence_map{sfx}.png"),
+                            use_absolute=False, window=w)
+        fig1_divergence_map(data, p(f"fig1_divergence_map_abs{sfx}.png"),
+                            use_absolute=True, window=w)
 
     # ── Fig 2: CS heatmap — ambos fatos, unica figura ──
     fig2_cs_heatmap(data, p("fig2_cs_heatmap.png"))
@@ -954,10 +943,12 @@ def generate_all_figures(results_dir="results", figures_dir="figures"):
 
     # ── Fig 5: convergence — por fato, duas versoes ──
     for fact in facts:
-        fig5_convergence(data, fact,
-            p(f"fig5_convergence_{fact}.png"),           use_absolute=False)
-        fig5_convergence(data, fact,
-            p(f"fig5_convergence_{fact}_abs.png"),       use_absolute=True)
+        for w in windows:
+            sfx = smoothing_suffix(w)
+            fig5_convergence(data, fact,
+                p(f"fig5_convergence_{fact}{sfx}.png"),     use_absolute=False, window=w)
+            fig5_convergence(data, fact,
+                p(f"fig5_convergence_{fact}_abs{sfx}.png"), use_absolute=True,  window=w)
 
     # ── Fig 6: peak vs final — ambos fatos, unica figura ──
     fig6_peak_vs_final(data, p("fig6_peak_vs_final.png"))
