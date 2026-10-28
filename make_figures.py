@@ -51,8 +51,7 @@ LANG_COLORS  = {"pt": "#2166AC", "en": "#D6604D", "de": "#4DAC26", "it": "#8E015
 LANG_LABELS  = {"pt": "Portuguese (BR)", "en": "English (US)", "de": "German", "it": "Italian"}
 LANG_DASHES  = {"pt": [], "en": [6, 3], "de": [2, 4], "it": [8, 3, 2, 3]}
 MODEL_COLORS = {"llama": "#E69F00", "mistral": "#56B4E9", "qwen": "#009E73", "gemma": "#CC79A7"}
-MODEL_LABELS = {"llama": "LLaMA 3.1 8B", "mistral": "Mistral 7B",
-                "qwen": "Qwen 2.5 7B", "gemma": "Gemma 2 9B"}
+MODEL_LABELS = {}   # vazio: rótulo vem do registro (família + kind)
 FACT_LABELS  = {"aviao": "Airplane", "telefone": "Telephone"}
 _FALLBACK    = ["#666666", "#999933", "#882255", "#44AA99", "#332288", "#AA4499"]
 
@@ -67,6 +66,9 @@ def _color(table, key, i=0):
 
 
 def _label(table, key):
+    if table is MODEL_LABELS and key not in table and key in CONFIG.registry.models:
+        m = CONFIG.registry[key]
+        return f"{m.family}{' Instruct' if m.kind == 'instruct' else ''}"
     return table.get(key, key)
 
 

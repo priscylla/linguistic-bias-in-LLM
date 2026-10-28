@@ -10,6 +10,9 @@ aplicada ao hidden state antes dela:
     LogitLens:  tradução identidade (nostalgebraist, 2020)
     TunedLens:  tradução afim aprendida por camada (Fase 4)
 
+Onde ficam a norm final, o unembedding e o softcap vem da arquitetura
+(config/models.yaml, `architectures`, pela model.config.model_type).
+
 Na última camada nenhum lens traduz: hidden_states[-1] já é a saída
 normalizada do modelo (transformers 5.7, tie_last_hidden_states=True),
 então a cabeça pula a norm e o resultado tem que reproduzir os logits
@@ -20,6 +23,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
 import torch
+
+from config.loader import Architecture, load_models
 
 
 class LensSanityError(RuntimeError):
@@ -33,16 +38,6 @@ SANITY_PROMPTS = [
     "O telefone foi inventado por",
     "Das Telefon wurde erfunden von",
 ]
-
-# Norm final por arquitetura (model.config.model_type). Os quatro
-# modelos atuais usam model.model.norm; a Fase 3 estende o mapa.
-FINAL_NORM = {
-    "llama":   lambda m: m.model.norm,
-    "mistral": lambda m: m.model.norm,
-    "qwen2":   lambda m: m.model.norm,
-    "gemma2":  lambda m: m.model.norm,
-}
-
 
 def lens_tolerance(dtype: torch.dtype) -> Dict[str, float]:
     """
@@ -58,15 +53,38 @@ def lens_tolerance(dtype: torch.dtype) -> Dict[str, float]:
     return {"atol": 2e-2, "rtol": 2e-2}
 
 
-def final_norm(model):
-    """Norm final do modelo, pela arquitetura declarada no config."""
-    model_type = model.config.model_type.lower()
-    if model_type not in FINAL_NORM:
-        raise ValueError(
-            f"Arquitetura '{model_type}' não mapeada. Adicione a FINAL_NORM "
-            f"em logit_lens/lens.py (inspecione model.config.model_type e model.model)."
-        )
-    return FINAL_NORM[model_type](model)
+def resolve_attr(obj, path: str):
+    """Segue um caminho de atributos ("model.norm") a partir de `obj`."""
+    for part in path.split("."):
+        if not hasattr(obj, part):
+            raise ValueError(f"{type(obj).__name__} não tem o atributo '{part}' (caminho '{path}')")
+        obj = getattr(obj, part)
+    return obj
+
+
+def output_head(model, architecture: Optional[Architecture] = None) -> Dict:
+    """
+    Norm final, unembedding e softcap do modelo, pela arquitetura
+    declarada em config/models.yaml (chave = model.config.model_type).
+
+    Confere as formas: unembedding [vocab, hidden] e norm com pesos de
+    tamanho hidden. Um caminho errado falha aqui, não em silêncio.
+    """
+    arch  = architecture or load_models().architecture(model.config.model_type.lower())
+    norm  = resolve_attr(model, arch.final_norm)
+    unemb = resolve_attr(model, arch.unembedding)
+    hidden, vocab = model.config.hidden_size, model.config.vocab_size
+
+    w = getattr(unemb, "weight", None)
+    if w is None or tuple(w.shape) != (vocab, hidden):
+        raise ValueError(f"unembedding '{arch.unembedding}' com forma "
+                         f"{None if w is None else tuple(w.shape)}, esperado {(vocab, hidden)}")
+    nw = getattr(norm, "weight", None)
+    if nw is None or tuple(nw.shape) != (hidden,):
+        raise ValueError(f"final_norm '{arch.final_norm}' com forma "
+                         f"{None if nw is None else tuple(nw.shape)}, esperado {(hidden,)}")
+    softcap = getattr(model.config, arch.softcap, None) if arch.softcap else None
+    return {"architecture": arch, "final_norm": norm, "unembedding": unemb, "softcap": softcap}
 
 
 def assert_matches_model(lens_logits: torch.Tensor, model_logits: torch.Tensor,
@@ -101,11 +119,13 @@ class Lens(ABC):
 
     name: str = "lens"
 
-    def __init__(self, model):
-        self.model       = model
-        self.ln_final    = final_norm(model)
-        self.unembedding = model.lm_head
-        self.softcap     = getattr(model.config, "final_logit_softcapping", None)
+    def __init__(self, model, architecture: Optional[Architecture] = None):
+        head = output_head(model, architecture)
+        self.model        = model
+        self.architecture = head["architecture"]
+        self.ln_final     = head["final_norm"]
+        self.unembedding  = head["unembedding"]
+        self.softcap      = head["softcap"]
 
     @abstractmethod
     def translate(self, layer_idx: int, hidden: torch.Tensor) -> torch.Tensor:
@@ -198,6 +218,9 @@ class LogitLens(Lens):
     """Logit Lens: a cabeça do modelo aplicada direto a cada camada."""
 
     name = "logit_lens"
+
+    def __init__(self, model, architecture: Optional[Architecture] = None):
+        super().__init__(model, architecture)
 
     def translate(self, layer_idx: int, hidden: torch.Tensor) -> torch.Tensor:
         return hidden

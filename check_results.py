@@ -10,6 +10,8 @@ Para cada modelo do config confere:
       n_layers linhas por candidato, e cada prompt neutro em baseline
     - probabilidades em [0, 1]
     - KL até a final ≈ 0 na última camada (o lens reproduz o modelo)
+    - manifest com o commit do registro
+E soma as GPU-horas registradas por modelo.
 """
 
 import os
@@ -40,6 +42,12 @@ def check_model(model_key: str, results_dir: str, config: ExperimentConfig) -> l
         return [f"{model_key}: sem manifest ({out})"]
     formats  = tuple(man.get("formats", ["completion"]))
     problems = []
+    spec = config.registry.models.get(model_key)
+    if spec is not None:
+        if formats != spec.formats:
+            problems.append(f"{model_key}: formatos {formats} != registro {spec.formats}")
+        if man.get("revision") not in (None, spec.revision):
+            problems.append(f"{model_key}: commit {man.get('revision')} != registro {spec.revision}")
 
     store   = ChunkStore(out)
     missing = [u for u in lens_units(config, formats) if not store.done(u)]
@@ -87,11 +95,17 @@ def check_all_results(results_dir: str = None, config: ExperimentConfig = None) 
     print("=" * 60)
     print("VERIFICAÇÃO DOS RESULTADOS (results/lens/)")
     print("=" * 60)
-    problems = []
+    problems, gpu_h = [], {}
     for model in config.models:
         p = check_model(model, results_dir, config)
-        print(f"  {'✅' if not p else '❌'} {model}" + ("" if not p else f"  ({len(p)} problema(s))"))
+        man = read_manifest(lens_dir(results_dir, model))
+        if man:
+            gpu_h[model] = man.get("gpu_hours", 0.0)
+        hours = f"  {gpu_h[model]:.2f} GPU-h" if model in gpu_h else ""
+        print(f"  {'✅' if not p else '❌'} {model}{hours}"
+              + ("" if not p else f"  ({len(p)} problema(s))"))
         problems += p
+    print(f"\n  GPU-horas registradas: {sum(gpu_h.values()):.2f}")
 
     if not problems:
         print("\n✅ TODOS OS RESULTADOS COMPLETOS E VÁLIDOS")

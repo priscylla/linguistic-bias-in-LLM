@@ -29,14 +29,8 @@ smoothing_windows: [3, 1]
 # no idioma do prompt (wordfreq, escala Zipf) for >= este limiar
 common_word_zipf: 4.0
 
-# Modelos (registro completo na Fase 3)
-models:
-  llama:   meta-llama/Meta-Llama-3.1-8B-Instruct
-  mistral: mistralai/Mistral-7B-Instruct-v0.3
-  qwen:    Qwen/Qwen2.5-7B-Instruct
-  gemma:   google/gemma-2-9b-it
+# Modelos: registro em config/models.yaml (IDs, commits, precisão)
 
-dtype: bfloat16
 # Top-k por camada: só inspeção qualitativa (métricas usam P exata)
 top_k_tokens: 20
 heatmap_models: [llama, gemma]

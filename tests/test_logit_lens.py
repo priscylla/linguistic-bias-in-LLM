@@ -10,7 +10,6 @@ import torch
 from conftest import VOCAB, build_tiny_model
 from logit_lens.lens import LensSanityError, LogitLens, lens_tolerance
 from logit_lens.measure import LensRunner
-from models import model_loader
 from models.model_loader import resolve_dtype
 
 
@@ -93,37 +92,3 @@ def test_resolve_dtype():
     assert resolve_dtype("float32") is torch.float32
     with pytest.raises(ValueError):
         resolve_dtype("fp8")
-
-
-def test_config_default_dtype_is_bf16():
-    from config.experiment_config import ExperimentConfig
-    assert ExperimentConfig().dtype == "bfloat16"
-
-
-@pytest.mark.parametrize("dtype,expected", [
-    (None, torch.bfloat16),            # padrão
-    ("float32", torch.float32),
-])
-def test_load_model_passes_dtype(monkeypatch, fake_tokenizer, dtype, expected):
-    seen = {}
-
-    class _Tok:
-        @staticmethod
-        def from_pretrained(*a, **kw):
-            t = type("T", (), {"pad_token": "x", "eos_token": "x"})()
-            return t
-
-    class _Model:
-        @staticmethod
-        def from_pretrained(name, **kw):
-            seen.update(kw)
-            return build_tiny_model("llama")
-
-    monkeypatch.setattr(model_loader, "AutoTokenizer", _Tok)
-    monkeypatch.setattr(model_loader, "AutoModelForCausalLM", _Model)
-    monkeypatch.setattr(model_loader, "get_hf_token", lambda: None)
-
-    args = ("org/tiny", "tiny") if dtype is None else ("org/tiny", "tiny", dtype)
-    model_loader.load_model(*args)
-    assert seen["dtype"] is expected
-    assert "torch_dtype" not in seen

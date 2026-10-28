@@ -8,6 +8,7 @@ Leitura e validação dos arquivos de configuração (YAML):
     config/baseline_prompts.yaml  prompts neutros da linha de base (Fase 2)
     config/forcing.yaml      artigos, plurais e contrações do teste do
                              confundidor de artigo (Fase 2)
+    config/models.yaml       registro de modelos e arquiteturas (Fase 3)
 
 Toda lista que varia (fatos, idiomas, candidatos, prompts) vem daqui;
 o código não tem cópias.
@@ -139,6 +140,55 @@ class Forcing:
         return list(self.contractions.get(lang, {}).get(preposition.casefold(), []))
 
 
+@dataclass
+class Architecture:
+    """Onde ficam a norm final e o unembedding num *ForCausalLM."""
+    model_type: str
+    final_norm: str            # caminho de atributo, ex. "model.norm"
+    unembedding: str           # ex. "lm_head"
+    softcap: Optional[str] = None   # atributo do config, ex. "final_logit_softcapping"
+
+
+@dataclass
+class ModelSpec:
+    key: str
+    id: str
+    revision: str
+    family: str
+    kind: str                  # base | instruct
+    architecture: str
+    license: str
+    gated: bool
+    precision: str
+    quantization: Optional[str] = None
+    base_model: Optional[str] = None
+    adaptation: Optional[str] = None
+
+    @property
+    def formats(self) -> tuple:
+        """Formatos medidos: QA só em modelos instruct."""
+        return ("completion", "qa") if self.kind == "instruct" else ("completion",)
+
+
+@dataclass
+class Registry:
+    models: Dict[str, ModelSpec]
+    architectures: Dict[str, Architecture]
+    quantization: Dict[str, dict]
+
+    def __getitem__(self, key: str) -> ModelSpec:
+        if key not in self.models:
+            raise KeyError(f"modelo '{key}' fora do registro (config/models.yaml): {list(self.models)}")
+        return self.models[key]
+
+    def architecture(self, model_type: str) -> Architecture:
+        if model_type not in self.architectures:
+            raise ValueError(
+                f"Arquitetura '{model_type}' não mapeada. Adicione a `architectures` em "
+                f"config/models.yaml (inspecione model.config.model_type e model.model).")
+        return self.architectures[model_type]
+
+
 def last_word(text: str) -> str:
     """Última palavra do prompt (a preposição da lacuna)."""
     return text.rstrip().split()[-1]
@@ -245,6 +295,19 @@ def parse_forcing(raw: dict) -> Forcing:
 @lru_cache(maxsize=None)
 def load_forcing(config_dir: str = str(CONFIG_DIR)) -> Forcing:
     return parse_forcing(_read_yaml(Path(config_dir) / "forcing.yaml"))
+
+
+def parse_models(raw: dict) -> Registry:
+    archs = {t: Architecture(model_type=t, **(v or {}))
+             for t, v in (raw.get("architectures") or {}).items()}
+    models = {k: ModelSpec(key=k, **v) for k, v in (raw.get("models") or {}).items()}
+    return Registry(models=models, architectures=archs,
+                    quantization={k: dict(v) for k, v in (raw.get("quantization") or {}).items()})
+
+
+@lru_cache(maxsize=None)
+def load_models(config_dir: str = str(CONFIG_DIR)) -> Registry:
+    return parse_models(_read_yaml(Path(config_dir) / "models.yaml"))
 
 
 def prompts_for(prompts, fact: str = None, lang: str = None, ptype: str = None) -> List[Prompt]:
@@ -404,6 +467,38 @@ def validate_forcing(exp: dict, forcing: Forcing, prompts) -> List[str]:
     return sorted(set(errs))
 
 
+MODEL_KINDS = {"base", "instruct"}
+PRECISIONS  = {"bfloat16", "float16", "float32"}
+
+
+def validate_models(exp: dict, reg: Registry) -> List[str]:
+    errs = []
+    for k, m in reg.models.items():
+        w = f"models.{k}"
+        if m.kind not in MODEL_KINDS:
+            errs.append(f"{w}: kind '{m.kind}' inválido")
+        if m.architecture not in reg.architectures:
+            errs.append(f"{w}: arquitetura '{m.architecture}' sem entrada em architectures")
+        if m.precision not in PRECISIONS:
+            errs.append(f"{w}: precision '{m.precision}' inválida")
+        if m.quantization is not None and m.quantization not in reg.quantization:
+            errs.append(f"{w}: quantization '{m.quantization}' sem entrada em quantization")
+        if m.base_model is not None and m.base_model not in reg.models:
+            errs.append(f"{w}: base_model '{m.base_model}' fora do registro")
+        if not (isinstance(m.revision, str) and len(m.revision) == 40
+                and all(c in "0123456789abcdef" for c in m.revision)):
+            errs.append(f"{w}: revision precisa ser o hash completo do commit (40 hex)")
+        if m.adaptation is not None and m.adaptation not in exp["languages"]:
+            errs.append(f"{w}: adaptation '{m.adaptation}' fora dos idiomas")
+    for a in reg.architectures.values():
+        if not a.final_norm or not a.unembedding:
+            errs.append(f"architectures.{a.model_type}: final_norm e unembedding obrigatórios")
+    for k in exp.get("heatmap_models", []):
+        if k not in reg.models:
+            errs.append(f"experiment.heatmap_models: '{k}' fora do registro")
+    return errs
+
+
 def require_valid(config_dir: str = str(CONFIG_DIR)):
     prompts = load_prompts(config_dir)
     errs = validate(load_experiment(config_dir), load_facts(config_dir), prompts)
@@ -411,6 +506,7 @@ def require_valid(config_dir: str = str(CONFIG_DIR)):
     errs += validate_baseline(load_experiment(config_dir), baseline, prompts)
     errs += validate_forcing(load_experiment(config_dir), load_forcing(config_dir),
                              list(prompts) + list(baseline.prompts))
+    errs += validate_models(load_experiment(config_dir), load_models(config_dir))
     if errs:
         raise ConfigError("Configuração inválida:\n  " + "\n  ".join(errs))
 

@@ -4,6 +4,7 @@
 torch>=2.1.0
 transformers>=4.40.0
 accelerate>=0.27.0
+bitsandbytes>=0.43.0; platform_system == "Linux"   # NF4 do gemma27 (CUDA)
 einops>=0.7.0
 
 # ── Hugging Face ──

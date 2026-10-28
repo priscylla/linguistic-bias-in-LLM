@@ -14,8 +14,11 @@ Passos:
        do confundidor de artigo
     5. tabelas consolidadas + manifest
 
-Formatos: completion sempre; QA só se o tokenizer tiver chat template
-(modelos instruct). Retoma de checkpoint: unidades feitas são puladas.
+Modelo, commit, precisão e quantização vêm do registro
+(config/models.yaml). Formatos: completion sempre; QA só em modelos
+instruct (kind do registro, não a presença de chat template: alguns
+tokenizers base, como o do Qwen 2.5, trazem um). Retoma de checkpoint:
+unidades feitas são puladas.
 
 Saída em results/lens/{modelo}/ (ver logit_lens/store.py):
     probs.parquet       modelo × fato × idioma × formato × tipo × paráfrase
@@ -30,6 +33,7 @@ Saída em results/lens/{modelo}/ (ver logit_lens/store.py):
 """
 
 import argparse
+import dataclasses
 import hashlib
 import platform
 import sys
@@ -48,7 +52,7 @@ from logit_lens.measure import LensRunner
 from logit_lens.store import ChunkStore, lens_dir, read_manifest, write_manifest
 
 CONFIG_FILES = ("experiment.yaml", "facts.yaml", "prompts.yaml",
-                "baseline_prompts.yaml", "forcing.yaml")
+                "baseline_prompts.yaml", "forcing.yaml", "models.yaml")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -163,10 +167,11 @@ def _gpu():
     return {"name": torch.cuda.get_device_name(0), "count": torch.cuda.device_count()}
 
 
-def base_manifest(model_key, model_id, model, lens, formats, sanity):
+def base_manifest(model_key, model_id, model, lens, formats, sanity, spec=None):
     return {
         "model_key":    model_key,
         "model_id":     model_id,
+        "registry":     dataclasses.asdict(spec) if spec is not None else None,
         "revision":     getattr(model.config, "_commit_hash", None),
         "model_type":   model.config.model_type,
         "n_layers":     model.config.num_hidden_layers,
@@ -188,16 +193,25 @@ def base_manifest(model_key, model_id, model, lens, formats, sanity):
 # ══════════════════════════════════════════════════════════════
 
 def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
-              lens=None, chat_formatter=None, log=print):
+              lens=None, chat_formatter=None, spec=None, log=print):
     """
     Roda todas as unidades que faltam e consolida. Não checa
     confirmação (main() faz isso); testes chamam direto.
+
+    Formatos: os da entrada do registro (`spec`); sem spec, QA só se
+    houver chat_formatter.
 
     Returns:
         manifest (dict)
     """
     lens    = lens or LogitLens(model)
-    formats = ("completion", "qa") if chat_formatter is not None else ("completion",)
+    formats = spec.formats if spec is not None else \
+        (("completion", "qa") if chat_formatter is not None else ("completion",))
+    if "qa" in formats and chat_formatter is None:
+        raise ValueError(f"{model_key}: modelo instruct sem chat template (formato QA impossível)")
+    if spec is not None and model.config.model_type != spec.architecture:
+        raise ValueError(f"{model_key}: model_type '{model.config.model_type}' != registro "
+                         f"'{spec.architecture}'")
     runner  = LensRunner(model, tokenizer, lens=lens, top_k=config.top_k_tokens,
                          chat_formatter=chat_formatter)
     tester  = ConfoundTester(runner, config.forcing_spec)
@@ -207,7 +221,9 @@ def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
     # os logits do modelo na última camada
     sanity   = lens.sanity_check(tokenizer)
     manifest = read_manifest(out_dir) or base_manifest(
-        model_key, model_id, model, lens, formats, sanity)
+        model_key, model_id, model, lens, formats, sanity, spec)
+    if spec is not None and manifest.get("revision") not in (None, spec.revision):
+        log(f"  ⚠️  commit carregado {manifest['revision']} != registro {spec.revision}")
     if manifest.get("config_sha256") != _config_hashes():
         log("  ⚠️  config mudou desde o início deste modelo; unidades novas usam o config atual")
         manifest.setdefault("config_changes", []).append(_config_hashes())
@@ -263,18 +279,20 @@ def main(argv=None):
     from models.chat_template import apply_template
     from models.model_loader import load_model
 
-    model_id = config.models[args.model]
-    model, tokenizer = load_model(model_id, args.model, config.dtype)
+    spec = config.model(args.model)
+    model, tokenizer = load_model(args.model, config.registry)
     chat = None
-    if getattr(tokenizer, "chat_template", None):
+    if spec.kind == "instruct":
+        if not getattr(tokenizer, "chat_template", None):
+            raise ValueError(f"{args.model}: instruct sem chat template no tokenizer")
         chat = lambda tok, text, mk=args.model: apply_template(tok, mk, text)[0]
     else:
-        print("  sem chat template: só formato completion")
+        print("  modelo base: só formato completion")
 
-    m = run_model(args.model, model, tokenizer, config, out_dir, model_id=model_id,
-                  chat_formatter=chat)
+    m = run_model(args.model, model, tokenizer, config, out_dir, model_id=spec.id,
+                  chat_formatter=chat, spec=spec)
     print(f"\n✅ {args.model}: {m['units_done']}/{m['units_expected']} unidades, "
-          f"{m['wall_time_s'] / 60:.1f} min  →  {out_dir}")
+          f"{m['wall_time_s'] / 60:.1f} min, {m['gpu_hours']:.2f} GPU-h  →  {out_dir}")
     return 0
 
 

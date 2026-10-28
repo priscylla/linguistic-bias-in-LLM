@@ -1,0 +1,158 @@
+# config/models.yaml
+# Registro de modelos (Fase 3). IDs, licenças, gating e commits
+# confirmados pela autora em 2026-10-28 (reports/verified_values.md).
+#
+# kind:          base (só formato completion) | instruct (completion + QA)
+# base_model:    chave do modelo de onde este foi derivado (instruct ->
+#                base; Sabiá -> LLaMA-1-7B); null se não está no registro
+# adaptation:    idioma de adaptação continuada (Sabiá: pt)
+# architecture:  model_type esperado; define a cabeça de saída (abaixo)
+# revision:      commit fixo no Hugging Face (from_pretrained revision=)
+# precision:     bfloat16 | float16 | float32
+# quantization:  null ou uma chave de `quantization`
+
+architectures:
+  # Caminhos de atributo (a partir do modelo *ForCausalLM) da norm final
+  # e da matriz de unembedding; softcap = atributo do config com o
+  # softcapping final dos logits (Gemma 2), se houver
+  llama:   {final_norm: model.norm, unembedding: lm_head, softcap: null}
+  mistral: {final_norm: model.norm, unembedding: lm_head, softcap: null}
+  qwen2:   {final_norm: model.norm, unembedding: lm_head, softcap: null}
+  gemma2:  {final_norm: model.norm, unembedding: lm_head, softcap: final_logit_softcapping}
+
+quantization:
+  # bitsandbytes 4-bit NF4; o lm_head (embeddings de saída) fica sem
+  # quantizar (transformers.quantizers.base.get_keys_to_not_convert)
+  nf4:
+    load_in_4bit: true
+    bnb_4bit_quant_type: nf4
+    bnb_4bit_compute_dtype: bfloat16
+    bnb_4bit_use_double_quant: false
+
+models:
+  llama_base:
+    id: meta-llama/Llama-3.1-8B
+    revision: d04e592bb4f6aa9cfee91e2e20afa771667e1d4b
+    family: Llama 3.1 8B
+    kind: base
+    base_model: null
+    architecture: llama
+    license: llama3.1
+    gated: true
+    precision: bfloat16
+    quantization: null
+  llama:
+    id: meta-llama/Llama-3.1-8B-Instruct
+    revision: 0e9e39f249a16976918f6564b8830bc894c89659
+    family: Llama 3.1 8B
+    kind: instruct
+    base_model: llama_base
+    architecture: llama
+    license: llama3.1
+    gated: true
+    precision: bfloat16
+    quantization: null
+  mistral_base:
+    id: mistralai/Mistral-7B-v0.3
+    revision: caa1feb0e54d415e2df31207e5f4e273e33509b1
+    family: Mistral 7B v0.3
+    kind: base
+    base_model: null
+    architecture: mistral
+    license: apache-2.0
+    gated: false
+    precision: bfloat16
+    quantization: null
+  mistral:
+    id: mistralai/Mistral-7B-Instruct-v0.3
+    revision: c170c708c41dac9275d15a8fff4eca08d52bab71
+    family: Mistral 7B v0.3
+    kind: instruct
+    base_model: mistral_base
+    architecture: mistral
+    license: apache-2.0
+    gated: false
+    precision: bfloat16
+    quantization: null
+  qwen_base:
+    id: Qwen/Qwen2.5-7B
+    revision: d149729398750b98c0af14eb82c78cfe92750796
+    family: Qwen 2.5 7B
+    kind: base
+    base_model: null
+    architecture: qwen2
+    license: apache-2.0
+    gated: false
+    precision: bfloat16
+    quantization: null
+  qwen:
+    id: Qwen/Qwen2.5-7B-Instruct
+    revision: a09a35458c702b33eeacc393d103063234e8bc28
+    family: Qwen 2.5 7B
+    kind: instruct
+    base_model: qwen_base
+    architecture: qwen2
+    license: apache-2.0
+    gated: false
+    precision: bfloat16
+    quantization: null
+  gemma_base:
+    id: google/gemma-2-9b
+    revision: 33c193028431c2fde6c6e51f29e6f17b60cbfac6
+    family: Gemma 2 9B
+    kind: base
+    base_model: null
+    architecture: gemma2
+    license: gemma
+    gated: true
+    precision: bfloat16
+    quantization: null
+  gemma:
+    id: google/gemma-2-9b-it
+    revision: 11c9b309abf73637e4b6f9a3fa1e92e615547819
+    family: Gemma 2 9B
+    kind: instruct
+    base_model: gemma_base
+    architecture: gemma2
+    license: gemma
+    gated: true
+    precision: bfloat16
+    quantization: null
+  gemma27:
+    id: google/gemma-2-27b-it
+    revision: aaf20e6b9f4c0fcf043f6fb2a2068419086d77b0
+    family: Gemma 2 27B
+    kind: instruct
+    base_model: null
+    architecture: gemma2
+    license: gemma
+    gated: true
+    precision: bfloat16
+    quantization: nf4
+  sabia_base:
+    # LLaMA-1-7B não foi publicado pela Meta no Hugging Face; conversão
+    # da comunidade, licença não comercial do LLaMA-1
+    id: huggyllama/llama-7b
+    revision: 4782ad278652c7c71b72204d462d6d01eaaf7549
+    family: LLaMA-1 7B
+    kind: base
+    base_model: null
+    architecture: llama
+    license: LLaMA-1 non-commercial (other)
+    gated: false
+    precision: bfloat16
+    quantization: null
+  sabia:
+    # Card: parte dos pesos do LLaMA-1-7B, mesmo tokenizer; só modelagem
+    # de linguagem (sem instruction tuning), uso restrito a pesquisa
+    id: maritaca-ai/sabia-7b
+    revision: a082d7feed07a2659a38cc2ddd1952396820365b
+    family: Sabiá 7B
+    kind: base
+    base_model: sabia_base
+    adaptation: pt
+    architecture: llama
+    license: LLaMA-1 research only (model card)
+    gated: false
+    precision: bfloat16
+    quantization: null

@@ -20,11 +20,10 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from transformers import AutoTokenizer
 from huggingface_hub import HfApi
 
 from config.experiment_config import ExperimentConfig
-from models.model_loader import get_hf_token, requires_token
+from models.model_loader import get_hf_token, load_tokenizer
 from config.loader import require_valid
 from data.tokenization_check import check_tokenizer
 from models.chat_template import apply_template
@@ -45,8 +44,8 @@ def check_token_access(config: ExperimentConfig):
 
     if token is None:
         print("  Token nao encontrado")
-        print("  Modelos publicos (ok sem token): mistral, qwen")
-        print("  Modelos restritos (precisam de token): llama, gemma")
+        gated = [k for k, m in config.registry.models.items() if m.gated]
+        print(f"  Modelos restritos (precisam de token): {', '.join(gated)}")
         print("\n  Para configurar:")
         print("  1. export HF_TOKEN='hf_seu_token'")
         print("  2. huggingface-cli login")
@@ -59,7 +58,7 @@ def check_token_access(config: ExperimentConfig):
     all_ok = True
 
     for model_key, model_name in config.models.items():
-        if requires_token(model_name):
+        if config.model(model_key).gated:
             try:
                 api.model_info(model_name)
                 print(f"  OK  {model_key}: acesso confirmado")
@@ -113,7 +112,8 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
 
     for model_key, tokenizer in tokenizers.items():
         chat = None
-        if getattr(tokenizer, "chat_template", None):
+        # QA só em modelos instruct (kind do registro)
+        if config.model(model_key).kind == "instruct":
             chat = lambda tok, text, mk=model_key: apply_template(tok, mk, text)[0]
 
         res = check_tokenizer(
@@ -129,7 +129,7 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
         print(f"\n[{model_key.upper()}] {res['summary']['n_rows']} linhas -> {csv_path}")
         print(f"  split={c.get('split', 0)}  shared={c.get('shared', 0)}  "
               f"common={c.get('common', 0)}  excluded={c.get('excluded', 0)}"
-              + ("" if chat else "  (QA nao verificado: sem chat template)"))
+              + ("" if chat else "  (QA nao verificado: modelo base)"))
         for issue in res["summary"]["issues"]:
             if issue["flag"] in ("shared", "excluded"):
                 print(f"  {issue['flag']:8s} [{issue['fact']}][{issue['lang']}] "
@@ -153,10 +153,7 @@ def main():
     for model_key, model_name in config.models.items():
         print(f"  {model_key}...")
         try:
-            token = get_hf_token()
-            tokenizers[model_key] = AutoTokenizer.from_pretrained(
-                model_name, token=token, trust_remote_code=True
-            )
+            tokenizers[model_key] = load_tokenizer(model_key, config.registry)
         except Exception as e:
             print(f"  ERRO ao carregar tokenizer de {model_key}: {e}")
     print(f"  {len(tokenizers)} tokenizers carregados")

@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 from config.loader import (
-    Baseline, Fact, Forcing, Prompt, load_baseline, load_experiment, load_facts,
-    load_forcing, load_prompts, prompts_for,
+    Baseline, Fact, Forcing, ModelSpec, Prompt, Registry, load_baseline,
+    load_experiment, load_facts, load_forcing, load_models, load_prompts, prompts_for,
 )
 
 
@@ -24,11 +24,16 @@ class ExperimentConfig:
     prompt_specs: tuple = field(default_factory=lambda: load_prompts())
     baseline_spec: Baseline = field(default_factory=lambda: load_baseline())
     forcing_spec: Forcing = field(default_factory=lambda: load_forcing())
+    registry: Registry = field(default_factory=lambda: load_models())
 
     # ── Parâmetros gerais ──
     @property
     def models(self) -> Dict[str, str]:
-        return dict(self.experiment["models"])
+        """{chave: ID no Hugging Face}, na ordem do registro."""
+        return {k: m.id for k, m in self.registry.models.items()}
+
+    def model(self, key: str) -> ModelSpec:
+        return self.registry[key]
 
     @property
     def languages(self) -> List[str]:
@@ -61,10 +66,6 @@ class ExperimentConfig:
     @property
     def heatmap_models(self) -> List[str]:
         return list(self.experiment["heatmap_models"])
-
-    @property
-    def dtype(self) -> str:
-        return self.experiment["dtype"]
 
     @property
     def top_k_tokens(self) -> int:

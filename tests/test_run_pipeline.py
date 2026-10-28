@@ -25,8 +25,7 @@ CHAT  = lambda tok, text: f"<user>{text}<assistant>"  # noqa: E731
 
 def tiny_config():
     base = ExperimentConfig()
-    exp  = {**base.experiment, "languages": list(LANGS),
-            "models": {"llama": "tiny/llama"}, "heatmap_models": ["llama"]}
+    exp  = {**base.experiment, "languages": list(LANGS), "heatmap_models": ["llama"]}
     return ExperimentConfig(
         experiment=exp,
         fact_specs={k: base.fact_specs[k] for k in FACTS},
@@ -34,7 +33,8 @@ def tiny_config():
         baseline_spec=dataclasses.replace(
             base.baseline_spec,
             prompts=tuple(p for p in base.baseline_spec.prompts if p.lang in LANGS)),
-        forcing_spec=base.forcing_spec)
+        forcing_spec=base.forcing_spec,
+        registry=dataclasses.replace(base.registry, models={"llama": base.registry["llama"]}))
 
 
 @pytest.fixture(scope="module")

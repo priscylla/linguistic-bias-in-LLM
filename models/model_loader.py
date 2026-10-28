@@ -1,15 +1,16 @@
+"""
+models/model_loader.py
+Carrega modelo e tokenizer a partir do registro (config/models.yaml):
+ID, commit fixo, precisão, quantização e token só para modelos gated.
+"""
+
 import os
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from typing import Tuple
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from typing import Optional, Tuple
 from dotenv import load_dotenv
 
-
-# Prefixos de modelos que exigem autenticação HuggingFace
-RESTRICTED_MODELS = [
-    "meta-llama",
-    "google/gemma"
-]
+from config.loader import ModelSpec, Registry, load_models
 
 
 def get_hf_token() -> str | None:
@@ -64,83 +65,95 @@ def resolve_dtype(dtype: str) -> torch.dtype:
     return DTYPES[dtype]
 
 
-def requires_token(model_name: str) -> bool:
-    """Verifica se o modelo requer autenticação HuggingFace."""
-    return any(prefix in model_name for prefix in RESTRICTED_MODELS)
+def quantization_config(spec: ModelSpec, registry: Registry) -> Optional[BitsAndBytesConfig]:
+    """BitsAndBytesConfig do registro (ex.: nf4), ou None."""
+    if spec.quantization is None:
+        return None
+    q = dict(registry.quantization[spec.quantization])
+    if "bnb_4bit_compute_dtype" in q:
+        q["bnb_4bit_compute_dtype"] = resolve_dtype(q["bnb_4bit_compute_dtype"])
+    return BitsAndBytesConfig(**q)
+
+
+class ArchitectureMismatch(RuntimeError):
+    """O modelo carregado não é da arquitetura declarada no registro."""
+
+
+def _token_for(spec: ModelSpec):
+    token = get_hf_token()
+    if spec.gated and token is None:
+        raise EnvironmentError(
+            f"\n❌ Token do Hugging Face necessário para '{spec.id}' (gated)\n"
+            f"   Opções:\n"
+            f"   1. export HF_TOKEN='hf_seu_token'\n"
+            f"   2. huggingface-cli login\n"
+            f"   3. Criar arquivo .env com HF_TOKEN=hf_seu_token\n"
+            f"\n   Obter token:     https://huggingface.co/settings/tokens\n"
+            f"   Aceitar licença: https://huggingface.co/{spec.id}"
+        )
+    return token
+
+
+def load_tokenizer(model_key: str, registry: Optional[Registry] = None):
+    """Só o tokenizer, no commit do registro (verify_setup)."""
+    spec = (registry or load_models())[model_key]
+    tok = AutoTokenizer.from_pretrained(spec.id, revision=spec.revision,
+                                        token=_token_for(spec) if spec.gated else get_hf_token())
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    return tok
 
 
 def load_model(
-    model_name: str,
     model_key: str,
-    dtype: str = "bfloat16"
+    registry: Optional[Registry] = None,
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
     """
-    Carrega modelo e tokenizer com configurações otimizadas
-    para extração de ativações via Logit Lens.
+    Carrega modelo e tokenizer de uma entrada do registro.
 
     Configurações aplicadas:
-        - dtype (padrão bfloat16, vem do config): metade da VRAM de
-          float32; bf16 em vez de fp16 porque o Gemma 2 falha em fp16
-        - device_map="auto":   distribui entre GPUs disponíveis
-        - output_hidden_states=True: habilita saída dos hidden states
-                                     (obrigatório para o Logit Lens)
-
-    Args:
-        model_name: path/nome no HuggingFace Hub
-        model_key:  chave curta (llama, mistral, qwen, gemma)
-        dtype:      "bfloat16" | "float16" | "float32"
-
-    Returns:
-        Tupla (model, tokenizer)
+        - revision fixa (commit do registro), modelo e tokenizer
+        - dtype da entrada (bfloat16 em todos: o Gemma 2 falha em fp16)
+        - quantização da entrada (gemma27: NF4, lm_head sem quantizar)
+        - device_map="auto": distribui entre GPUs disponíveis
+        - output_hidden_states=True (obrigatório para o Logit Lens)
+        - sem trust_remote_code: todas as arquiteturas são nativas do
+          transformers
 
     Raises:
-        EnvironmentError: se o modelo requer token e nenhum foi encontrado
+        EnvironmentError:     modelo gated sem token
+        ArchitectureMismatch: model_type carregado != architecture do registro
     """
-    torch_dtype = resolve_dtype(dtype)
-    print(f"\nCarregando {model_key}: {model_name} ({dtype})")
+    registry = registry or load_models()
+    spec     = registry[model_key]
+    quant    = quantization_config(spec, registry)
+    print(f"\nCarregando {model_key}: {spec.id}@{spec.revision[:10]} "
+          f"({spec.precision}{', ' + spec.quantization if spec.quantization else ''})")
 
-    token = get_hf_token()
-
-    if requires_token(model_name):
-        if token is None:
-            raise EnvironmentError(
-                f"\n❌ Token do Hugging Face necessário para '{model_name}'\n"
-                f"   Opções:\n"
-                f"   1. export HF_TOKEN='hf_seu_token'\n"
-                f"   2. huggingface-cli login\n"
-                f"   3. Criar arquivo .env com HF_TOKEN=hf_seu_token\n"
-                f"\n   Obter token:     https://huggingface.co/settings/tokens\n"
-                f"   Aceitar licença: https://huggingface.co/{model_name}"
-            )
+    token = _token_for(spec) if spec.gated else get_hf_token()
+    if spec.gated:
         print(f"  🔑 Token HF: {token[:8]}...")
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_name,
-        token=token,
-        trust_remote_code=True
-    )
-
+    tokenizer = AutoTokenizer.from_pretrained(spec.id, revision=spec.revision, token=token)
     # Garantir que o tokenizer tem padding token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        token=token,
-        dtype=torch_dtype,
-        device_map="auto",
-        trust_remote_code=True,
-        output_hidden_states=True    # CRÍTICO para o Logit Lens
-    )
-
+    kwargs = dict(revision=spec.revision, token=token, dtype=resolve_dtype(spec.precision),
+                  device_map="auto", output_hidden_states=True)
+    if quant is not None:
+        kwargs["quantization_config"] = quant
+    model = AutoModelForCausalLM.from_pretrained(spec.id, **kwargs)
     model.eval()  # desativa dropout — importante para reprodutibilidade
 
-    n_params  = sum(p.numel() for p in model.parameters()) / 1e9
-    n_layers  = model.config.num_hidden_layers
-    hid_size  = model.config.hidden_size
+    if model.config.model_type != spec.architecture:
+        raise ArchitectureMismatch(
+            f"{model_key}: model_type '{model.config.model_type}' carregado, "
+            f"registro diz '{spec.architecture}'")
 
-    print(f"  ✅ {n_params:.1f}B params | {n_layers} camadas | hidden_size={hid_size}")
-
+    n_params = sum(p.numel() for p in model.parameters()) / 1e9
+    print(f"  ✅ {n_params:.1f}B params | {model.config.num_hidden_layers} camadas | "
+          f"hidden_size={model.config.hidden_size}")
     return model, tokenizer
 
 
@@ -150,5 +163,5 @@ def get_num_layers(model: AutoModelForCausalLM) -> int:
 
 
 def get_hidden_size(model: AutoModelForCausalLM) -> int:
-    """Retorna dimensão do hidden state (ex: 5120 para LLaMA 13B)."""
+    """Retorna dimensão do hidden state."""
     return model.config.hidden_size
