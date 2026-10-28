@@ -55,6 +55,13 @@ formas de superfície confirmadas):
     behavioral_report.csv   perguntas de config/behavioral.yaml (report)
     kind = all (greedy + amostras) | greedy | sample
 
+Estatística (Fase 6, analysis/statistics.py):
+    stats_ci                IC bootstrap de cs_zone, CS*, supressão, CS final e ΔCS
+    stats_stake_tests.csv   stake × não-stake por entidade (permutação, Holm)
+    stats_mixed_coefs.csv   modelos mistos A (todas) e B (completion)
+    stats_mixed_fits.csv    fórmula, n, convergência, variâncias
+    internal_behavioral     métrica interna × taxas comportamentais por célula
+
 Concordância Tuned Lens × Logit Lens (mesmas células):
     pico      |depth(k*_tuned) − depth(k*_logit)| por prompt × candidato
     ΔCS       sinal igual (fração) e magnitude (Pearson, Spearman,
@@ -469,11 +476,17 @@ def main(argv=None):
             res.update(compute_behavioral(answers, config))
         except UnconfirmedError as e:
             print(f"  ⚠️  comportamental pulado: formas de superfície não confirmadas\n{e}")
+
+    # Estatística (Fase 6): IC bootstrap, teste de stake, modelos mistos,
+    # junção interno × comportamental
+    from analysis.statistics import run_statistics
+    res.update(run_statistics(res, config))
     for name, df in res.items():
         df.to_parquet(out / f"{name}.parquet", index=False)
         print(f"  OK  {out / name}.parquet  ({len(df)} linhas)")
     for name in ("metrics", "delta_cs", "lens_agreement_summary", "behavioral_rates",
-                 "empirical_dominant", "behavioral_report"):
+                 "empirical_dominant", "behavioral_report", "stats_stake_tests",
+                 "stats_mixed_coefs", "stats_mixed_fits", "internal_behavioral"):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)
     print(f"\nPróximo passo: python make_figures.py")

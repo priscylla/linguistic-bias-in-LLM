@@ -37,3 +37,15 @@ heatmap_models: [llama, gemma]
 results_dir: results
 figures_dir: figures
 seed: 42
+
+# Estatística (Fase 6). Decisões confirmadas pela autora em 2026-10-28.
+statistics:
+  primary_metric: cs_zone        # média de CS na zona de decisão
+  ci_metrics: [cs_zone, cs_star, suppression, cs_final]
+  delta_metrics: [cs_zone, cs_star, cs_final]   # ΔCS = métrica(l) − métrica(en)
+  bootstrap: 10000               # reamostragens, percentil, estratificado por formulação
+  ci_level: 0.95
+  pooled_types: [F1, F2, F3]     # formulações agrupadas na célula principal
+  permutation_exact_max_n: 16    # sign-flip exato até 2^16; acima, Monte Carlo
+  permutation_mc: 100000
+  seed: 42

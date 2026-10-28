@@ -39,5 +39,9 @@ Every fact, translation, model ID or license used by the pipeline is logged here
 | Behavioral surface forms | `config/behavioral.yaml` surface_forms | new reviewed list (surnames/full names, Latin + Cyrillic six cases, per-language exclusions); **list itself still `proposed`** | Priscylla Silva (approach) | 2026-10-28 |
 | Empirical dominant | `analyze.py` empirical_dominant | majority primary attribution over all English answers of all instruct models, 'none' excluded; also per model | Priscylla Silva | 2026-10-28 |
 | Validation sample | `config/behavioral.yaml` validation | stratified, 13 answers per model × language (≈390), seed 42 | Priscylla Silva | 2026-10-28 |
+| Main statistic | `config/experiment.yaml` statistics.primary_metric | cs_zone (decision-zone mean of CS_e); CS* and final-layer CS in the appendix | Priscylla Silva | 2026-10-28 |
+| Bootstrap | `config/experiment.yaml` statistics | percentile, 10,000 resamples, stratified over paraphrases within F1–F3 (9 prompts per cell); per-formulation CIs (3 paraphrases) flagged coarse | Priscylla Silva | 2026-10-28 |
+| Stake test | `analysis/statistics.py` stake_tests | CS (not ΔCS); unit = model × format × prompt type; d = stake − mean non-stake; sign-flip permutation (exact n ≤ 16, else 100k Monte Carlo); Holm per lens × set × stake type; dominant candidates via P(dom) − mean P(alt) | Priscylla Silva | 2026-10-28 |
+| Mixed models | `analysis/statistics.py` mixed_models | two fits: A ΔCS ~ stake_type + format + base_vs_instruct; B (completion) ΔCS ~ stake_type + formulation + base_vs_instruct; (1|fact) + (1|model) | Priscylla Silva | 2026-10-28 |
 
 EN and DE prompts were unchanged in Phase 0 (already correct). The prompts above are paraphrase 1 of each formulation since Phase 1 (moved from `data/prompts.py`, now removed); the new paraphrases and the FR/RU prompts are added to this log as they are confirmed.

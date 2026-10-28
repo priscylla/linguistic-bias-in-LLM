@@ -142,8 +142,11 @@ def test_analyze_and_figures(run_dir, tmp_path, monkeypatch):
     out  = tmp_path / "metrics"
     assert analyze.main(["--results-dir", str(root), "--output-dir", str(out)]) == 0
     assert _digest(root / "lens") == raw                        # brutos intactos
-    for name in ("curves", "metrics", "confound", "curves_mean", "delta_cs"):
+    for name in ("curves", "metrics", "confound", "curves_mean", "delta_cs",
+                 "stats_ci", "stats_stake_tests", "stats_mixed_fits"):
         assert (out / f"{name}.parquet").exists()
+    ci = pd.read_parquet(out / "stats_ci.parquet")
+    assert {"F1-F3", "QA", "place"} <= set(ci["prompt_group"])
     met = pd.read_parquet(out / "metrics.parquet")
     alt = met[(met.fact == "aviao") & ~met.dominant & (met.token_set == "names")]
     assert alt["cs_final"].notna().all()

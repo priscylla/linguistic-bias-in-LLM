@@ -1,7 +1,7 @@
 # linguistic-bias-in-LLM
 Linguistic Bias in LLM Outputs
 
-> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 5; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
+> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 6; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
 
 ## Execution — Step by Step
 
@@ -79,5 +79,6 @@ Base models run only the completion format; instruct models run completion and Q
 - `logit_lens/confound.py`: article-confound passes (forced article, then plural noun; contracted prepositions for blocked prompts; shared prefixes of split indicators).
 - `logit_lens/tuned_lens.py` + `logit_lens/lens_training.py` + `train_tuned_lens.py`: Tuned Lens (per-layer affine translator h + A·h + b, zero-init, KL to the final distribution), same `Lens` interface; held-out KL per language and layer against the Logit Lens.
 - `run_lens.py` writes `results/lens/{lens}/{model}/` (lens = `logit_lens` | `tuned_lens`): `probs`, `baseline`, `forced`, `layers`, `token_sets` (Parquet) and `manifest.json`.
+- `analysis/statistics.py` (run by `analyze.py`): stratified bootstrap CIs for the decision-zone CS, CS*, suppression and ΔCS; stake vs non-stake permutation tests per entity (Holm, nationality and place of event separate); mixed models with crossed random effects for fact and model; internal metrics joined with behavioral rates. Settings in `config/experiment.yaml` (`statistics`).
 - `behavior/`: generation with explicit decoding settings (`generation.py`), candidate and indicator extraction (`extraction.py`), validation sample and agreement (`validation.py`).
 - `analyze.py` writes `results/metrics/`: CS_e = P(e) − P(dominant), baseline-adjusted CS, k*, CS*, suppression, decision-zone mean, article verdict, and ΔCS_e(l) = CS_e(l) − CS_e(en) on paraphrase means; with both lenses, `lens_agreement_summary.csv` (peak-layer distance, sign agreement and correlation of ΔCS); with behavioral answers, per-answer attribution, rates per cell, indicator mentions given the credited candidate, the empirical English dominant and the report questions (Reis before Meucci in German; Santos-Dumont in French vs EN/DE/IT).
