@@ -54,12 +54,11 @@ def test_group_order_ignores_words_containing_terms():
 
 # ── Cor do heatmap por token ID ──
 
-RUN = {"entity_tokens": {"sets": {"local": {"ids": [10, 11]},
-                                  "competing": {"ids": [20]}}}}
+RUN = {"dominant_ids": {20}, "other_ids": {10}}
 
 
 def test_token_color_by_id():
-    # competing = dominante (vermelho), local = alternativas (azul)
+    # dominante (vermelho), alternativas (azul), demais (cinza)
     assert token_color(20, RUN, "telefone", "pt") == ENTITY_COLOR_DOMINANT
     assert token_color(10, RUN, "telefone", "pt") == ENTITY_COLOR_OTHER
     assert token_color(99, RUN, "telefone", "pt") == "#AAAAAA"

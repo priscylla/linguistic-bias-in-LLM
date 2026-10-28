@@ -82,15 +82,19 @@ class LensRunner:
     # ── Forward ──
 
     def forward(self, text: str, add_special_tokens: bool = True) -> Dict:
+        """Forward do texto (ver forward_ids)."""
+        return self.forward_ids(encode_ids(self.tokenizer, text, add_special_tokens))
+
+    def forward_ids(self, ids: List[int]) -> Dict:
         """
-        Forward do texto e distribuições do lens na última posição.
+        Forward de uma sequência de ids e distribuições do lens na
+        última posição.
 
         Returns:
             Dict com input_ids, decision_pos, n_layers,
             probs [n_layers, vocab] e kl [n_layers]
         """
-        ids = encode_ids(self.tokenizer, text, add_special_tokens)
-        input_ids = torch.tensor([ids], device=self.device)
+        input_ids = torch.tensor([list(ids)], device=self.device)
         with torch.no_grad():
             outputs = self.model(input_ids=input_ids,
                                  attention_mask=torch.ones_like(input_ids),
@@ -100,7 +104,7 @@ class LensRunner:
         # Em todo forward: a última camada tem que ser o próprio modelo
         self.lens.check_consistency(outputs, pos, last_logits=logits[-1])
         return {
-            "input_ids":    ids,
+            "input_ids":    list(ids),
             "decision_pos": pos,
             "n_layers":     logits.shape[0],
             "probs":        F.softmax(logits, dim=-1),
@@ -154,6 +158,25 @@ class LensRunner:
 
     # ── Prompts do experimento ──
 
+    def measure_words(self, text: str, sep: str, add_special: bool,
+                      words: Dict[str, List[str]], kind: str) -> Dict:
+        """
+        Um forward de `text` e P por camada de cada conjunto de palavras
+        (token sets montados no contexto de `text`).
+        """
+        fw   = self.forward(text, add_special)
+        sets = build_token_sets(self.tokenizer, text, words,
+                                sep=sep, add_special_tokens=add_special)
+        return {
+            "n_layers":       fw["n_layers"],
+            "decision_pos":   fw["decision_pos"],
+            "n_input_tokens": len(fw["input_ids"]),
+            "input_ids":      fw["input_ids"],
+            "layers":         self.layer_rows(fw),
+            "probs":          self.set_rows(fw, sets, kind),
+            "token_sets":     sets,
+        }
+
     def measure(self, prompt, fact) -> Dict:
         """
         Mede um prompt de um fato: nomes (F1–F3, QA) ou indicadores
@@ -161,23 +184,13 @@ class LensRunner:
 
         Returns:
             Dict com meta, n_layers, decision_pos, n_input_tokens,
-            layers (KL + top-k), probs (linhas tidy) e token_sets
-            (auditoria: ids, palavras, compartilhados, excluídos)
+            input_ids, layers (KL + top-k), probs (linhas tidy) e
+            token_sets (auditoria: ids, palavras, compartilhados, excluídos)
         """
         text, sep, add_special = self.prepare(prompt)
-        fw   = self.forward(text, add_special)
-        kind = token_set_kind(prompt.type)
-        sets = build_token_sets(self.tokenizer, text, word_sets(fact, prompt),
-                                sep=sep, add_special_tokens=add_special)
-        return {
-            "meta":           _meta(prompt, fact=fact.key, lens=self.lens.name),
-            "n_layers":       fw["n_layers"],
-            "decision_pos":   fw["decision_pos"],
-            "n_input_tokens": len(fw["input_ids"]),
-            "layers":         self.layer_rows(fw),
-            "probs":          self.set_rows(fw, sets, kind),
-            "token_sets":     sets,
-        }
+        res = self.measure_words(text, sep, add_special, word_sets(fact, prompt),
+                                 token_set_kind(prompt.type))
+        return {"meta": _meta(prompt, fact=fact.key, lens=self.lens.name), **res}
 
     # ── Linha de base neutra ──
 

@@ -43,11 +43,11 @@ ARCHS = {
 }
 
 
-def build_tiny_model(arch: str, dtype: torch.dtype = torch.float32):
+def build_tiny_model(arch: str, dtype: torch.dtype = torch.float32, vocab: int = VOCAB):
     """Cria um modelo aleatório minúsculo da arquitetura pedida."""
     cfg_cls, model_cls, extra = ARCHS[arch]
     torch.manual_seed(0)
-    config = cfg_cls(**_BASE, **extra)
+    config = cfg_cls(**{**_BASE, "vocab_size": vocab}, **extra)
     model = model_cls(config).to(dtype).eval()
     # Pesos aleatórios com norm de ganho != 1, para que aplicar a norm
     # duas vezes faça diferença mensurável

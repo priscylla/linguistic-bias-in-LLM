@@ -6,12 +6,10 @@ Fase 0, correção 5: probabilidades exatas por token ID, sem substring.
 import pytest
 import torch
 
-from conftest import VOCAB, WordTokenizer, build_tiny_model
-from logit_lens.analyzer import LogitLensAnalyzer
+from conftest import WordTokenizer
 from logit_lens.entity_tokens import (
     build_token_sets, first_token_after, prob_mass,
 )
-from logit_lens.extractor import LogitLensExtractor
 
 PROMPT = "Il telefono è stato inventato da"
 
@@ -78,77 +76,3 @@ def test_real_tiny_tokenizer_bell_vs_bella():
     bell  = first_token_after(tok, PROMPT, "Bell")
     bella = first_token_after(tok, PROMPT, "bella")
     assert bell["token_id"] != bella["token_id"]
-
-
-# ── Extractor: entity_probs na distribuição completa ──
-
-class _ModTok(WordTokenizer):
-    """WordTokenizer com ids limitados ao vocabulário do modelo minúsculo."""
-    def _id(self, tok):
-        i = super()._id(tok)
-        assert i < VOCAB
-        return i
-
-
-def test_extract_entity_probs_match_full_softmax(arch):
-    tok   = _ModTok(splits={" Meucci": [" Me", "ucci"]})
-    model = build_tiny_model(arch)
-    ext   = LogitLensExtractor(model, tok, top_k=3)
-    sets  = {"local": ["Meucci", "Antonio"], "competing": ["Bell", "Graham"]}
-    res   = ext.extract(PROMPT, entity_sets=sets)
-
-    ids = {k: v["ids"] for k, v in res["entity_tokens"]["sets"].items()}
-    inputs = tok(PROMPT, return_tensors="pt")
-    with torch.no_grad():
-        out = model(**inputs, output_hidden_states=True)
-
-    for k, layer in enumerate(res["last_token"], start=1):
-        is_last = k == res["n_layers"]
-        probs = ext._apply_logit_lens(out.hidden_states[k][0, -1], is_last)
-        for name in sets:
-            manual = probs[ids[name]].sum().item()
-            assert layer["entity_probs"][name] == pytest.approx(manual, abs=1e-7)
-        # top_ids correspondem aos top_tokens
-        assert [tok.decode([i]) for i in layer["top_ids"]] == layer["top_tokens"]
-
-
-def test_entity_probs_include_tokens_outside_topk():
-    tok   = _ModTok()
-    model = build_tiny_model("llama")
-    ext   = LogitLensExtractor(model, tok, top_k=1)
-    res   = ext.extract(PROMPT, entity_sets={"local": ["Bell"], "competing": ["Graham"]})
-    sets  = res["entity_tokens"]["sets"]
-    layer = res["last_token"][-1]
-    # Com top-1, pelo menos um dos dois tokens fica fora do top-k, mas a
-    # probabilidade exata dele continua sendo medida (o top-k dava 0)
-    outside = [n for n in sets if sets[n]["ids"][0] not in layer["top_ids"]]
-    assert outside
-    for n in outside:
-        assert layer["entity_probs"][n] > 0
-
-
-# ── Analyzer ──
-
-def _layers(p_local, p_comp):
-    n = len(p_local)
-    return [{"layer": i + 1, "layer_norm": i / (n - 1),
-             "entity_probs": {"local": a, "competing": b}}
-            for i, (a, b) in enumerate(zip(p_local, p_comp))]
-
-
-def test_analyzer_uses_entity_probs():
-    m = LogitLensAnalyzer().compute_all_metrics(
-        _layers([0.0, 0.3, 0.6, 0.1], [0.1, 0.1, 0.2, 0.4]))
-    assert m["iv_local_peak"] == pytest.approx(0.6)
-    assert m["peak_layer"] == 3
-    assert m["suppression"] == pytest.approx(0.5)
-    assert m["cs_at_peak"] == pytest.approx(0.4)
-    assert m["commitment_final"] == pytest.approx(-0.3)
-    assert m["commitment_curve"] == pytest.approx([-0.1, 0.2, 0.4, -0.3])
-
-
-def test_analyzer_rejects_old_topk_format():
-    old = [{"layer": 1, "layer_norm": 0.0,
-            "top_tokens": [" Bell"], "top_probs": [0.9]}]
-    with pytest.raises(ValueError, match="entity_probs"):
-        LogitLensAnalyzer().compute_all_metrics(old)

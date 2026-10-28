@@ -2,7 +2,7 @@
 monitor.py
 Monitor de progresso dos experimentos em tempo real.
 
-Executar em terminal separado enquanto run_single_model.py roda:
+Executar em terminal separado enquanto run_lens.py roda:
     python monitor.py
 
 Atualiza a cada 30 segundos.
@@ -10,61 +10,31 @@ Atualiza a cada 30 segundos.
 
 import os
 import sys
-import json
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from analyze import raw_results_path
 from config.experiment_config import ExperimentConfig
+from logit_lens.store import ChunkStore, lens_dir, read_manifest
+from run_lens import lens_units
 
 
 def count_completed_runs(results_dir: str = None) -> dict:
     """
-    Conta quantos runs foram completados para cada modelo.
-    O total esperado por modelo vem do config.
+    Unidades feitas (fato × idioma e linha de base × idioma) por modelo.
+    O total esperado vem do config.
     """
-    config         = ExperimentConfig()
-    results_dir    = results_dir or config.results_dir
-    total_expected = (len(config.facts) * len(config.languages)
-                      * len(config.formulations))
-
-    summary = {}
+    config      = ExperimentConfig()
+    results_dir = results_dir or config.results_dir
+    summary     = {}
 
     for model_key in config.models:
-        path = raw_results_path(results_dir, model_key)
-
-        if not os.path.exists(path):
-            summary[model_key] = {
-                "status": "pending", "completed": 0,
-                "total": total_expected, "pct": 0.0
-            }
-            continue
-
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-
-            completed = sum(
-                1
-                for fact in data.values()
-                for lang in fact.values()
-                for form in lang.values()
-                if "response" in form
-            )
-
-            summary[model_key] = {
-                "status":    "done" if completed == total_expected else "running",
-                "completed": completed,
-                "total":     total_expected,
-                "pct":       completed / total_expected * 100
-            }
-
-        except json.JSONDecodeError:
-            summary[model_key] = {
-                "status": "writing", "completed": "?",
-                "total": total_expected, "pct": 0.0
-            }
-
+        out   = lens_dir(results_dir, model_key)
+        man   = read_manifest(out)
+        total = len(lens_units(config, tuple(man.get("formats", ["completion", "qa"]))))
+        done  = len(ChunkStore(out).done_units()) if out.exists() else 0
+        status = "pending" if done == 0 else ("done" if done >= total else "running")
+        summary[model_key] = {"status": status, "completed": done, "total": total,
+                              "pct": done / total * 100 if total else 0.0}
     return summary
 
 
@@ -131,7 +101,7 @@ def display_status():
         total_all += info["total"]
 
     pct_total = total_done / total_all * 100 if total_all > 0 else 0
-    print(f"\n  TOTAL: {total_done}/{total_all} runs ({pct_total:.1f}%)")
+    print(f"\n  TOTAL: {total_done}/{total_all} unidades ({pct_total:.1f}%)")
 
     # ── Status das GPUs ──
     print("\n🖥️  STATUS DAS GPUs:")
@@ -152,17 +122,6 @@ def display_status():
                 f"({mem_pct:.0f}%)  "
                 f"Util: {gpu['util']:3d}%"
             )
-
-    # ── Estimativa ──
-    print("\n⏱️  ESTIMATIVA:")
-    runs_remaining  = total_all - total_done
-    mins_per_run    = 1.5   # ajustar conforme velocidade observada
-    mins_remaining  = runs_remaining * mins_per_run
-
-    print(
-        f"  Runs restantes: {runs_remaining}  "
-        f"(~{mins_remaining:.0f} min ≈ {mins_remaining/60:.1f}h)"
-    )
 
     print("\n  [Ctrl+C para sair do monitor]")
 

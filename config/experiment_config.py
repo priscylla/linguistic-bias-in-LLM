@@ -3,25 +3,16 @@ config/experiment_config.py
 Acesso único à configuração do experimento.
 
 Os valores vêm dos arquivos YAML em config/ (experiment.yaml,
-facts.yaml, prompts.yaml) via config/loader.py. Esta classe só expõe
-esses valores e alguns derivados usados pelo pipeline atual.
-
-Pipeline atual (até a Fase 2 substituí-lo por run_lens.py): um
-Commitment Score de dois conjuntos por fato,
-
-    CS = P(local) − P(competing)
-
-com local = nomes de todos os candidatos não dominantes e
-competing = nomes do candidato dominante. O mesmo sentido em todos
-os idiomas, como o CS_e = P(e) − P(dominante) da Fase 2.
+facts.yaml, prompts.yaml, baseline_prompts.yaml, forcing.yaml) via
+config/loader.py. Esta classe só expõe esses valores e alguns derivados.
 """
 
 from dataclasses import dataclass, field
 from typing import Dict, List
 
 from config.loader import (
-    Baseline, Fact, Prompt, load_baseline, load_experiment, load_facts,
-    load_prompts, prompts_for,
+    Baseline, Fact, Forcing, Prompt, load_baseline, load_experiment, load_facts,
+    load_forcing, load_prompts, prompts_for,
 )
 
 
@@ -32,6 +23,7 @@ class ExperimentConfig:
     fact_specs: Dict[str, Fact] = field(default_factory=lambda: load_facts())
     prompt_specs: tuple = field(default_factory=lambda: load_prompts())
     baseline_spec: Baseline = field(default_factory=lambda: load_baseline())
+    forcing_spec: Forcing = field(default_factory=lambda: load_forcing())
 
     # ── Parâmetros gerais ──
     @property
@@ -105,22 +97,6 @@ class ExperimentConfig:
         """True se `lang` tem stake de uma narrativa não dominante no fato."""
         return lang in self.stake_languages.get(fact, [])
 
-    def entity_sets(self, fact: str, lang: str, case: str = "nom") -> Dict[str, List[str]]:
-        """Conjuntos do pipeline atual: local = alternativas, competing = dominante."""
-        f = self.fact_specs[fact]
-        local = [n for c in f.alternatives for n in c.names_for(lang, case)]
-        return {"local": local, "competing": f.dominant.names_for(lang, case)}
-
-    @property
-    def expected_entities(self) -> Dict[str, Dict[str, List[str]]]:
-        return {k: {l: self.entity_sets(k, l)["local"] for l in self.languages}
-                for k in self.fact_specs}
-
-    @property
-    def competing_entities(self) -> Dict[str, Dict[str, List[str]]]:
-        return {k: {l: self.entity_sets(k, l)["competing"] for l in self.languages}
-                for k in self.fact_specs}
-
     # ── Prompts ──
     def prompt(self, fact: str, lang: str, ptype: str, paraphrase: int = 1) -> Prompt:
         return prompts_for(self.prompt_specs, fact, lang, ptype)[paraphrase - 1]
@@ -128,8 +104,3 @@ class ExperimentConfig:
     def baseline_prompt(self, lang: str, ptype: str, paraphrase: int = 1) -> Prompt:
         """Prompt neutro que espelha (lang, ptype, paraphrase)."""
         return prompts_for(self.baseline_spec.prompts, None, lang, ptype)[paraphrase - 1]
-
-    def expected_cells(self) -> int:
-        """Runs do pipeline atual: modelos × fatos × idiomas × formulações."""
-        return (len(self.models) * len(self.facts)
-                * len(self.languages) * len(self.formulations))

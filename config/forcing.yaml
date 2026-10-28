@@ -1,0 +1,51 @@
+# config/forcing.yaml
+# Teste do confundidor de artigo (Fase 2). Uma passada extra de forward
+# por prompt, medindo os candidatos na posição seguinte.
+#
+# articles:      se o top-1 da última camada é o primeiro token de uma
+#                destas palavras, ela é anexada ao prompt ("... by the")
+# plural_nouns:  substantivo dos candidatos plurais (irmãos Wright,
+#                irmãos Lumière). Também dispara o teste e, se for o top-1
+#                depois do artigo forçado, é forçado em seguida
+#                ("... os" -> "... os irmãos"). Em ru, por caso da lacuna.
+# contractions:  prompts article_blocked (a lacuna termina em preposição
+#                que contrai com artigo): a preposição final é trocada por
+#                cada forma contraída, uma passada por forma
+#                ("inventado por" -> "inventado pelos")
+#
+# Comparação pelo token ID exato no contexto do prompt; maiúscula inicial
+# também conta (formato QA: "The"). Formas elididas (l') ficam de fora:
+# não são seguidas de espaço.
+#
+# status: proposed até a confirmação da autora.
+
+status: proposed
+
+articles:
+  pt: [o, a, os, as, um, uma]
+  en: [the, a, an]
+  de: [der, die, das, den, dem, des, ein, eine, einen, einem, einer]
+  it: [il, lo, la, i, gli, le, un, uno, una]
+  fr: [le, la, les, un, une, des]
+  ru: []
+
+plural_nouns:
+  pt: [irmãos]
+  en: [brothers]
+  de: [Brüder, Brüdern]
+  it: [fratelli]
+  fr: [frères]
+  ru:
+    nom: [братья]
+    gen: [братьев]
+    ins: [братьями]
+
+contractions:
+  pt:
+    por: [pelo, pela, pelos, pelas]
+    em:  ["no", na, nos, nas]   # "no" entre aspas: sem elas o YAML lê false
+  it:
+    da: [dal, dallo, dalla, dai, dagli, dalle]
+    a:  [al, allo, alla, ai, agli, alle]
+  fr:
+    à:  [au, aux]

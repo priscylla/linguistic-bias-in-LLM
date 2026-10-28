@@ -4,8 +4,7 @@ Verificacao do setup ANTES de rodar os experimentos completos.
 
 Carrega apenas tokenizers (~30s) para verificar:
     0. Token HuggingFace — acesso a modelos restritos
-    1. Completion prompts — ultimo token por formulacao
-    2. Keyword finding — localizacao de keywords nos tokens
+    1. Completion prompts — ultimo token de cada prompt (reais e neutros)
     3. Tokenizacao de nomes e indicadores apos cada prompt
        (split, compartilhado entre candidatos, palavra comum)
 
@@ -26,8 +25,6 @@ from huggingface_hub import HfApi
 
 from config.experiment_config import ExperimentConfig
 from models.model_loader import get_hf_token, requires_token
-from data.keyword_finder import find_keyword_position_robust
-from data.prompts import COMPLETION_PROMPTS
 from config.loader import require_valid
 from data.tokenization_check import check_tokenizer
 from models.chat_template import apply_template
@@ -76,105 +73,30 @@ def check_token_access(config: ExperimentConfig):
     return all_ok
 
 
-def check_completion_prompts(tokenizers: dict):
+def check_completion_prompts(tokenizers: dict, config: ExperimentConfig):
     """
-    Verifica os completion prompts — confirma que o ultimo token
-    de cada prompt e a preposicao/verbo esperado, nao um subtoken
-    inesperado.
-
-    Ultimo token esperado por formulacao:
-        F1: "por" / "by" / "von" / "da"
-        F2: "considerado" / "be" / "als" / "considerato"
-        F3: "é" / "was" / "war" / "stato"
+    Ultimo token de cada prompt completion (reais e neutros da linha
+    de base): confirma que a lacuna termina na palavra esperada e nao
+    num subtoken inesperado.
     """
     print("\n" + "=" * 60)
     print("VERIFICACAO 1: COMPLETION PROMPTS")
     print("=" * 60)
 
-    config = ExperimentConfig()
-    facts, langs, forms = config.facts, config.languages, config.formulations
-
+    prompts = [p for p in list(config.prompt_specs) + list(config.baseline_spec.prompts)
+               if p.format == "completion"]
     report = {}
-
     for model_key, tokenizer in tokenizers.items():
         print(f"\n[{model_key.upper()}]")
         report[model_key] = {}
-
-        for fact in facts:
-            for lang in langs:
-                for form in forms:
-                    prompt = COMPLETION_PROMPTS[fact][lang][form]
-                    ids    = tokenizer.encode(prompt, add_special_tokens=False)
-                    last_token = tokenizer.decode([ids[-1]])
-                    n_tokens   = len(ids)
-
-                    report[model_key][f"{fact}/{lang}/{form}"] = {
-                        "prompt":     prompt,
-                        "n_tokens":   n_tokens,
-                        "last_token": last_token
-                    }
-
-                    print(
-                        f"  [{fact}][{lang}][{form}]  "
-                        f"n={n_tokens:2d}  "
-                        f"last='{last_token:12s}'  "
-                        f"\"{prompt}\""
-                    )
-
+        for p in prompts:
+            ids  = tokenizer.encode(p.text, add_special_tokens=False)
+            last = tokenizer.decode([ids[-1]])
+            key  = f"{p.fact or 'baseline'}/{p.lang}/{p.type}.{p.paraphrase}"
+            report[model_key][key] = {"prompt": p.text, "n_tokens": len(ids),
+                                      "last_token": last}
+            print(f"  [{key}]  n={len(ids):2d}  last='{last:12s}'  \"{p.text}\"")
     return report
-
-
-def check_keyword_finding(tokenizers: dict, config: ExperimentConfig):
-    """
-    Verifica a localizacao de keywords nos completion prompts.
-    Usa F1 como prompt de teste — suficiente para verificar
-    que a keyword e encontrada corretamente.
-    """
-    print("\n" + "=" * 60)
-    print("VERIFICACAO 2: KEYWORD FINDING")
-    print("=" * 60)
-
-    problems = []
-
-    for model_key, tokenizer in tokenizers.items():
-        print(f"\n[{model_key.upper()}]")
-
-        for fact in config.facts:
-            for lang in config.languages:
-
-                keyword = config.keyword_tokens[fact][lang]
-
-                # Usar completion prompt F1 diretamente
-                # sem chat template — igual ao run_single_model.py
-                prompt  = COMPLETION_PROMPTS[fact][lang]["F1"]
-                input_ids = tokenizer.encode(
-                    prompt, add_special_tokens=False
-                )
-
-                pos, strategy = find_keyword_position_robust(
-                    tokenizer, input_ids, keyword, model_key
-                )
-
-                if pos is not None:
-                    found_token = tokenizer.decode([input_ids[pos]])
-                    status = "OK " if strategy == "exact" else "OK*"
-                else:
-                    found_token = "NOT FOUND"
-                    status = "ERR"
-                    problems.append({
-                        "model": model_key, "fact": fact,
-                        "lang": lang, "keyword": keyword
-                    })
-
-                print(
-                    f"  {status} [{fact}][{lang}]  "
-                    f"kw='{keyword:12s}'  "
-                    f"pos={str(pos):4s}  "
-                    f"token='{found_token:12s}'  "
-                    f"{strategy}"
-                )
-
-    return problems
 
 
 def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
@@ -240,10 +162,7 @@ def main():
     print(f"  {len(tokenizers)} tokenizers carregados")
 
     # ── Verificacao 1: Completion Prompts ──
-    prompt_report = check_completion_prompts(tokenizers)
-
-    # ── Verificacao 2: Keyword Finding ──
-    problems = check_keyword_finding(tokenizers, config)
+    prompt_report = check_completion_prompts(tokenizers, config)
 
     # ── Verificacao 3: Tokenizacao de nomes e indicadores ──
     tokenization = check_name_tokenization(tokenizers, config)
@@ -253,25 +172,21 @@ def main():
     print("RELATORIO FINAL")
     print("=" * 60)
 
+    excluded = {mk: t["counts"].get("excluded", 0) for mk, t in tokenization.items()}
+    problems = [mk for mk, n in excluded.items() if n]
     if not problems:
-        print("  Nenhum problema encontrado!")
-        print("\n  Proximo passo:")
-        print("  python run_single_model.py mistral")
+        print("  Nenhuma palavra excluida por boundary merge.")
     else:
-        print(f"  {len(problems)} problema(s) encontrado(s):\n")
-        for p in problems:
-            print(
-                f"  [{p['model']}][{p['fact']}][{p['lang']}] "
-                f"keyword='{p['keyword']}'"
-            )
-        print("\n  Correcao: editar KEYWORD_VARIANTS em data/keyword_finder.py")
-        print("  Depois:   python verify_setup.py")
+        for mk in problems:
+            print(f"  [{mk}] {excluded[mk]} palavra(s) excluida(s): ver {tokenization[mk]['csv']}")
+    print("\n  Proximo passo (com o config confirmado):")
+    print("  python run_lens.py mistral")
 
     # Salvar relatorio
     report = {
         "token_ok": token_ok,
         "prompts":  prompt_report,
-        "problems": problems,
+        "excluded": excluded,
         "tokenization": tokenization,
     }
     with open("verification_report.json", "w", encoding="utf-8") as f:

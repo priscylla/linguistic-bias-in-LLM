@@ -7,7 +7,8 @@ Gera os documentos de revisão a partir de config/*.yaml:
                                precisa de verificação
     reports/prompts_review.md  todos os prompts, por fato e idioma, com
                                as marcações (article_blocked, slot_case),
-                               e os prompts neutros da linha de base
+                               os prompts neutros da linha de base e as
+                               palavras do teste do confundidor de artigo
 
     python scripts/make_review_doc.py
 """
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from config.loader import (  # noqa: E402
-    load_baseline, load_experiment, load_facts, load_prompts, prompts_for,
+    load_baseline, load_experiment, load_facts, load_forcing, load_prompts, prompts_for,
 )
 
 OUT_FACTS   = ROOT / "reports" / "phase1_review.md"
@@ -96,7 +97,30 @@ def baseline_doc(exp, baseline) -> list:
     return out
 
 
-def prompts_doc(exp, facts, prompts, baseline=None) -> str:
+def forcing_doc(exp, forcing) -> list:
+    out = [
+        "## Article-confound forcing words (`config/forcing.yaml`)",
+        "",
+        f"Status: `{forcing.status}`. **Articles** trigger the test when the final layer's top "
+        "token is one of them; the word is appended and the candidates are measured at the next "
+        "position. **Plural nouns** also trigger it, and are forced as a second step when they "
+        "follow a forced article (*os → irmãos*). **Contractions** replace the final preposition "
+        "of ⛔ prompts, one pass per form.",
+        "",
+        "| Language | Articles | Plural nouns | Contractions |",
+        "| --- | --- | --- | --- |",
+    ]
+    for lang in exp["languages"]:
+        plural = forcing.plural_nouns.get(lang, {})
+        pl = ", ".join(plural.get("nom", [])) if list(plural) == ["nom"] else \
+            "<br>".join(f"{c}: {', '.join(v)}" for c, v in plural.items())
+        co = "<br>".join(f"{k} → {', '.join(v)}" for k, v in forcing.contractions.get(lang, {}).items())
+        out.append(f"| {lang} | {', '.join(forcing.articles.get(lang, [])) or '—'} | "
+                   f"{pl or '—'} | {co or '—'} |")
+    return out + [""]
+
+
+def prompts_doc(exp, facts, prompts, baseline=None, forcing=None) -> str:
     out = [
         "# Prompt review",
         "",
@@ -122,15 +146,18 @@ def prompts_doc(exp, facts, prompts, baseline=None) -> str:
             out += [_prompt_line(p) for p in ps] + [""]
     if baseline is not None:
         out += baseline_doc(exp, baseline)
+    if forcing is not None:
+        out += forcing_doc(exp, forcing)
     return "\n".join(out)
 
 
 def main():
     exp, facts, prompts = load_experiment(), load_facts(), load_prompts()
     baseline = load_baseline()
+    forcing  = load_forcing()
     OUT_FACTS.parent.mkdir(parents=True, exist_ok=True)
     OUT_FACTS.write_text(facts_doc(exp, facts), encoding="utf-8")
-    OUT_PROMPTS.write_text(prompts_doc(exp, facts, prompts, baseline), encoding="utf-8")
+    OUT_PROMPTS.write_text(prompts_doc(exp, facts, prompts, baseline, forcing), encoding="utf-8")
     print(f"OK {OUT_FACTS}\nOK {OUT_PROMPTS}")
 
 

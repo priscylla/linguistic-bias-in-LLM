@@ -1,100 +1,106 @@
 """
 check_results.py
-Verificação de integridade dos resultados após os experimentos.
+Verificação de integridade dos resultados brutos (results/lens/*/).
 
     python check_results.py
 
-O número de runs esperado vem do config
-(modelos × fatos × idiomas × formulações). Verifica:
-    - todos os runs esperados estão presentes
-    - nenhum run tem apenas erro (sem dados de Logit Lens)
-    - cada camada tem as probabilidades exatas (entity_probs) e a
-      auditoria dos token IDs (entity_tokens) está presente
+Para cada modelo do config confere:
+    - manifest presente e todas as unidades esperadas feitas
+    - cada prompt esperado (formatos do manifest) está em probs, com
+      n_layers linhas por candidato, e cada prompt neutro em baseline
+    - probabilidades em [0, 1]
+    - KL até a final ≈ 0 na última camada (o lens reproduz o modelo)
 """
 
-import json
 import os
 import sys
 
+import pandas as pd
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from analyze import raw_results_path
 from config.experiment_config import ExperimentConfig
+from logit_lens.store import ChunkStore, lens_dir, read_manifest
+from run_lens import lens_units
+
+KL_LAST_TOL = 1e-3
+PROMPT_KEYS = ["fact", "lang", "prompt_type", "paraphrase"]
 
 
-def check_run(run: dict):
-    """Retorna None se o run está válido, senão a descrição do problema."""
-    if not run:
-        return "missing"
-    if "error" in run and "last_token" not in run:
-        return f"error: {run['error'][:50]}"
-    layers = run.get("last_token")
-    if not layers:
-        return "no logit data"
-    if any("entity_probs" not in l for l in layers):
-        return "old format (no entity_probs)"
-    if not run.get("entity_tokens"):
-        return "no entity_tokens"
-    return None
+def _expected(prompts, formats, facts=None):
+    return {(p.fact, p.lang, p.type, p.paraphrase) for p in prompts
+            if p.format in formats and (facts is None or p.fact in facts)}
+
+
+def check_model(model_key: str, results_dir: str, config: ExperimentConfig) -> list:
+    """Lista de problemas do modelo (vazia se tudo ok)."""
+    out = lens_dir(results_dir, model_key)
+    man = read_manifest(out)
+    if not man:
+        return [f"{model_key}: sem manifest ({out})"]
+    formats  = tuple(man.get("formats", ["completion"]))
+    problems = []
+
+    store   = ChunkStore(out)
+    missing = [u for u in lens_units(config, formats) if not store.done(u)]
+    if missing:
+        problems.append(f"{model_key}: {len(missing)} unidades faltando (ex.: {missing[:3]})")
+
+    if not (out / "probs.parquet").exists():
+        return problems + [f"{model_key}: sem probs.parquet (rode --consolidate-only)"]
+    probs  = pd.read_parquet(out / "probs.parquet")
+    layers = pd.read_parquet(out / "layers.parquet")
+    base   = pd.read_parquet(out / "baseline.parquet") if (out / "baseline.parquet").exists() \
+        else pd.DataFrame(columns=PROMPT_KEYS + ["prob"])
+
+    got  = set(map(tuple, probs[PROMPT_KEYS].drop_duplicates().values))
+    lack = _expected(config.prompt_specs, formats) - got
+    if lack:
+        problems.append(f"{model_key}: {len(lack)} prompts sem probs (ex.: {sorted(lack)[:3]})")
+
+    got_b  = {(None, l, t, p) for l, t, p in
+              base[["lang", "prompt_type", "paraphrase"]].drop_duplicates().itertuples(index=False)}
+    lack_b = _expected(config.baseline_spec.prompts, formats) - got_b
+    if lack_b:
+        problems.append(f"{model_key}: {len(lack_b)} prompts neutros sem baseline")
+
+    per = probs.groupby(PROMPT_KEYS + ["format", "candidate"]).size()
+    n_l = man.get("n_layers")
+    if n_l and (per != n_l).any():
+        problems.append(f"{model_key}: {(per != n_l).sum()} conjuntos sem {n_l} camadas")
+
+    for name, df in (("probs", probs), ("baseline", base)):
+        if len(df) and ((df["prob"] < -1e-6) | (df["prob"] > 1 + 1e-6)).any():
+            problems.append(f"{model_key}: {name} com probabilidade fora de [0, 1]")
+
+    last = layers[layers["layer"] == layers["n_layers"]]
+    if (last["kl_to_final"] > KL_LAST_TOL).any():
+        problems.append(f"{model_key}: KL da última camada > {KL_LAST_TOL} "
+                        f"(máx {last['kl_to_final'].max():.2e})")
+    return problems
 
 
 def check_all_results(results_dir: str = None, config: ExperimentConfig = None) -> bool:
-    """
-    Verifica integridade completa dos resultados.
-
-    Returns:
-        True se todos os runs esperados estão presentes e válidos.
-    """
     config      = config or ExperimentConfig()
     results_dir = results_dir or config.results_dir
-    expected    = config.expected_cells()
 
     print("=" * 60)
-    print(f"VERIFICAÇÃO DOS RESULTADOS — {expected} runs esperados")
+    print("VERIFICAÇÃO DOS RESULTADOS (results/lens/)")
     print("=" * 60)
-
     problems = []
-    valid    = 0
-
     for model in config.models:
-        path = raw_results_path(results_dir, model)
-        if not os.path.exists(path):
-            print(f"\n❌ {model}: arquivo não encontrado — {path}")
-            n = len(config.facts) * len(config.languages) * len(config.formulations)
-            problems.append(f"{model} — arquivo ausente ({n} runs)")
-            continue
+        p = check_model(model, results_dir, config)
+        print(f"  {'✅' if not p else '❌'} {model}" + ("" if not p else f"  ({len(p)} problema(s))"))
+        problems += p
 
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-
-        print(f"\n[{model.upper()}]")
-        for fact in config.facts:
-            for lang in config.languages:
-                for form in config.formulations:
-                    run = data.get(fact, {}).get(lang, {}).get(form, {})
-                    problem = check_run(run)
-                    cell = f"{model}/{fact}/{lang}/{form}"
-                    if problem:
-                        problems.append(f"{cell} — {problem}")
-                        print(f"  ❌ [{fact}][{lang}][{form}] {problem}")
-                    else:
-                        valid += 1
-                        m = run.get("metrics_last", {})
-                        print(f"  ✅ [{fact}][{lang}][{form}] "
-                              f"CS_final={m.get('commitment_final', float('nan')):+.3f}")
-
-    print("\n" + "=" * 60)
-    print(f"  {valid}/{expected} runs válidos")
     if not problems:
-        print("✅ TODOS OS RUNS COMPLETOS E VÁLIDOS")
+        print("\n✅ TODOS OS RESULTADOS COMPLETOS E VÁLIDOS")
         print("   Próximo passo: python analyze.py && python make_figures.py")
         return True
-
-    print(f"❌ {len(problems)} PROBLEMA(S):")
+    print(f"\n❌ {len(problems)} PROBLEMA(S):")
     for p in problems:
         print(f"   → {p}")
-    print("\n   Rerun: python run_single_model.py [modelo]"
-          "  (runs completos são pulados)")
+    print("\n   Rerun: python run_lens.py [modelo]  (unidades feitas são puladas)")
     return False
 
 

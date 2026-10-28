@@ -1,16 +1,15 @@
 """
 tests/test_logit_lens.py
-Fase 0, correções 1–4: norm final única, softcapping do Gemma 2,
-teste de sanidade do lens e precisão bf16.
+Fase 0, correções 1–4 (norm final única, softcapping do Gemma 2, teste
+de sanidade do lens, bf16), sobre o LogitLens da Fase 2.
 """
 
 import pytest
 import torch
 
 from conftest import VOCAB, build_tiny_model
-from logit_lens.extractor import (
-    LensSanityError, LogitLensExtractor, lens_tolerance,
-)
+from logit_lens.lens import LensSanityError, LogitLens, lens_tolerance
+from logit_lens.measure import LensRunner
 from models import model_loader
 from models.model_loader import resolve_dtype
 
@@ -22,134 +21,64 @@ def _forward(model, seq_len=7):
         return model(input_ids=ids, output_hidden_states=True)
 
 
-# ── 1. Lens na última camada == logits do modelo ──
+# ── 1. Lens na última camada == logits do modelo, em toda posição ──
 
-def test_last_layer_lens_matches_model_logits(arch, fake_tokenizer):
+def test_last_layer_lens_matches_model_logits(arch):
     model = build_tiny_model(arch)
-    ext   = LogitLensExtractor(model, fake_tokenizer)
+    lens  = LogitLens(model)
     out   = _forward(model)
-
     for pos in range(out.logits.shape[1]):
-        lens = ext._logits_from_hidden(out.hidden_states[-1][0, pos],
-                                       already_normed=True)
-        assert torch.allclose(lens, out.logits[0, pos].float(),
-                              atol=1e-5, rtol=1e-5)
-        res = ext.check_lens_consistency(out, pos)
-        assert res["argmax_match"]
+        h = out.hidden_states[-1][0, pos]
+        assert torch.allclose(lens.head(h, already_normed=True),
+                              out.logits[0, pos].float(), atol=1e-5, rtol=1e-5)
+        assert lens.check_consistency(out, pos)["argmax_match"]
 
 
 # ── 2. Regressão da correção 1: norm dupla quebra a igualdade ──
 
-def test_double_norm_would_fail(arch, fake_tokenizer):
+def test_double_norm_would_fail(arch):
     model = build_tiny_model(arch)
-    ext   = LogitLensExtractor(model, fake_tokenizer)
     out   = _forward(model)
-
-    double = ext._logits_from_hidden(out.hidden_states[-1][0, -1],
-                                     already_normed=False)
-    assert not torch.allclose(double, out.logits[0, -1].float(),
-                              atol=1e-4, rtol=1e-4)
+    double = LogitLens(model).head(out.hidden_states[-1][0, -1], already_normed=False)
+    assert not torch.allclose(double, out.logits[0, -1].float(), atol=1e-4, rtol=1e-4)
 
 
 # ── 3. Regressão da correção 2: softcapping do Gemma 2 ──
 
-def test_gemma2_softcapping(fake_tokenizer):
+def test_gemma2_softcapping():
     model = build_tiny_model("gemma2")
     cap   = model.config.final_logit_softcapping
-    ext   = LogitLensExtractor(model, fake_tokenizer)
+    lens  = LogitLens(model)
     out   = _forward(model)
-
     h = out.hidden_states[-1][0, -1]
-    lens = ext._logits_from_hidden(h, already_normed=True)
-    assert lens.abs().max() <= cap + 1e-6
-
+    assert lens.head(h, already_normed=True).abs().max() <= cap + 1e-6
     # Sem o softcap, o lens não reproduz o modelo
-    no_cap = model.lm_head(h).float()
-    assert not torch.allclose(no_cap, out.logits[0, -1].float(),
+    assert not torch.allclose(model.lm_head(h).float(), out.logits[0, -1].float(),
                               atol=1e-4, rtol=1e-4)
-
-    # Softcap também é aplicado nas camadas intermediárias
-    mid = ext._logits_from_hidden(out.hidden_states[1][0, -1])
-    assert mid.abs().max() <= cap + 1e-6
-
-
-# ── 4. Camadas intermediárias continuam recebendo a norm ──
-
-def test_intermediate_layers_get_norm(arch, fake_tokenizer):
-    model = build_tiny_model(arch)
-    ext   = LogitLensExtractor(model, fake_tokenizer)
-    out   = _forward(model)
-    cap   = getattr(model.config, "final_logit_softcapping", None)
-
-    for k in range(1, len(out.hidden_states) - 1):
-        h = out.hidden_states[k][0, -1]
-        with torch.no_grad():
-            manual = model.lm_head(model.model.norm(h))
-            if cap is not None:
-                manual = torch.tanh(manual / cap) * cap
-        assert torch.allclose(ext._logits_from_hidden(h), manual.float(),
-                              atol=1e-6)
+    # Softcap também nas camadas intermediárias
+    L = lens.layer_logits(out.hidden_states, out.logits.shape[1] - 1)
+    assert L.abs().max() <= cap + 1e-6
 
 
-def test_extract_uses_single_norm_at_last_layer(arch, fake_tokenizer):
-    model = build_tiny_model(arch)
-    ext   = LogitLensExtractor(model, fake_tokenizer, top_k=5)
-    prompt = "The airplane was invented by"
-    res = ext.extract(prompt)
-
-    assert res["n_layers"] == model.config.num_hidden_layers
-    assert len(res["last_token"]) == res["n_layers"]
-
-    # Top-1 da última camada = argmax dos logits do modelo
-    inputs = fake_tokenizer(prompt)
-    with torch.no_grad():
-        logits = model(**inputs).logits[0, -1]
-    probs = torch.softmax(logits.float(), -1)
-    top_p, top_i = torch.topk(probs, 5)
-    last = res["last_token"][-1]
-    assert last["top_tokens"][0] == fake_tokenizer.decode([top_i[0].item()])
-    assert last["top_probs"] == pytest.approx(top_p.tolist(), abs=1e-6)
-
-
-# ── 5. A checagem falha alto quando os logits não batem ──
-
-def test_consistency_check_raises_on_mismatch(fake_tokenizer):
-    model = build_tiny_model("llama")
-    ext   = LogitLensExtractor(model, fake_tokenizer)
-    out   = _forward(model)
-    out.logits[0, -1] += torch.linspace(0, 5, VOCAB)
-    with pytest.raises(LensSanityError):
-        ext.check_lens_consistency(out, out.logits.shape[1] - 1)
-
+# ── 4. Teste de sanidade falha alto se a norm for aplicada duas vezes ──
 
 def test_sanity_check_raises_if_norm_applied_twice(fake_tokenizer, monkeypatch):
-    model = build_tiny_model("llama")
-    ext   = LogitLensExtractor(model, fake_tokenizer)
-    orig  = ext._logits_from_hidden
-    monkeypatch.setattr(ext, "_logits_from_hidden",
-                        lambda h, already_normed=False: orig(h, False))
+    lens = LogitLens(build_tiny_model("llama"))
+    orig = lens.head
+    monkeypatch.setattr(lens, "head", lambda h, already_normed=False: orig(h, False))
     with pytest.raises(LensSanityError):
-        ext.sanity_check()
+        lens.sanity_check(fake_tokenizer)
 
 
-def test_sanity_check_report(arch, fake_tokenizer):
-    ext = LogitLensExtractor(build_tiny_model(arch), fake_tokenizer)
-    rep = ext.sanity_check()
-    assert rep["model_type"] == arch
-    assert len(rep["prompts"]) == 3
-    assert rep["max_abs_diff"] < 1e-4
-
-
-# ── 6. bf16 passa com a tolerância de bf16 ──
+# ── 5. bf16 passa com a tolerância de bf16; distribuições em float32 ──
 
 def test_bf16_model_passes(arch, fake_tokenizer):
     model = build_tiny_model(arch, dtype=torch.bfloat16)
-    ext   = LogitLensExtractor(model, fake_tokenizer)
-    rep   = ext.sanity_check()
+    rep   = LogitLens(model).sanity_check(fake_tokenizer)
     assert rep["dtype"] == "torch.bfloat16"
-    probs = ext._apply_logit_lens(_forward(model).hidden_states[2][0, -1])
-    assert probs.dtype == torch.float32
-    assert probs.sum().item() == pytest.approx(1.0, abs=1e-5)
+    fw = LensRunner(model, fake_tokenizer).forward("The airplane was invented by")
+    assert fw["probs"].dtype == torch.float32
+    assert fw["probs"].sum(-1).tolist() == pytest.approx([1.0] * fw["n_layers"], abs=1e-5)
 
 
 def test_tolerance_by_dtype():
@@ -198,20 +127,3 @@ def test_load_model_passes_dtype(monkeypatch, fake_tokenizer, dtype, expected):
     model_loader.load_model(*args)
     assert seen["dtype"] is expected
     assert "torch_dtype" not in seen
-
-
-# ── 8. Ponta a ponta com tokenizer real (pulado se offline) ──
-
-def test_end_to_end_tiny_hf_model():
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    name = "hf-internal-testing/tiny-random-LlamaForCausalLM"
-    try:
-        tok   = AutoTokenizer.from_pretrained(name)
-        model = AutoModelForCausalLM.from_pretrained(name, dtype=torch.float32).eval()
-    except Exception as e:  # sem rede e sem cache
-        pytest.skip(f"modelo minúsculo indisponível: {e}")
-
-    ext = LogitLensExtractor(model, tok, top_k=5)
-    ext.sanity_check()
-    res = ext.extract("The airplane was invented by", keyword="airplane")
-    assert len(res["last_token"]) == model.config.num_hidden_layers

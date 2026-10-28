@@ -1,13 +1,16 @@
 """
 make_figures.py
-Única implementação das figuras (substitui generate_paper_figures.py
-e generate_visualizations.py).
+Única implementação das figuras.
 
-Lê results/metrics_computed.json (gerado por analyze.py) e, para o
-heatmap de top tokens, os resultados brutos. Nada é modificado.
+Lê as métricas de results/metrics/ (analyze.py) e, para o heatmap de
+top tokens, as tabelas brutas layers/token_sets de results/lens/*/.
+Nada é modificado.
 
-Fatos, idiomas, modelos, stake, zona de decisão e janelas de
-suavização vêm do config; o número de camadas vem dos dados.
+Fatos, candidatos, idiomas, modelos, stake, zona de decisão e janelas
+de suavização vêm do config; o número de camadas vem dos dados. Cada
+candidato não dominante e de um fato disputado tem o seu painel
+(CS_e = P(e) − P(dominante)). Versão mínima da Fase 2; a Fase 7
+refaz as figuras.
 
 Uso:
     python make_figures.py
@@ -21,7 +24,6 @@ Figuras:
 """
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -35,8 +37,11 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from analyze import load_raw_results
+import pandas as pd
+
+from analyze import in_decision_zone
 from config.experiment_config import ExperimentConfig
+from logit_lens.store import load_tables
 from plot_utils import smooth_curve, smoothing_suffix
 
 CONFIG = ExperimentConfig()
@@ -83,9 +88,41 @@ def set_style():
     })
 
 
-def load_computed(path):
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def load_metrics(metrics_dir):
+    """Tabelas de analyze.py: {nome: DataFrame}."""
+    out = {}
+    for name in ("curves_mean", "delta_cs", "metrics"):
+        p = Path(metrics_dir) / f"{name}.parquet"
+        if p.exists():
+            out[name] = pd.read_parquet(p)
+    return out
+
+
+# Recorte das figuras: completion, F1, nomes
+FIG_FILTER = {"format": "completion", "prompt_type": "F1", "token_set": "names"}
+
+
+def _select(df, **kw):
+    if df is None or not len(df):
+        return df
+    m = pd.Series(True, index=df.index)
+    for k, v in {**FIG_FILTER, **kw}.items():
+        m &= df[k] == v
+    return df[m]
+
+
+def fig_panels():
+    """(fato, candidato) de cada candidato não dominante de fatos disputados."""
+    return [(k, c.id) for k, f in CONFIG.fact_specs.items() if f.kind == "disputed"
+            for c in f.alternatives]
+
+
+def _fact_label(fact):
+    return FACT_LABELS.get(fact, CONFIG.fact_specs[fact].keyword.get("en", fact).capitalize())
+
+
+def _cand_label(fact, cid):
+    return CONFIG.fact_specs[fact].candidate(cid).label
 
 
 def save_fig(fig, path):
@@ -95,25 +132,24 @@ def save_fig(fig, path):
     print(f"  OK  {path}")
 
 
-def model_layers(data, model):
-    """Número de camadas do modelo, lido dos próprios resultados."""
-    for fact_data in data.get(model, {}).values():
-        for lang_data in fact_data.values():
-            for run in lang_data.values():
-                if "n_layers" in run:
-                    return run["n_layers"]
-                if run.get("last_token"):
-                    return len(run["last_token"])
-    return None
+def model_layers(curves, model):
+    """Número de camadas do modelo, lido dos próprios dados."""
+    if curves is None or not len(curves):
+        return None
+    d = curves[curves["model"] == model]
+    return int(d["n_layers"].iloc[0]) if len(d) else None
 
 
 def decision_start(n_layers):
-    """Primeira camada da zona de decisão (config.decision_zone)."""
-    return int(round(n_layers * (1 - CONFIG.decision_zone)))
+    """Primeira camada da zona de decisão (mesma regra de analyze.in_decision_zone)."""
+    return next(k for k in range(1, n_layers + 1)
+                if in_decision_zone(k, n_layers, CONFIG.decision_zone))
 
 
-def _stake_langs(fact):
-    return CONFIG.stake_languages.get(fact, [])
+def _stake_langs(fact, cid=None):
+    if cid is None:
+        return CONFIG.stake_languages.get(fact, [])
+    return CONFIG.fact_specs[fact].candidate(cid).stake_languages()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -122,26 +158,27 @@ def _stake_langs(fact):
 # Eixo X: número absoluto da camada
 # ══════════════════════════════════════════════════════════════
 
-def fig1_cultural_divergence_map(computed, output, window=3):
+def fig1_cultural_divergence_map(metrics, output, window=3):
     set_style()
-    facts, models, langs = CONFIG.facts, list(CONFIG.models), CONFIG.languages
+    curves, delta = metrics.get("curves_mean"), metrics.get("delta_cs")
+    panels, models, langs = fig_panels(), list(CONFIG.models), CONFIG.languages
     zone_pct = int(round(CONFIG.decision_zone * 100))
 
-    fig, axes = plt.subplots(len(facts), len(models),
-                             figsize=(3.5 * len(models), 3.25 * len(facts)),
+    fig, axes = plt.subplots(len(panels), len(models),
+                             figsize=(3.5 * len(models), 3.0 * len(panels)),
                              sharey=False, squeeze=False)
     smooth_txt = "raw" if window == 1 else f"smoothed (window {window})"
     fig.suptitle(
         "Cultural Divergence Map\n"
-        "CS = P(expected entity) − P(competing entity)  │  F1  │  "
+        "CS_e = P(e) − P(dominant)  │  F1 completion, mean of paraphrases  │  "
         f"Absolute layer number  │  {smooth_txt}",
         fontweight="bold", fontsize=10, y=1.01
     )
 
-    for row, fact in enumerate(facts):
+    for row, (fact, cid) in enumerate(panels):
         for col, model in enumerate(models):
             ax  = axes[row][col]
-            n_l = model_layers(computed, model)
+            n_l = model_layers(curves, model)
             if n_l is None:
                 ax.text(0.5, 0.5, "No data", ha="center", va="center",
                         transform=ax.transAxes)
@@ -152,26 +189,26 @@ def fig1_cultural_divergence_map(computed, output, window=3):
                              color=_color(MODEL_COLORS, model, col),
                              fontweight="bold", fontsize=8.5)
             if col == 0:
-                ax.set_ylabel(f"{_label(FACT_LABELS, fact)}\nCommitment Score",
+                ax.set_ylabel(f"{_fact_label(fact)}: {_cand_label(fact, cid)}\nCS_e",
                               fontsize=8, fontweight="bold")
-            if row == len(facts) - 1:
+            if row == len(panels) - 1:
                 ax.set_xlabel("Layer", fontsize=8)
 
             for j, lang in enumerate(langs):
-                entry = computed.get(model, {}).get(fact, {}).get(lang, {}).get("F1", {})
-                m_res = entry.get("metrics_last", {})
-                curve = m_res.get("commitment_curve", [])
-                if not curve:
+                d = _select(curves, model=model, fact=fact, candidate=cid, lang=lang)
+                d = d.sort_values("layer") if d is not None else d
+                if d is None or not len(d) or d["cs"].isna().all():
                     continue
 
-                x = np.arange(1, len(curve) + 1)
-                y = smooth_curve(curve, window)
+                x = d["layer"].to_numpy()
+                y = smooth_curve(d["cs"].to_numpy(), window)
                 c = _color(LANG_COLORS, lang, j)
                 ax.plot(x, y, color=c, linewidth=1.8, linestyle=_dashes(lang),
                         alpha=0.9, label=_label(LANG_LABELS, lang))
                 ax.fill_between(x, y, 0, color=c, alpha=0.06)
 
-                cs_peak = m_res.get("cs_at_peak", 0)
+                s_ = _select(delta, model=model, fact=fact, candidate=cid, lang=lang)
+                cs_peak = float(s_["cs_star"].iloc[0]) if s_ is not None and len(s_) else 0.0
                 if abs(cs_peak) > 0.05:
                     ax.annotate(f"{cs_peak:+.2f}", xy=(x[-1], y[-1]),
                                 xytext=(x[-1] - n_l * 0.13, y[-1]),
@@ -185,7 +222,7 @@ def fig1_cultural_divergence_map(computed, output, window=3):
                     ax.get_ylim()[1] * 0.92 if ax.get_ylim()[1] > 0.05 else 0.05,
                     f"L{d0}", fontsize=6, color="gray", alpha=0.7, va="top")
 
-            stakes = _stake_langs(fact)
+            stakes = _stake_langs(fact, cid)
             if stakes:
                 ax.text(0.02, 0.97, "stake: " + ", ".join(s.upper() for s in stakes),
                         transform=ax.transAxes, fontsize=6.5,
@@ -202,7 +239,7 @@ def fig1_cultural_divergence_map(computed, output, window=3):
     leg += [
         mpatches.Patch(facecolor="gray", alpha=0.15,
                        label=f"Decision zone (last {zone_pct}%)"),
-        Line2D([0], [0], color="gray", lw=1, linestyle="--", label="CS = 0 (neutral)"),
+        Line2D([0], [0], color="gray", lw=1, linestyle="--", label="CS_e = 0"),
     ]
     fig.legend(handles=leg, loc="lower center", ncol=4,
                bbox_to_anchor=(0.5, -0.04), fontsize=8,
@@ -219,20 +256,54 @@ def fig1_cultural_divergence_map(computed, output, window=3):
 
 def token_color(token_id, run, fact=None, lang=None):
     """
-    Cor do token pelo seu ID exato (nunca por substring).
-
-    Os conjuntos de ids vêm de run["entity_tokens"]: "competing" é o
-    candidato dominante e "local" são as narrativas alternativas, no
-    mesmo sentido em todos os idiomas.
+    Cor do token pelo seu ID exato (nunca por substring): vermelho =
+    candidato dominante, azul = candidatos alternativos (ids mantidos
+    nos conjuntos do prompt, tabela token_sets).
     """
-    sets     = (run.get("entity_tokens") or {}).get("sets", {})
-    other    = set(sets.get("local", {}).get("ids", []))
-    dominant = set(sets.get("competing", {}).get("ids", []))
-    if token_id in dominant:
+    if token_id in run.get("dominant_ids", set()):
         return ENTITY_COLOR_DOMINANT
-    if token_id in other:
+    if token_id in run.get("other_ids", set()):
         return ENTITY_COLOR_OTHER
     return OTHER_TOKEN_COLOR
+
+
+def heatmap_run(raw, metrics, model, fact, lang, form="F1", paraphrase=1):
+    """Camadas (top-k), ids coloridos e métricas de um prompt completion."""
+    layers, tsets = raw.get("layers"), raw.get("token_sets")
+    if layers is None or not len(layers):
+        return {}
+    sel = dict(model=model, fact=fact, lang=lang, format="completion",
+               prompt_type=form, paraphrase=paraphrase)
+    m = pd.Series(True, index=layers.index)
+    for k, v in {**sel, "source": "prompt"}.items():
+        m &= layers[k] == v
+    L = layers[m].sort_values("layer")
+    if not len(L):
+        return {}
+    dom_id = CONFIG.fact_specs[fact].dominant.id
+    dom, oth = set(), set()
+    if tsets is not None and len(tsets):
+        t = pd.Series(True, index=tsets.index)
+        for k, v in {**sel, "source": "prompt"}.items():
+            t &= tsets[k] == v
+        kept = tsets[t & tsets["kept"]]
+        dom = set(kept[kept["candidate"] == dom_id]["token_id"].astype(int))
+        oth = set(kept[kept["candidate"] != dom_id]["token_id"].astype(int))
+    met = metrics.get("metrics")
+    if met is not None and len(met):
+        mm = met[(met["model"] == model) & (met["fact"] == fact) & (met["lang"] == lang)
+                 & (met["format"] == "completion") & (met["prompt_type"] == form)
+                 & (met["paraphrase"] == paraphrase)]
+    else:
+        mm = pd.DataFrame()
+    return {
+        "layers": [{"layer": int(r.layer), "depth": float(r.depth),
+                    "top_tokens": list(r.top_tokens), "top_ids": [int(i) for i in r.top_ids],
+                    "top_probs": [float(x) for x in r.top_probs]} for r in L.itertuples()],
+        "dominant_ids": dom, "other_ids": oth,
+        "prompt": CONFIG.prompt(fact, lang, form, paraphrase).text,
+        "cs_final": {r.candidate: r.cs_final for r in mm.itertuples() if not r.dominant},
+    }
 
 
 def _top_id(layer, col_i):
@@ -242,7 +313,7 @@ def _top_id(layer, col_i):
 
 def _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute):
     """Renderiza o Logit Lens de um único run em um eixo."""
-    layers = run.get("last_token", [])
+    layers = run.get("layers", [])
     if not layers:
         ax.text(0.5, 0.5, "No data", ha="center", va="center")
         return
@@ -265,7 +336,7 @@ def _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute):
     for row_i, layer in enumerate(sel):
         y = 1.0 - (row_i + 1) * ch
         layer_labels.append(f"L{layer['layer']}" if use_absolute
-                            else f"{layer['layer_norm']:.2f}")
+                            else f"{layer['depth']:.2f}")
         for col_i in range(min(top_k, len(layer["top_tokens"]))):
             token = layer["top_tokens"][col_i]
             prob  = layer["top_probs"][col_i]
@@ -298,14 +369,13 @@ def _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute):
 
     ax.set_ylabel("Layer" if use_absolute else "Relative Depth", fontsize=7)
 
-    m_res = run.get("metrics_last", {})
     stake_mark = " * stake" if CONFIG.stake(fact, lang) else ""
+    cs_txt = "  ".join(f"{c}={v:+.3f}" for c, v in run.get("cs_final", {}).items()
+                       if v == v) or "—"
     ax.set_title(
-        "%s (%dL) | %s%s\n\"%s\"\nCS_final=%+.3f  peak=%.3f@L%s" % (
+        "%s (%dL) | %s%s\n\"%s\"\nCS_final: %s" % (
             _label(MODEL_LABELS, model), n_layers, _label(LANG_LABELS, lang),
-            stake_mark, run.get("prompt", ""),
-            m_res.get("commitment_final", 0), m_res.get("iv_local_peak", 0),
-            str(m_res.get("peak_layer", "?"))),
+            stake_mark, run.get("prompt", ""), cs_txt),
         fontsize=7.5, fontweight="bold")
 
 
@@ -332,7 +402,7 @@ def _version(use_absolute):
     return "Absolute Layer Number" if use_absolute else "Relative Layer Depth (0->1)"
 
 
-def fig3_logit_lens_combined(raw, fact, output, use_absolute=False, form="F1"):
+def fig3_logit_lens_combined(raw, metrics, fact, output, use_absolute=False, form="F1"):
     """Modelos de config.heatmap_models × (idioma de referência, idioma(s) com stake)."""
     set_style()
     langs  = [CONFIG.reference_language] + _stake_langs(fact)
@@ -341,17 +411,17 @@ def fig3_logit_lens_combined(raw, fact, output, use_absolute=False, form="F1"):
                              figsize=(6 * len(langs), 4 * len(models)), squeeze=False)
     fig.suptitle(
         f"Logit Lens — Top Predicted Tokens per Layer\n"
-        f"{_label(FACT_LABELS, fact)}  |  Intensity ∝ probability  |  {_version(use_absolute)}",
+        f"{_fact_label(fact)}  |  Intensity ∝ probability  |  {_version(use_absolute)}",
         fontweight="bold", fontsize=10, y=1.01)
     for r, model in enumerate(models):
         for c, lang in enumerate(langs):
-            run = raw.get(model, {}).get(fact, {}).get(lang, {}).get(form, {})
+            run = heatmap_run(raw, metrics, model, fact, lang, form)
             _render_logit_lens_ax(axes[r][c], run, fact, model, lang, use_absolute)
     _logit_lens_legend(fig, fact)
     save_fig(fig, output)
 
 
-def fig3_logit_lens_per_model(raw, fact, model, output, use_absolute=False, form="F1"):
+def fig3_logit_lens_per_model(raw, metrics, fact, model, output, use_absolute=False, form="F1"):
     """Todos os idiomas de um único modelo (1 linha × idiomas)."""
     set_style()
     langs = CONFIG.languages
@@ -359,24 +429,24 @@ def fig3_logit_lens_per_model(raw, fact, model, output, use_absolute=False, form
                              sharey=True, squeeze=False)
     fig.suptitle(
         "Logit Lens | %s | %s | All Languages | %s | %s" % (
-            _label(FACT_LABELS, fact), _label(MODEL_LABELS, model), form,
+            _fact_label(fact), _label(MODEL_LABELS, model), form,
             _version(use_absolute)),
         fontweight="bold", fontsize=10, y=1.01)
     for ax, lang in zip(axes[0], langs):
-        run = raw.get(model, {}).get(fact, {}).get(lang, {}).get(form, {})
+        run = heatmap_run(raw, metrics, model, fact, lang, form)
         _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute)
     _logit_lens_legend(fig, fact)
     save_fig(fig, output)
 
 
-def fig3_logit_lens_single(raw, fact, model, lang, output, use_absolute=False, form="F1"):
+def fig3_logit_lens_single(raw, metrics, fact, model, lang, output, use_absolute=False, form="F1"):
     """Uma combinação (modelo × idioma) — para inspeção detalhada."""
     set_style()
-    run = raw.get(model, {}).get(fact, {}).get(lang, {}).get(form, {})
+    run = heatmap_run(raw, metrics, model, fact, lang, form)
     fig, ax = plt.subplots(1, 1, figsize=(5, 9))
     fig.suptitle(
         "Logit Lens | %s | %s | %s | %s | %s" % (
-            _label(FACT_LABELS, fact), _label(MODEL_LABELS, model),
+            _fact_label(fact), _label(MODEL_LABELS, model),
             _label(LANG_LABELS, lang), form, _version(use_absolute)),
         fontweight="bold", fontsize=9, y=1.01)
     _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute)
@@ -384,43 +454,51 @@ def fig3_logit_lens_single(raw, fact, model, lang, output, use_absolute=False, f
     save_fig(fig, output)
 
 
-def fig3_all(raw, output_dir):
+def fig3_all(raw, metrics, output_dir):
     """Gera todas as variantes do heatmap (relativo e absoluto)."""
+    models = set(raw["layers"]["model"]) if raw.get("layers") is not None else set()
     for fact in CONFIG.facts:
         for abs_ in (False, True):
             sfx = "_abs" if abs_ else ""
             fig3_logit_lens_combined(
-                raw, fact, os.path.join(output_dir, f"fig3_logit_lens_{fact}{sfx}.png"), abs_)
+                raw, metrics, fact, os.path.join(output_dir, f"fig3_logit_lens_{fact}{sfx}.png"), abs_)
             for model in CONFIG.models:
-                if model not in raw:
+                if model not in models:
                     continue
                 fig3_logit_lens_per_model(
-                    raw, fact, model,
+                    raw, metrics, fact, model,
                     os.path.join(output_dir, f"fig3_logit_lens_{fact}_{model}{sfx}.png"), abs_)
                 for lang in CONFIG.languages:
                     fig3_logit_lens_single(
-                        raw, fact, model, lang,
+                        raw, metrics, fact, model, lang,
                         os.path.join(output_dir,
                                      f"fig3_logit_lens_{fact}_{model}_{lang}{sfx}.png"), abs_)
 
 
 # ══════════════════════════════════════════════════════════════
 # FIG 6 — PEAK vs FINAL LAYER (Dumbbell chart)
-#   círculo cheio = iv_local_peak (o que o modelo sabe internamente)
-#   quadrado vazio = iv_local_final (o que a última camada gera)
+#   círculo cheio = P_e(k*) (o que o modelo sabe internamente)
+#   quadrado vazio = P_e(final) (o que a última camada gera)
 #   linha vertical = suppression gap
+#   Um painel por candidato não dominante; médias das paráfrases.
 # ══════════════════════════════════════════════════════════════
 
-def fig6_peak_vs_final(computed, output):
+def fig6_peak_vs_final(metrics, output):
     set_style()
-    facts, models, langs = CONFIG.facts, list(CONFIG.models), CONFIG.languages
+    delta = metrics.get("delta_cs")
+    panels, models, langs = fig_panels(), list(CONFIG.models), CONFIG.languages
+    ncol = min(4, len(panels))
+    nrow = int(np.ceil(len(panels) / ncol))
 
-    fig, axes = plt.subplots(1, len(facts), figsize=(6 * len(facts), 4.5), squeeze=False)
-    fig.suptitle("Peak vs. Final Layer — Cultural Entity Probability  |  F1",
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6 * ncol, 4.5 * nrow), squeeze=False)
+    fig.suptitle("Peak vs. Final Layer — P(e)  |  F1 completion, mean of paraphrases",
                  fontweight="bold", fontsize=10, y=1.02)
+    for ax in axes.flat[len(panels):]:
+        ax.set_visible(False)
 
-    for ax, fact in zip(axes[0], facts):
-        ax.set_title(_label(FACT_LABELS, fact), fontweight="bold", fontsize=10)
+    for ax, (fact, cid) in zip(axes.flat, panels):
+        ax.set_title(f"{_fact_label(fact)}: {_cand_label(fact, cid)}",
+                     fontweight="bold", fontsize=10)
 
         x      = np.arange(len(langs))
         width  = 0.72 / max(1, len(models))
@@ -430,13 +508,15 @@ def fig6_peak_vs_final(computed, output):
             mc = _color(MODEL_COLORS, model, i)
             peaks, finals = [], []
             for lang in langs:
-                m = (computed.get(model, {}).get(fact, {}).get(lang, {})
-                     .get("F1", {}).get("metrics_last", {}))
-                peaks.append(m.get("iv_local_peak", 0))
-                finals.append(m.get("iv_local_final", 0))
+                d = _select(delta, model=model, fact=fact, candidate=cid, lang=lang)
+                ok = d is not None and len(d)
+                peaks.append(float(d["p_peak"].iloc[0]) if ok else np.nan)
+                finals.append(float(d["p_final"].iloc[0]) if ok else np.nan)
 
             xpos = x + offset + i * width
             for xi, pk, fn in zip(xpos, peaks, finals):
+                if not (pk == pk and fn == fn):
+                    continue
                 if pk > 0.01:
                     ax.plot([xi, xi], [fn, pk], color=mc, lw=1.8, alpha=0.45, zorder=2)
                 ax.plot(xi, pk, "o", color=mc, markersize=8, alpha=0.92,
@@ -452,11 +532,11 @@ def fig6_peak_vs_final(computed, output):
         ax.set_xticks(x)
         ax.set_xticklabels([_label(LANG_LABELS, l) for l in langs],
                            fontsize=8, rotation=12, ha="right")
-        ax.set_ylabel("P(cultural entity)", fontsize=8.5)
+        ax.set_ylabel("P(e)", fontsize=8.5)
         ax.set_ylim(-0.02, 1.08)
         ax.axhline(0, color="gray", lw=0.5, alpha=0.4)
 
-        for stake_lang in _stake_langs(fact):
+        for stake_lang in _stake_langs(fact, cid):
             if stake_lang in langs:
                 j = langs.index(stake_lang)
                 ax.axvspan(j - 0.5, j + 0.5, alpha=0.06, color="gold", zorder=0)
@@ -475,10 +555,10 @@ def fig6_peak_vs_final(computed, output):
                markeredgecolor="#888", markeredgewidth=2, markersize=9,
                label="Final layer (open square)"),
         Line2D([0], [0], color="#888", lw=1.5, alpha=0.5, label="Suppression gap"),
-        mpatches.Patch(facecolor="gold", alpha=0.25, label="Cultural stake language"),
+        mpatches.Patch(facecolor="gold", alpha=0.25, label="Candidate's stake language"),
     ]
     fig.legend(handles=model_leg + style_leg, loc="lower center", ncol=4,
-               bbox_to_anchor=(0.5, -0.10), fontsize=8,
+               bbox_to_anchor=(0.5, -0.10 / nrow), fontsize=8,
                framealpha=0.95, edgecolor="lightgray")
 
     save_fig(fig, output)
@@ -494,30 +574,30 @@ FIGURES = ["fig1", "fig3", "fig6"]
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", default=CONFIG.results_dir)
-    parser.add_argument("--computed",    default=None,
-                        help="padrão: {results-dir}/metrics_computed.json")
+    parser.add_argument("--metrics-dir", default=None,
+                        help="padrão: {results-dir}/metrics")
     parser.add_argument("--output-dir",  default=CONFIG.figures_dir)
     parser.add_argument("--fig", default="all", choices=FIGURES + ["all"])
     args = parser.parse_args(argv)
 
-    computed_path = args.computed or os.path.join(args.results_dir, "metrics_computed.json")
+    metrics_dir = args.metrics_dir or os.path.join(args.results_dir, "metrics")
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     figs = FIGURES if args.fig == "all" else [args.fig]
 
-    if {"fig1", "fig6"} & set(figs):
-        print(f"Carregando: {computed_path}")
-        computed = load_computed(computed_path)
+    print(f"Carregando: {metrics_dir}")
+    metrics = load_metrics(metrics_dir)
 
     if "fig1" in figs:
         # Uma versão por janela de suavização (_w3, _raw)
         for w in CONFIG.smoothing_windows:
             fig1_cultural_divergence_map(
-                computed, os.path.join(args.output_dir, f"fig1{smoothing_suffix(w)}.png"),
+                metrics, os.path.join(args.output_dir, f"fig1{smoothing_suffix(w)}.png"),
                 window=w)
     if "fig3" in figs:
-        fig3_all(load_raw_results(args.results_dir, CONFIG), args.output_dir)
+        fig3_all(load_tables(args.results_dir, ("layers", "token_sets")), metrics,
+                 args.output_dir)
     if "fig6" in figs:
-        fig6_peak_vs_final(computed, os.path.join(args.output_dir, "fig6.png"))
+        fig6_peak_vs_final(metrics, os.path.join(args.output_dir, "fig6.png"))
 
     print(f"\nFiguras em {args.output_dir}/")
     return 0

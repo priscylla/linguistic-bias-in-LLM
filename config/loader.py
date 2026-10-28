@@ -6,6 +6,8 @@ Leitura e validação dos arquivos de configuração (YAML):
     config/facts.yaml        fatos, candidatos, nomes, stakes, indicadores
     config/prompts.yaml      prompts por fato × idioma × tipo × paráfrase
     config/baseline_prompts.yaml  prompts neutros da linha de base (Fase 2)
+    config/forcing.yaml      artigos, plurais e contrações do teste do
+                             confundidor de artigo (Fase 2)
 
 Toda lista que varia (fatos, idiomas, candidatos, prompts) vem daqui;
 o código não tem cópias.
@@ -121,6 +123,27 @@ class Baseline:
     prompts: tuple
 
 
+@dataclass
+class Forcing:
+    """Palavras forçadas no teste do confundidor de artigo."""
+    status: str
+    articles: Dict[str, List[str]]                 # lang -> palavras
+    plural_nouns: Dict[str, Dict[str, List[str]]]  # lang -> caso -> palavras
+    contractions: Dict[str, Dict[str, List[str]]]  # lang -> preposição -> formas
+
+    def plural_for(self, lang: str, case: str = BASE_CASE) -> List[str]:
+        by_case = self.plural_nouns.get(lang, {})
+        return list(by_case.get(case, by_case.get(BASE_CASE, [])))
+
+    def contraction_forms(self, lang: str, preposition: str) -> List[str]:
+        return list(self.contractions.get(lang, {}).get(preposition.casefold(), []))
+
+
+def last_word(text: str) -> str:
+    """Última palavra do prompt (a preposição da lacuna)."""
+    return text.rstrip().split()[-1]
+
+
 # ══════════════════════════════════════════════════════════════
 # Leitura
 # ══════════════════════════════════════════════════════════════
@@ -206,6 +229,22 @@ def load_prompts(config_dir: str = str(CONFIG_DIR)) -> tuple:
 @lru_cache(maxsize=None)
 def load_baseline(config_dir: str = str(CONFIG_DIR)) -> Baseline:
     return parse_baseline(_read_yaml(Path(config_dir) / "baseline_prompts.yaml"))
+
+
+def parse_forcing(raw: dict) -> Forcing:
+    return Forcing(
+        status=raw.get("status"),
+        articles={l: list(v or []) for l, v in (raw.get("articles") or {}).items()},
+        plural_nouns={l: _norm_names({l: v})[l] for l, v in (raw.get("plural_nouns") or {}).items()},
+        contractions={l: {(k.casefold() if isinstance(k, str) else k): list(f)
+                          for k, f in (v or {}).items()}
+                      for l, v in (raw.get("contractions") or {}).items()},
+    )
+
+
+@lru_cache(maxsize=None)
+def load_forcing(config_dir: str = str(CONFIG_DIR)) -> Forcing:
+    return parse_forcing(_read_yaml(Path(config_dir) / "forcing.yaml"))
 
 
 def prompts_for(prompts, fact: str = None, lang: str = None, ptype: str = None) -> List[Prompt]:
@@ -334,16 +373,51 @@ def validate_baseline(exp: dict, baseline: Baseline, prompts) -> List[str]:
     return errs
 
 
+def validate_forcing(exp: dict, forcing: Forcing, prompts) -> List[str]:
+    """
+    Todos os idiomas presentes; ru com os três casos; toda preposição
+    final de prompt article_blocked tem formas contraídas.
+    """
+    errs  = []
+    langs = list(exp["languages"])
+    if forcing.status not in STATUSES:
+        errs.append(f"forcing: status '{forcing.status}' inválido")
+    # YAML lê no/yes/on/off como booleanos: toda palavra tem que ser texto
+    words = ([w for v in forcing.articles.values() for w in v]
+             + [w for v in forcing.plural_nouns.values() for c in v.values() for w in c]
+             + [w for v in forcing.contractions.values() for f in v.values() for w in f]
+             + [k for v in forcing.contractions.values() for k in v])
+    for w in words:
+        if not isinstance(w, str):
+            errs.append(f"forcing: valor {w!r} não é texto (coloque entre aspas no YAML)")
+    for lang in langs:
+        if lang not in forcing.articles:
+            errs.append(f"forcing.articles: sem '{lang}'")
+        if lang not in forcing.plural_nouns:
+            errs.append(f"forcing.plural_nouns: sem '{lang}'")
+    if "ru" in forcing.plural_nouns and set(forcing.plural_nouns["ru"]) != RU_CASES:
+        errs.append(f"forcing.plural_nouns.ru: precisa dos casos {sorted(RU_CASES)}")
+    for p in prompts:
+        if p.article_blocked and not forcing.contraction_forms(p.lang, last_word(p.text)):
+            errs.append(f"forcing.contractions.{p.lang}: sem formas para "
+                        f"'{last_word(p.text)}' ({p.fact or 'baseline'} {p.type}.{p.paraphrase})")
+    return sorted(set(errs))
+
+
 def require_valid(config_dir: str = str(CONFIG_DIR)):
     prompts = load_prompts(config_dir)
     errs = validate(load_experiment(config_dir), load_facts(config_dir), prompts)
-    errs += validate_baseline(load_experiment(config_dir), load_baseline(config_dir), prompts)
+    baseline = load_baseline(config_dir)
+    errs += validate_baseline(load_experiment(config_dir), baseline, prompts)
+    errs += validate_forcing(load_experiment(config_dir), load_forcing(config_dir),
+                             list(prompts) + list(baseline.prompts))
     if errs:
         raise ConfigError("Configuração inválida:\n  " + "\n  ".join(errs))
 
 
 def require_confirmed(facts: Dict[str, Fact], prompts,
-                      baseline: Optional[Baseline] = None) -> None:
+                      baseline: Optional[Baseline] = None,
+                      forcing: Optional[Forcing] = None) -> None:
     """
     Falha se algum fato ainda não foi confirmado, algum prompt espera
     revisão nativa ou (se dada) a linha de base não foi confirmada.
@@ -358,7 +432,8 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
         langs_b = sorted({p.lang for p in baseline.prompts if p.needs_native_review})
         if langs_b:
             pend_base.append(f"revisão nativa pendente {langs_b}")
-    if pend_facts or pend_review or pend_base:
+    pend_force = forcing is not None and forcing.status != "confirmed"
+    if pend_facts or pend_review or pend_base or pend_force:
         langs = sorted({l for _, l in pend_review})
         raise UnconfirmedError(
             "Valores não confirmados — runs bloqueados.\n"
@@ -366,6 +441,7 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
             f"  prompts com revisão nativa pendente: {len(pend_review)} blocos "
             f"(idiomas {langs})\n"
             f"  linha de base: {'; '.join(pend_base) or 'ok'}\n"
+            f"  forcing (artigos/contrações): {'status != confirmed' if pend_force else 'ok'}\n"
             "  Veja reports/phase1_review.md, reports/prompts_review.md e "
             "reports/verified_values.md."
         )

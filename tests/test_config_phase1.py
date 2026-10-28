@@ -217,22 +217,24 @@ def test_require_confirmed_passes_when_all_confirmed():
     require_confirmed(parse_facts(raw), prompts)
 
 
-def test_run_single_model_refuses_unconfirmed(monkeypatch):
-    import run_single_model
-    monkeypatch.setattr(run_single_model, "load_model",
+def test_run_lens_refuses_unconfirmed(monkeypatch):
+    import models.model_loader
+    import run_lens
+    monkeypatch.setattr(models.model_loader, "load_model",
                         lambda *a, **k: pytest.fail("não deveria carregar o modelo"))
     with pytest.raises(UnconfirmedError):
-        run_single_model.run_model("llama")
+        run_lens.main(["llama"])
 
 
-# ── Derivados do pipeline atual ──
+# ── Derivados ──
 
-def test_entity_sets_alternatives_vs_dominant():
+def test_names_and_stake_languages():
     cfg = ExperimentConfig()
-    sets = cfg.entity_sets("telefone", "de")
-    assert sets["competing"] == ["Bell", "Alexander", "Graham"]
-    assert set(sets["local"]) == {"Meucci", "Antonio", "Reis", "Johann", "Philipp"}
-    assert cfg.entity_sets("aviao", "ru", "ins")["competing"][0] == "Райтами"
+    tel = cfg.fact_specs["telefone"]
+    assert tel.dominant.names_for("de") == ["Bell", "Alexander", "Graham"]
+    assert {n for c in tel.alternatives for n in c.names_for("de")} == \
+        {"Meucci", "Antonio", "Reis", "Johann", "Philipp"}
+    assert cfg.fact_specs["aviao"].dominant.names_for("ru", "ins")[0] == "Райтами"
     assert cfg.stake_languages["telefone"] == ["de", "it"]
     assert cfg.stake_languages["aviao"] == ["fr", "pt"]
     assert cfg.stake_languages["penicilina"] == []

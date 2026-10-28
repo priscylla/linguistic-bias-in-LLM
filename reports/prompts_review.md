@@ -1491,3 +1491,16 @@ Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the re
 - artifact.1: Первый корабль назывался
 - artifact.2: Название первого корабля —
 - artifact.3: Первый корабль был известен как
+
+## Article-confound forcing words (`config/forcing.yaml`)
+
+Status: `proposed`. **Articles** trigger the test when the final layer's top token is one of them; the word is appended and the candidates are measured at the next position. **Plural nouns** also trigger it, and are forced as a second step when they follow a forced article (*os → irmãos*). **Contractions** replace the final preposition of ⛔ prompts, one pass per form.
+
+| Language | Articles | Plural nouns | Contractions |
+| --- | --- | --- | --- |
+| pt | o, a, os, as, um, uma | irmãos | por → pelo, pela, pelos, pelas<br>em → no, na, nos, nas |
+| en | the, a, an | brothers | — |
+| de | der, die, das, den, dem, des, ein, eine, einen, einem, einer | Brüder, Brüdern | — |
+| it | il, lo, la, i, gli, le, un, uno, una | fratelli | da → dal, dallo, dalla, dai, dagli, dalle<br>a → al, allo, alla, ai, agli, alle |
+| fr | le, la, les, un, une, des | frères | à → au, aux |
+| ru | — | nom: братья<br>gen: братьев<br>ins: братьями | — |
