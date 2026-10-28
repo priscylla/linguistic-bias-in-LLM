@@ -42,6 +42,28 @@ def get_hf_token() -> str | None:
     return None
 
 
+# Precisões aceitas no config (string -> dtype do torch)
+DTYPES = {
+    "bfloat16": torch.bfloat16,
+    "float16":  torch.float16,
+    "float32":  torch.float32,
+}
+
+
+def resolve_dtype(dtype: str) -> torch.dtype:
+    """
+    Converte o nome da precisão do config em torch.dtype.
+
+    bfloat16 é o padrão: o Gemma 2 se comporta mal em float16
+    (overflow de ativações), e bf16 tem o mesmo custo de VRAM.
+    """
+    if dtype not in DTYPES:
+        raise ValueError(
+            f"dtype '{dtype}' inválido. Use um de: {list(DTYPES)}"
+        )
+    return DTYPES[dtype]
+
+
 def requires_token(model_name: str) -> bool:
     """Verifica se o modelo requer autenticação HuggingFace."""
     return any(prefix in model_name for prefix in RESTRICTED_MODELS)
@@ -49,14 +71,16 @@ def requires_token(model_name: str) -> bool:
 
 def load_model(
     model_name: str,
-    model_key: str
+    model_key: str,
+    dtype: str = "bfloat16"
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
     """
     Carrega modelo e tokenizer com configurações otimizadas
     para extração de ativações via Logit Lens.
 
     Configurações aplicadas:
-        - torch_dtype=float16: reduz uso de VRAM pela metade
+        - dtype (padrão bfloat16, vem do config): metade da VRAM de
+          float32; bf16 em vez de fp16 porque o Gemma 2 falha em fp16
         - device_map="auto":   distribui entre GPUs disponíveis
         - output_hidden_states=True: habilita saída dos hidden states
                                      (obrigatório para o Logit Lens)
@@ -64,6 +88,7 @@ def load_model(
     Args:
         model_name: path/nome no HuggingFace Hub
         model_key:  chave curta (llama, mistral, qwen, gemma)
+        dtype:      "bfloat16" | "float16" | "float32"
 
     Returns:
         Tupla (model, tokenizer)
@@ -71,7 +96,8 @@ def load_model(
     Raises:
         EnvironmentError: se o modelo requer token e nenhum foi encontrado
     """
-    print(f"\nCarregando {model_key}: {model_name}")
+    torch_dtype = resolve_dtype(dtype)
+    print(f"\nCarregando {model_key}: {model_name} ({dtype})")
 
     token = get_hf_token()
 
@@ -101,7 +127,7 @@ def load_model(
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         token=token,
-        torch_dtype=torch.float16,
+        dtype=torch_dtype,
         device_map="auto",
         trust_remote_code=True,
         output_hidden_states=True    # CRÍTICO para o Logit Lens

@@ -1,0 +1,84 @@
+"""
+tests/conftest.py
+Modelos minúsculos e aleatórios, construídos a partir de configs,
+para testar o Logit Lens na CPU sem baixar nada.
+"""
+
+import sys
+from pathlib import Path
+
+import pytest
+import torch
+from transformers import (
+    Gemma2Config, Gemma2ForCausalLM,
+    LlamaConfig, LlamaForCausalLM,
+    MistralConfig, MistralForCausalLM,
+    Qwen2Config, Qwen2ForCausalLM,
+)
+
+# Raiz do projeto no path para importar logit_lens/, models/, config/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+VOCAB = 128
+
+# Dimensões comuns a todas as arquiteturas
+_BASE = dict(
+    vocab_size=VOCAB,
+    hidden_size=32,
+    intermediate_size=64,
+    num_hidden_layers=3,
+    num_attention_heads=4,
+    num_key_value_heads=2,
+    max_position_embeddings=64,
+)
+
+ARCHS = {
+    "llama":   (LlamaConfig,   LlamaForCausalLM,   {}),
+    "mistral": (MistralConfig, MistralForCausalLM, {}),
+    "qwen2":   (Qwen2Config,   Qwen2ForCausalLM,   {}),
+    # Softcap baixo para que o tanh realmente altere os logits
+    "gemma2":  (Gemma2Config,  Gemma2ForCausalLM,
+                {"head_dim": 8, "final_logit_softcapping": 0.5,
+                 "attn_logit_softcapping": 50.0, "sliding_window": 16}),
+}
+
+
+def build_tiny_model(arch: str, dtype: torch.dtype = torch.float32):
+    """Cria um modelo aleatório minúsculo da arquitetura pedida."""
+    cfg_cls, model_cls, extra = ARCHS[arch]
+    torch.manual_seed(0)
+    config = cfg_cls(**_BASE, **extra)
+    model = model_cls(config).to(dtype).eval()
+    # Pesos aleatórios com norm de ganho != 1, para que aplicar a norm
+    # duas vezes faça diferença mensurável
+    with torch.no_grad():
+        model.model.norm.weight.uniform_(0.5, 1.5)
+    return model
+
+
+class FakeTokenizer:
+    """Tokenizer mínimo: um id por caractere (mod VOCAB)."""
+
+    pad_token_id = 0
+
+    def __call__(self, text, return_tensors="pt"):
+        ids = torch.tensor([[1] + [ord(c) % VOCAB for c in text]])
+        return _Batch(input_ids=ids, attention_mask=torch.ones_like(ids))
+
+    def decode(self, ids, **kwargs):
+        return "".join(chr(i) for i in ids)
+
+
+class _Batch(dict):
+    def to(self, device):
+        return _Batch({k: v.to(device) for k, v in self.items()})
+
+
+@pytest.fixture(params=list(ARCHS))
+def arch(request):
+    return request.param
+
+
+@pytest.fixture
+def fake_tokenizer():
+    return FakeTokenizer()

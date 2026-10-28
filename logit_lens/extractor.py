@@ -5,15 +5,48 @@ usando a técnica Logit Lens (nostalgebraist, 2020).
 
 Para cada camada L e posição de token P:
     1. Pega o hidden state h[L][P]
-    2. Aplica a layer norm final do modelo
+    2. Aplica a layer norm final do modelo (exceto na última camada,
+       que já sai normalizada do Hugging Face — ver extract())
     3. Projeta no espaço do vocabulário via lm_head
-    4. Aplica softmax → distribuição de probabilidade
+    4. Aplica o softcapping de logits, se o modelo tiver (Gemma 2)
+    5. Aplica softmax → distribuição de probabilidade
+
+Teste de sanidade: na última camada, o lens tem que reproduzir
+exatamente os logits do próprio modelo. Se não reproduzir, o lens
+está lendo o modelo errado e nenhum resultado deve ser gerado.
 """
 
 import torch
 import torch.nn.functional as F
 from typing import Dict, List, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+
+class LensSanityError(RuntimeError):
+    """O lens na última camada não reproduz os logits do modelo."""
+
+
+# Prompts fixos do teste de sanidade (conteúdo irrelevante: só importa
+# que o lens na última camada bata com os logits do modelo)
+SANITY_PROMPTS = [
+    "The airplane was invented by",
+    "O telefone foi inventado por",
+    "Das Telefon wurde erfunden von",
+]
+
+
+def lens_tolerance(dtype: torch.dtype) -> Dict[str, float]:
+    """
+    Tolerância do teste de sanidade conforme a precisão do modelo.
+
+    Em float32 a diferença é só ruído numérico do matmul.
+    Em bf16/fp16 (~3 dígitos significativos) o lm_head aplicado a um
+    vetor isolado pode diferir do aplicado à sequência inteira na
+    última casa, por isso a folga maior.
+    """
+    if dtype == torch.float32 or dtype == torch.float64:
+        return {"atol": 1e-4, "rtol": 1e-4}
+    return {"atol": 2e-2, "rtol": 2e-2}
 
 
 class LogitLensExtractor:
@@ -77,30 +110,127 @@ class LogitLensExtractor:
         """
         return self.model.lm_head
 
+    def _logits_from_hidden(
+        self,
+        hidden_state: torch.Tensor,
+        already_normed: bool = False
+    ) -> torch.Tensor:
+        """
+        Projeta um hidden state em logits do vocabulário, reproduzindo
+        a cabeça de saída do modelo:
+
+            normed = LayerNorm_final(h)        (pulado se already_normed)
+            logits = Unembedding(normed)
+            logits = c * tanh(logits / c)      (só se o config definir
+                                                final_logit_softcapping)
+
+        O softcapping faz parte da cabeça de saída do Gemma 2
+        (Gemma2ForCausalLM.forward), então é aplicado em todas as
+        camadas, como o próprio modelo faria.
+
+        Args:
+            hidden_state:   tensor [..., hidden_size]
+            already_normed: True se o hidden state já passou pela
+                            norm final (última camada no HF)
+
+        Returns:
+            logits em float32, shape [..., vocab_size]
+        """
+        with torch.no_grad():
+            # Com device_map em várias GPUs, norm/lm_head podem estar
+            # em um device diferente do hidden state
+            head_device = self.unembedding.weight.device
+            h = hidden_state.to(head_device)
+
+            normed = h if already_normed else self.ln_final(h)
+            logits = self.unembedding(normed)
+
+            cap = getattr(self.model.config, "final_logit_softcapping", None)
+            if cap is not None:
+                logits = torch.tanh(logits / cap) * cap
+
+        return logits.float()
+
     def _apply_logit_lens(
         self,
-        hidden_state: torch.Tensor
+        hidden_state: torch.Tensor,
+        already_normed: bool = False
     ) -> torch.Tensor:
         """
         Aplica Logit Lens em um hidden state.
 
-        Implementa as 3 operações do método original:
-            normed = LayerNorm_final(h)
-            logits = Unembedding(normed)
-            probs  = Softmax(logits)
-
         Args:
-            hidden_state: tensor de shape [hidden_size]
+            hidden_state:   tensor de shape [hidden_size]
+            already_normed: True para a última camada (já normalizada)
 
         Returns:
-            probs: tensor de shape [vocab_size] com distribuição
-                   de probabilidade sobre o vocabulário
+            probs: tensor de shape [vocab_size] (float32) com
+                   distribuição de probabilidade sobre o vocabulário
         """
-        with torch.no_grad():
-            normed = self.ln_final(hidden_state)
-            logits = self.unembedding(normed)
-            probs  = F.softmax(logits, dim=-1)
-        return probs
+        logits = self._logits_from_hidden(hidden_state, already_normed)
+        return F.softmax(logits, dim=-1)
+
+    def check_lens_consistency(self, outputs, pos: int) -> Dict:
+        """
+        Confere que o lens na última camada reproduz os logits do modelo
+        na posição `pos`. Falha alto (LensSanityError) se não reproduzir.
+
+        Args:
+            outputs: saída do forward com output_hidden_states=True
+            pos:     posição do token analisado
+
+        Returns:
+            Dict com 'max_abs_diff' e 'argmax_match'
+        """
+        hidden_last = outputs.hidden_states[-1][0, pos]
+        lens_logits = self._logits_from_hidden(hidden_last, already_normed=True)
+        model_logits = outputs.logits[0, pos].float().to(lens_logits.device)
+
+        tol      = lens_tolerance(outputs.logits.dtype)
+        max_diff = (lens_logits - model_logits).abs().max().item()
+        argmax_ok = lens_logits.argmax().item() == model_logits.argmax().item()
+        close_ok  = torch.allclose(lens_logits, model_logits, **tol)
+
+        if not (close_ok and argmax_ok):
+            raise LensSanityError(
+                f"❌ Logit Lens na última camada não bate com os logits do "
+                f"modelo ({self.model.config.model_type}, "
+                f"dtype={outputs.logits.dtype}, posição {pos}): "
+                f"max |diff| = {max_diff:.3e}, tolerância = {tol}, "
+                f"argmax igual = {argmax_ok}. "
+                f"Verifique norm final, softcapping e lm_head."
+            )
+
+        return {"max_abs_diff": max_diff, "argmax_match": argmax_ok}
+
+    def sanity_check(self, prompts: Optional[List[str]] = None) -> Dict:
+        """
+        Teste de sanidade do lens: roda alguns prompts fixos e confere,
+        na última posição de cada um, que o lens na última camada é
+        igual aos logits do modelo. Levanta LensSanityError se falhar.
+
+        Returns:
+            Dict com o resultado por prompt e o pior caso
+        """
+        prompts = prompts or SANITY_PROMPTS
+        report  = {"model_type": self.model.config.model_type,
+                   "dtype": str(next(self.model.parameters()).dtype),
+                   "prompts": []}
+
+        for prompt in prompts:
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+            with torch.no_grad():
+                outputs = self.model(**inputs, output_hidden_states=True)
+            pos = inputs["input_ids"].shape[1] - 1
+            res = self.check_lens_consistency(outputs, pos)
+            report["prompts"].append({"prompt": prompt, **res})
+
+        report["max_abs_diff"] = max(p["max_abs_diff"] for p in report["prompts"])
+        print(
+            f"  ✅ Sanidade do lens OK ({report['model_type']}, "
+            f"{report['dtype']}): max |diff| = {report['max_abs_diff']:.2e}"
+        )
+        return report
 
     def find_keyword_position(
         self,
@@ -221,6 +351,14 @@ class LogitLensExtractor:
         hidden_states = outputs.hidden_states
         n_layers      = len(hidden_states) - 1   # excluindo embedding
 
+        # No transformers (verificado na 5.7, utils/output_capturing.py,
+        # tie_last_hidden_states=True), hidden_states[-1] é substituído
+        # por last_hidden_state, que JÁ passou por model.model.norm.
+        # Aplicar a norm de novo nessa camada distorcia a distribuição.
+        # As camadas 1..N-1 são o residual stream cru e recebem a norm.
+        # O teste de sanidade abaixo garante que isso continua valendo.
+        self.check_lens_consistency(outputs, last_pos)
+
         results = {
             "tokens":        tokens,
             "n_layers":      n_layers,
@@ -233,10 +371,11 @@ class LogitLensExtractor:
         for layer_idx in range(1, len(hidden_states)):
             # [seq_len, hidden_size] — remover dimensão de batch
             layer_hidden = hidden_states[layer_idx][0]
+            is_last      = layer_idx == n_layers   # já normalizada
 
             # ── Último token ──
             last_hidden = layer_hidden[last_pos]       # [hidden_size]
-            last_probs  = self._apply_logit_lens(last_hidden)
+            last_probs  = self._apply_logit_lens(last_hidden, is_last)
 
             top_probs_last, top_idx_last = torch.topk(last_probs, self.top_k)
             results["last_token"].append({
@@ -251,7 +390,7 @@ class LogitLensExtractor:
             # ── Token da keyword ──
             if keyword_pos is not None:
                 kw_hidden = layer_hidden[keyword_pos]  # [hidden_size]
-                kw_probs  = self._apply_logit_lens(kw_hidden)
+                kw_probs  = self._apply_logit_lens(kw_hidden, is_last)
 
                 top_probs_kw, top_idx_kw = torch.topk(kw_probs, self.top_k)
                 results["keyword_token"].append({

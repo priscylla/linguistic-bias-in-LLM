@@ -24,3 +24,6 @@ python-dotenv>=1.0.0
 
 # ── Reprodutibilidade ──
 setuptools>=68.0.0
+
+# ── Testes ──
+pytest>=8.0.0

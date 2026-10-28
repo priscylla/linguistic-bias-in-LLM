@@ -66,5 +66,7 @@ class ExperimentConfig:
     })
 
     top_k_tokens: int = 10
+    # Precisão de carregamento dos modelos (bfloat16 | float16 | float32)
+    dtype: str        = "bfloat16"
     results_dir: str  = "results"
     seed: int         = 42

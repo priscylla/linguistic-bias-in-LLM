@@ -31,8 +31,12 @@ def run_model(model_key: str):
         model_results = {}
 
     model_name = config.models[model_key]
-    model, tokenizer = load_model(model_name, model_key)
+    model, tokenizer = load_model(model_name, model_key, config.dtype)
     extractor = LogitLensExtractor(model, tokenizer, config.top_k_tokens)
+
+    # Falha antes de gravar qualquer resultado se o lens não
+    # reproduzir os logits do modelo na última camada
+    extractor.sanity_check()
 
     facts        = ["aviao", "telefone"]
     languages    = ["pt", "en", "de", "it"]
