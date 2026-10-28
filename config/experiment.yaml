@@ -37,7 +37,8 @@ models:
   gemma:   google/gemma-2-9b-it
 
 dtype: bfloat16
-top_k_tokens: 10
+# Top-k por camada: só inspeção qualitativa (métricas usam P exata)
+top_k_tokens: 20
 heatmap_models: [llama, gemma]
 results_dir: results
 figures_dir: figures

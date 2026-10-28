@@ -22,33 +22,11 @@ from typing import Dict, List, Optional
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from logit_lens.entity_tokens import build_token_sets, prob_mass
-
-
-class LensSanityError(RuntimeError):
-    """O lens na última camada não reproduz os logits do modelo."""
-
-
-# Prompts fixos do teste de sanidade (conteúdo irrelevante: só importa
-# que o lens na última camada bata com os logits do modelo)
-SANITY_PROMPTS = [
-    "The airplane was invented by",
-    "O telefone foi inventado por",
-    "Das Telefon wurde erfunden von",
-]
-
-
-def lens_tolerance(dtype: torch.dtype) -> Dict[str, float]:
-    """
-    Tolerância do teste de sanidade conforme a precisão do modelo.
-
-    Em float32 a diferença é só ruído numérico do matmul.
-    Em bf16/fp16 (~3 dígitos significativos) o lm_head aplicado a um
-    vetor isolado pode diferir do aplicado à sequência inteira na
-    última casa, por isso a folga maior.
-    """
-    if dtype == torch.float32 or dtype == torch.float64:
-        return {"atol": 1e-4, "rtol": 1e-4}
-    return {"atol": 2e-2, "rtol": 2e-2}
+# Definições compartilhadas com o módulo de lens da Fase 2 (reexportadas
+# aqui para o pipeline atual)
+from logit_lens.lens import (  # noqa: F401
+    SANITY_PROMPTS, LensSanityError, LogitLens, assert_matches_model, lens_tolerance,
+)
 
 
 class LogitLensExtractor:
@@ -71,46 +49,11 @@ class LogitLensExtractor:
         self.top_k     = top_k
         self.device    = next(model.parameters()).device
 
-        # Extrair componentes necessários para o Logit Lens
-        self.ln_final    = self._get_final_layer_norm()
-        self.unembedding = self._get_unembedding_matrix()
-
-    def _get_final_layer_norm(self):
-        """
-        Extrai a layer norm final do modelo.
-
-        Cada arquitetura usa um nome diferente para esse componente,
-        mas todos os nossos 4 modelos usam model.model.norm.
-        O mapeamento explícito protege contra adição de novos modelos.
-        """
-        model_type = self.model.config.model_type.lower()
-
-        ln_map = {
-            "llama":   self.model.model.norm,
-            "mistral": self.model.model.norm,
-            "qwen2":   self.model.model.norm,
-            "gemma2":  self.model.model.norm,
-        }
-
-        for key, ln in ln_map.items():
-            if key in model_type:
-                return ln
-
-        raise ValueError(
-            f"Arquitetura '{model_type}' não mapeada.\n"
-            f"Adicione ao ln_map em _get_final_layer_norm().\n"
-            f"Inspecione: model.config.model_type e model.model"
-        )
-
-    def _get_unembedding_matrix(self):
-        """
-        Extrai a matriz de unembedding (lm_head).
-
-        Em modelos com weight tying, lm_head compartilha pesos
-        com a camada de embedding. Em ambos os casos, é o componente
-        correto para projetar hidden states no espaço do vocabulário.
-        """
-        return self.model.lm_head
+        # Cabeça de saída (norm final, lm_head, softcap) vem do lens
+        # da Fase 2: uma única implementação
+        self.lens        = LogitLens(model)
+        self.ln_final    = self.lens.ln_final
+        self.unembedding = self.lens.unembedding
 
     def _logits_from_hidden(
         self,
@@ -118,40 +61,11 @@ class LogitLensExtractor:
         already_normed: bool = False
     ) -> torch.Tensor:
         """
-        Projeta um hidden state em logits do vocabulário, reproduzindo
-        a cabeça de saída do modelo:
-
-            normed = LayerNorm_final(h)        (pulado se already_normed)
-            logits = Unembedding(normed)
-            logits = c * tanh(logits / c)      (só se o config definir
-                                                final_logit_softcapping)
-
-        O softcapping faz parte da cabeça de saída do Gemma 2
-        (Gemma2ForCausalLM.forward), então é aplicado em todas as
-        camadas, como o próprio modelo faria.
-
-        Args:
-            hidden_state:   tensor [..., hidden_size]
-            already_normed: True se o hidden state já passou pela
-                            norm final (última camada no HF)
-
-        Returns:
-            logits em float32, shape [..., vocab_size]
+        Projeta um hidden state em logits do vocabulário com a cabeça
+        do modelo (ver Lens.head): norm final (pulada se
+        already_normed), lm_head, softcapping. Float32.
         """
-        with torch.no_grad():
-            # Com device_map em várias GPUs, norm/lm_head podem estar
-            # em um device diferente do hidden state
-            head_device = self.unembedding.weight.device
-            h = hidden_state.to(head_device)
-
-            normed = h if already_normed else self.ln_final(h)
-            logits = self.unembedding(normed)
-
-            cap = getattr(self.model.config, "final_logit_softcapping", None)
-            if cap is not None:
-                logits = torch.tanh(logits / cap) * cap
-
-        return logits.float()
+        return self.lens.head(hidden_state, already_normed)
 
     def _apply_logit_lens(
         self,
@@ -186,24 +100,9 @@ class LogitLensExtractor:
         """
         hidden_last = outputs.hidden_states[-1][0, pos]
         lens_logits = self._logits_from_hidden(hidden_last, already_normed=True)
-        model_logits = outputs.logits[0, pos].float().to(lens_logits.device)
-
-        tol      = lens_tolerance(outputs.logits.dtype)
-        max_diff = (lens_logits - model_logits).abs().max().item()
-        argmax_ok = lens_logits.argmax().item() == model_logits.argmax().item()
-        close_ok  = torch.allclose(lens_logits, model_logits, **tol)
-
-        if not (close_ok and argmax_ok):
-            raise LensSanityError(
-                f"❌ Logit Lens na última camada não bate com os logits do "
-                f"modelo ({self.model.config.model_type}, "
-                f"dtype={outputs.logits.dtype}, posição {pos}): "
-                f"max |diff| = {max_diff:.3e}, tolerância = {tol}, "
-                f"argmax igual = {argmax_ok}. "
-                f"Verifique norm final, softcapping e lm_head."
-            )
-
-        return {"max_abs_diff": max_diff, "argmax_match": argmax_ok}
+        return assert_matches_model(
+            lens_logits, outputs.logits[0, pos], outputs.logits.dtype,
+            where=f"{self.model.config.model_type}, posição {pos}, ")
 
     def sanity_check(self, prompts: Optional[List[str]] = None) -> Dict:
         """

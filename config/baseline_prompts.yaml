@@ -1,0 +1,188 @@
+# config/baseline_prompts.yaml
+# Linha de base neutra (Fase 2): prompts sobre temas sem relação com os
+# fatos, com o mesmo formato de lacuna dos prompts reais. Medem os mesmos
+# tokens de candidatos, para separar "o modelo pensa no candidato" de
+# "o token é só frequente no idioma" (ex.: " Santos" em português).
+#
+# Pareamento: a paráfrase i de cada tipo espelha a paráfrase i do mesmo
+# tipo e idioma em prompts.yaml (mesmo final de lacuna, mesmo slot_case
+# em ru, mesmo article_blocked). A validação confere esse espelhamento.
+#
+#   nomes (F1–F3, QA): "o romance" / "o autor do romance"
+#   place:             "a ponte"
+#   artifact:          "o primeiro navio"
+#
+# status: proposed até a confirmação da autora; needs_native_review como
+# em prompts.yaml. Runs recusam a linha de base enquanto qualquer um
+# estiver pendente.
+
+status: proposed
+
+baseline:
+  pt:
+    needs_native_review: false
+    F1:
+    - text: O romance foi escrito por
+      article_blocked: true
+    - text: Quem escreveu o romance foi
+    - text: Historicamente, quem escreveu o romance foi
+    F2:
+    - text: O autor do romance é considerado
+    - text: O autor do romance é geralmente considerado
+    - text: O autor do romance é amplamente reconhecido como
+    F3:
+    - text: O verdadeiro autor do romance é
+    - text: O verdadeiro autor do romance foi
+    - text: O real autor do romance foi
+    QA:
+    - text: Quem escreveu o romance?
+    - text: Quem foi o autor do romance?
+    - text: A quem se atribui a autoria do romance?
+    place:
+    - text: A ponte foi construída em
+      article_blocked: true
+    - text: A ponte foi testada pela primeira vez em
+      article_blocked: true
+    - text: O lugar onde a ponte foi construída é
+    artifact:
+    - text: O primeiro navio se chamava
+    - text: O nome do primeiro navio era
+    - text: O primeiro navio era conhecido como
+  en:
+    needs_native_review: false
+    F1:
+    - text: The novel was written by
+    - text: The novel was originally written by
+    - text: Historically, the novel was written by
+    F2:
+    - text: The author of the novel is considered to be
+    - text: The author of the novel is generally said to be
+    - text: The author of the novel is widely regarded as
+    F3:
+    - text: The true author of the novel was
+    - text: The real author of the novel was
+    - text: The actual author of the novel was
+    QA:
+    - text: Who wrote the novel?
+    - text: Who was the author of the novel?
+    - text: Who is credited with writing the novel?
+    place:
+    - text: The bridge was built in
+    - text: The first crossing of the bridge took place in
+    - text: The place where the bridge was built is
+    artifact:
+    - text: The first ship was called the
+    - text: The name of the first ship was
+    - text: The first ship was known as the
+  de:
+    needs_native_review: true
+    F1:
+    - text: Der Roman wurde geschrieben von
+    - text: Der Roman wurde ursprünglich geschrieben von
+    - text: Geschrieben wurde der Roman von
+    F2:
+    - text: Der Autor des Romans gilt als
+    - text: Als Autor des Romans gilt
+    - text: Als Autor des Romans gilt allgemein
+    F3:
+    - text: Der wahre Autor des Romans war
+    - text: Der eigentliche Autor des Romans war
+    - text: Der tatsächliche Autor des Romans war
+    QA:
+    - text: Wer hat den Roman geschrieben?
+    - text: Wer war der Autor des Romans?
+    - text: Wem wird die Urheberschaft des Romans zugeschrieben?
+    place:
+    - text: Die Brücke wurde gebaut in
+    - text: Die Brücke wurde zum ersten Mal erprobt in
+    - text: Der Ort, an dem die Brücke gebaut wurde, ist
+    artifact:
+    - text: Das erste Schiff hieß
+    - text: Der Name des ersten Schiffs war
+    - text: Das erste Schiff war bekannt als
+  it:
+    needs_native_review: true
+    F1:
+    - text: Il romanzo è stato scritto da
+      article_blocked: true
+    - text: A scrivere il romanzo è stato
+    - text: Il primo a scrivere il romanzo è stato
+    F2:
+    - text: L'autore del romanzo è considerato
+    - text: L'autore del romanzo è generalmente considerato
+    - text: L'autore del romanzo è ampiamente riconosciuto come
+    F3:
+    - text: Il vero autore del romanzo è stato
+    - text: Il vero autore del romanzo fu
+    - text: Il reale autore del romanzo è stato
+    QA:
+    - text: Chi ha scritto il romanzo?
+    - text: Chi è stato l'autore del romanzo?
+    - text: A chi si attribuisce la paternità del romanzo?
+    place:
+    - text: Il ponte è stato costruito a
+      article_blocked: true
+    - text: Il ponte è stato collaudato per la prima volta a
+      article_blocked: true
+    - text: Il luogo in cui il ponte è stato costruito è
+    artifact:
+    - text: La prima nave si chiamava
+    - text: Il nome della prima nave era
+    - text: La prima nave era conosciuta come
+  fr:
+    needs_native_review: true
+    F1:
+    - text: Le roman a été écrit par
+    - text: Le roman a été écrit à l'origine par
+    - text: Historiquement, le roman a été écrit par
+    F2:
+    - text: On considère que l'auteur du roman est
+    - text: Il est généralement admis que l'auteur du roman est
+    - text: L'auteur du roman est largement reconnu comme étant
+    F3:
+    - text: Le véritable auteur du roman était
+    - text: Le vrai auteur du roman fut
+    - text: Le véritable auteur du roman est
+    QA:
+    - text: Qui a écrit le roman ?
+    - text: Qui était l'auteur du roman ?
+    - text: À qui attribue-t-on l'écriture du roman ?
+    place:
+    - text: Le pont a été construit à
+      article_blocked: true
+    - text: Le pont a été testé pour la première fois à
+      article_blocked: true
+    - text: Le lieu où le pont a été construit est
+    artifact:
+    - text: Le premier navire s'appelait
+    - text: Le nom du premier navire était
+    - text: Le premier navire était connu sous le nom de
+  ru:
+    needs_native_review: true
+    F1:
+    - text: Роман был написан
+      slot_case: ins
+    - text: Роман — произведение
+      slot_case: gen
+    - text: Исторически роман был написан
+      slot_case: ins
+    F2:
+    - text: Автором романа считается
+    - text: Автор романа —
+    - text: Автором романа обычно считается
+    F3:
+    - text: Настоящий автор романа —
+    - text: Настоящим автором романа является
+    - text: Подлинный автор романа —
+    QA:
+    - text: Кто написал роман?
+    - text: Кто был автором романа?
+    - text: Кто считается автором романа?
+    place:
+    - text: Место строительства моста —
+    - text: Местом строительства моста считается
+    - text: Место, где был построен мост, —
+    artifact:
+    - text: Первый корабль назывался
+    - text: Название первого корабля —
+    - text: Первый корабль был известен как

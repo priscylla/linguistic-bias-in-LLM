@@ -14,9 +14,40 @@ Tokens compartilhados entre conjuntos concorrentes do mesmo fato não
 contam para nenhum deles.
 """
 
-from typing import Dict, List, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import torch
+
+
+INDICATOR_TYPES = ("place", "artifact")
+
+
+def token_set_kind(prompt_type: str) -> str:
+    """'indicators' para prompts place/artifact, 'names' para os demais."""
+    return "indicators" if prompt_type in INDICATOR_TYPES else "names"
+
+
+def word_sets(fact, prompt) -> Dict[str, List[str]]:
+    """Conjuntos {candidato: palavras} medidos por um prompt."""
+    if prompt.type in INDICATOR_TYPES:
+        return {c.id: c.indicators_for(prompt.type, prompt.lang)
+                for c in fact.candidates if c.indicators_for(prompt.type, prompt.lang)}
+    return {c.id: c.names_for(prompt.lang, prompt.slot_case) for c in fact.candidates}
+
+
+def format_prompt(prompt, tokenizer, chat_formatter: Optional[Callable] = None):
+    """
+    Texto tokenizado + convenção da lacuna para o formato do prompt.
+
+    Returns:
+        (texto, sep, add_special_tokens) ou None se o formato não se
+        aplica (QA sem chat template)
+    """
+    if prompt.format == "qa":
+        if chat_formatter is None:
+            return None
+        return chat_formatter(tokenizer, prompt.text), "", False
+    return prompt.text, " ", True
 
 
 def encode_ids(tokenizer, text: str, add_special_tokens: bool = True) -> List[int]:

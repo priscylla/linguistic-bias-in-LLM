@@ -35,6 +35,9 @@ Configuration lives in YAML files, read by `config/loader.py`:
 
 - `config/experiment.yaml`: languages, prompt types, decision zone, smoothing, thresholds, models;
 - `config/facts.yaml`: facts, candidates, single-name sets per language (Russian by case), stakes, narrative indicators;
-- `config/prompts.yaml`: every prompt (3 paraphrases per type) with its review and grammar flags.
+- `config/prompts.yaml`: every prompt (3 paraphrases per type) with its review and grammar flags;
+- `config/baseline_prompts.yaml`: neutral prompts (unrelated topics, same slot shape as each real paraphrase) for the common-token baseline.
 
-`python scripts/make_review_doc.py` regenerates `reports/phase1_review.md` and `reports/prompts_review.md` from them. Runs refuse facts that are not `status: confirmed` and prompts that still need native review.
+The Phase 2 lens lives in `logit_lens/lens.py` (pluggable `Lens`; `LogitLens` now, Tuned Lens in Phase 4) and `logit_lens/measure.py` (`LensRunner`: exact per-candidate probabilities over distinct token IDs, KL to the final distribution, top-20 for inspection, neutral baseline). The run script that writes the results table comes later in Phase 2.
+
+`python scripts/make_review_doc.py` regenerates `reports/phase1_review.md` and `reports/prompts_review.md` from them. Runs refuse facts that are not `status: confirmed`, prompts that still need native review, and an unconfirmed baseline.

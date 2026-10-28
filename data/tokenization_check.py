@@ -24,7 +24,8 @@ Sinaliza:
 from collections import Counter
 from typing import Callable, Dict, List, Optional
 
-from logit_lens.entity_tokens import build_token_sets
+# word_sets e format_prompt são compartilhados com o lens (Fase 2)
+from logit_lens.entity_tokens import build_token_sets, format_prompt, word_sets  # noqa: F401
 
 
 def _zipf(word: str, lang: str) -> float:
@@ -35,29 +36,6 @@ def _zipf(word: str, lang: str) -> float:
 def token_word(token: str) -> str:
     """Texto do token sem espaço/marcador inicial (▁, Ġ), para o wordfreq."""
     return token.replace("▁", " ").replace("Ġ", " ").strip()
-
-
-def word_sets(fact, prompt) -> Dict[str, List[str]]:
-    """Conjuntos {candidato: palavras} medidos por um prompt."""
-    if prompt.type in ("place", "artifact"):
-        return {c.id: c.indicators_for(prompt.type, prompt.lang)
-                for c in fact.candidates if c.indicators_for(prompt.type, prompt.lang)}
-    return {c.id: c.names_for(prompt.lang, prompt.slot_case) for c in fact.candidates}
-
-
-def format_prompt(prompt, tokenizer, chat_formatter: Optional[Callable] = None):
-    """
-    Texto tokenizado + convenção da lacuna para o formato do prompt.
-
-    Returns:
-        (texto, sep, add_special_tokens) ou None se o formato não se
-        aplica (QA sem chat template)
-    """
-    if prompt.format == "qa":
-        if chat_formatter is None:
-            return None
-        return chat_formatter(tokenizer, prompt.text), "", False
-    return prompt.text, " ", True
 
 
 def check_tokenizer(

@@ -20,7 +20,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 from config.loader import (
-    Fact, Prompt, load_experiment, load_facts, load_prompts, prompts_for,
+    Baseline, Fact, Prompt, load_baseline, load_experiment, load_facts,
+    load_prompts, prompts_for,
 )
 
 
@@ -30,6 +31,7 @@ class ExperimentConfig:
     experiment: dict = field(default_factory=lambda: load_experiment())
     fact_specs: Dict[str, Fact] = field(default_factory=lambda: load_facts())
     prompt_specs: tuple = field(default_factory=lambda: load_prompts())
+    baseline_spec: Baseline = field(default_factory=lambda: load_baseline())
 
     # ── Parâmetros gerais ──
     @property
@@ -122,6 +124,10 @@ class ExperimentConfig:
     # ── Prompts ──
     def prompt(self, fact: str, lang: str, ptype: str, paraphrase: int = 1) -> Prompt:
         return prompts_for(self.prompt_specs, fact, lang, ptype)[paraphrase - 1]
+
+    def baseline_prompt(self, lang: str, ptype: str, paraphrase: int = 1) -> Prompt:
+        """Prompt neutro que espelha (lang, ptype, paraphrase)."""
+        return prompts_for(self.baseline_spec.prompts, None, lang, ptype)[paraphrase - 1]
 
     def expected_cells(self) -> int:
         """Runs do pipeline atual: modelos × fatos × idiomas × formulações."""

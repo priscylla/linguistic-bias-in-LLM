@@ -6,7 +6,8 @@ Gera os documentos de revisão a partir de config/*.yaml:
                                indicadores por idioma, com as notas do que
                                precisa de verificação
     reports/prompts_review.md  todos os prompts, por fato e idioma, com
-                               as marcações (article_blocked, slot_case)
+                               as marcações (article_blocked, slot_case),
+                               e os prompts neutros da linha de base
 
     python scripts/make_review_doc.py
 """
@@ -17,7 +18,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from config.loader import load_experiment, load_facts, load_prompts, prompts_for  # noqa: E402
+from config.loader import (  # noqa: E402
+    load_baseline, load_experiment, load_facts, load_prompts, prompts_for,
+)
 
 OUT_FACTS   = ROOT / "reports" / "phase1_review.md"
 OUT_PROMPTS = ROOT / "reports" / "prompts_review.md"
@@ -68,7 +71,32 @@ def facts_doc(exp, facts) -> str:
     return "\n".join(out)
 
 
-def prompts_doc(exp, facts, prompts) -> str:
+def _prompt_line(p) -> str:
+    marks = (" ⛔" if p.article_blocked else "") + \
+            (f" [{p.slot_case}]" if p.slot_case != "nom" else "")
+    return f"- {p.type}.{p.paraphrase}: {p.text}{marks}"
+
+
+def baseline_doc(exp, baseline) -> list:
+    out = [
+        "## Neutral baseline (`config/baseline_prompts.yaml`)",
+        "",
+        f"Status: `{baseline.status}`. Paraphrase *i* of each type mirrors paraphrase *i* of "
+        "the real prompts in the same language (same slot ending, Russian case and ⛔ flag; "
+        "the validator checks this). Topics: names = *the novel / its author*, "
+        "place = *the bridge*, artifact = *the first ship*.",
+        "",
+    ]
+    for lang in exp["languages"]:
+        ps = prompts_for(baseline.prompts, None, lang)
+        if not ps:
+            continue
+        flag = " (native review pending)" if ps[0].needs_native_review else ""
+        out += [f"### {lang}{flag}", ""] + [_prompt_line(p) for p in ps] + [""]
+    return out
+
+
+def prompts_doc(exp, facts, prompts, baseline=None) -> str:
     out = [
         "# Prompt review",
         "",
@@ -91,19 +119,18 @@ def prompts_doc(exp, facts, prompts) -> str:
                 continue
             flag = " (native review pending)" if ps[0].needs_native_review else ""
             out += [f"### {lang}{flag}", ""]
-            for p in ps:
-                marks = (" ⛔" if p.article_blocked else "") + \
-                        (f" [{p.slot_case}]" if p.slot_case != "nom" else "")
-                out.append(f"- {p.type}.{p.paraphrase}: {p.text}{marks}")
-            out.append("")
+            out += [_prompt_line(p) for p in ps] + [""]
+    if baseline is not None:
+        out += baseline_doc(exp, baseline)
     return "\n".join(out)
 
 
 def main():
     exp, facts, prompts = load_experiment(), load_facts(), load_prompts()
+    baseline = load_baseline()
     OUT_FACTS.parent.mkdir(parents=True, exist_ok=True)
     OUT_FACTS.write_text(facts_doc(exp, facts), encoding="utf-8")
-    OUT_PROMPTS.write_text(prompts_doc(exp, facts, prompts), encoding="utf-8")
+    OUT_PROMPTS.write_text(prompts_doc(exp, facts, prompts, baseline), encoding="utf-8")
     print(f"OK {OUT_FACTS}\nOK {OUT_PROMPTS}")
 
 

@@ -1361,3 +1361,133 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.1: Кто открыл X-лучи?
 - QA.2: Кто был первооткрывателем X-лучей?
 - QA.3: Кто считается первооткрывателем X-лучей?
+
+## Neutral baseline (`config/baseline_prompts.yaml`)
+
+Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the real prompts in the same language (same slot ending, Russian case and ⛔ flag; the validator checks this). Topics: names = *the novel / its author*, place = *the bridge*, artifact = *the first ship*.
+
+### pt
+
+- F1.1: O romance foi escrito por ⛔
+- F1.2: Quem escreveu o romance foi
+- F1.3: Historicamente, quem escreveu o romance foi
+- F2.1: O autor do romance é considerado
+- F2.2: O autor do romance é geralmente considerado
+- F2.3: O autor do romance é amplamente reconhecido como
+- F3.1: O verdadeiro autor do romance é
+- F3.2: O verdadeiro autor do romance foi
+- F3.3: O real autor do romance foi
+- QA.1: Quem escreveu o romance?
+- QA.2: Quem foi o autor do romance?
+- QA.3: A quem se atribui a autoria do romance?
+- place.1: A ponte foi construída em ⛔
+- place.2: A ponte foi testada pela primeira vez em ⛔
+- place.3: O lugar onde a ponte foi construída é
+- artifact.1: O primeiro navio se chamava
+- artifact.2: O nome do primeiro navio era
+- artifact.3: O primeiro navio era conhecido como
+
+### en
+
+- F1.1: The novel was written by
+- F1.2: The novel was originally written by
+- F1.3: Historically, the novel was written by
+- F2.1: The author of the novel is considered to be
+- F2.2: The author of the novel is generally said to be
+- F2.3: The author of the novel is widely regarded as
+- F3.1: The true author of the novel was
+- F3.2: The real author of the novel was
+- F3.3: The actual author of the novel was
+- QA.1: Who wrote the novel?
+- QA.2: Who was the author of the novel?
+- QA.3: Who is credited with writing the novel?
+- place.1: The bridge was built in
+- place.2: The first crossing of the bridge took place in
+- place.3: The place where the bridge was built is
+- artifact.1: The first ship was called the
+- artifact.2: The name of the first ship was
+- artifact.3: The first ship was known as the
+
+### de (native review pending)
+
+- F1.1: Der Roman wurde geschrieben von
+- F1.2: Der Roman wurde ursprünglich geschrieben von
+- F1.3: Geschrieben wurde der Roman von
+- F2.1: Der Autor des Romans gilt als
+- F2.2: Als Autor des Romans gilt
+- F2.3: Als Autor des Romans gilt allgemein
+- F3.1: Der wahre Autor des Romans war
+- F3.2: Der eigentliche Autor des Romans war
+- F3.3: Der tatsächliche Autor des Romans war
+- QA.1: Wer hat den Roman geschrieben?
+- QA.2: Wer war der Autor des Romans?
+- QA.3: Wem wird die Urheberschaft des Romans zugeschrieben?
+- place.1: Die Brücke wurde gebaut in
+- place.2: Die Brücke wurde zum ersten Mal erprobt in
+- place.3: Der Ort, an dem die Brücke gebaut wurde, ist
+- artifact.1: Das erste Schiff hieß
+- artifact.2: Der Name des ersten Schiffs war
+- artifact.3: Das erste Schiff war bekannt als
+
+### it (native review pending)
+
+- F1.1: Il romanzo è stato scritto da ⛔
+- F1.2: A scrivere il romanzo è stato
+- F1.3: Il primo a scrivere il romanzo è stato
+- F2.1: L'autore del romanzo è considerato
+- F2.2: L'autore del romanzo è generalmente considerato
+- F2.3: L'autore del romanzo è ampiamente riconosciuto come
+- F3.1: Il vero autore del romanzo è stato
+- F3.2: Il vero autore del romanzo fu
+- F3.3: Il reale autore del romanzo è stato
+- QA.1: Chi ha scritto il romanzo?
+- QA.2: Chi è stato l'autore del romanzo?
+- QA.3: A chi si attribuisce la paternità del romanzo?
+- place.1: Il ponte è stato costruito a ⛔
+- place.2: Il ponte è stato collaudato per la prima volta a ⛔
+- place.3: Il luogo in cui il ponte è stato costruito è
+- artifact.1: La prima nave si chiamava
+- artifact.2: Il nome della prima nave era
+- artifact.3: La prima nave era conosciuta come
+
+### fr (native review pending)
+
+- F1.1: Le roman a été écrit par
+- F1.2: Le roman a été écrit à l'origine par
+- F1.3: Historiquement, le roman a été écrit par
+- F2.1: On considère que l'auteur du roman est
+- F2.2: Il est généralement admis que l'auteur du roman est
+- F2.3: L'auteur du roman est largement reconnu comme étant
+- F3.1: Le véritable auteur du roman était
+- F3.2: Le vrai auteur du roman fut
+- F3.3: Le véritable auteur du roman est
+- QA.1: Qui a écrit le roman ?
+- QA.2: Qui était l'auteur du roman ?
+- QA.3: À qui attribue-t-on l'écriture du roman ?
+- place.1: Le pont a été construit à ⛔
+- place.2: Le pont a été testé pour la première fois à ⛔
+- place.3: Le lieu où le pont a été construit est
+- artifact.1: Le premier navire s'appelait
+- artifact.2: Le nom du premier navire était
+- artifact.3: Le premier navire était connu sous le nom de
+
+### ru (native review pending)
+
+- F1.1: Роман был написан [ins]
+- F1.2: Роман — произведение [gen]
+- F1.3: Исторически роман был написан [ins]
+- F2.1: Автором романа считается
+- F2.2: Автор романа —
+- F2.3: Автором романа обычно считается
+- F3.1: Настоящий автор романа —
+- F3.2: Настоящим автором романа является
+- F3.3: Подлинный автор романа —
+- QA.1: Кто написал роман?
+- QA.2: Кто был автором романа?
+- QA.3: Кто считается автором романа?
+- place.1: Место строительства моста —
+- place.2: Местом строительства моста считается
+- place.3: Место, где был построен мост, —
+- artifact.1: Первый корабль назывался
+- artifact.2: Название первого корабля —
+- artifact.3: Первый корабль был известен как
