@@ -489,7 +489,7 @@ def main(argv=None):
                  "stats_mixed_coefs", "stats_mixed_fits", "internal_behavioral"):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)
-    print(f"\nPróximo passo: python make_figures.py")
+    print("\nPróximo passo: python make_figures.py")
     return 0
 
 

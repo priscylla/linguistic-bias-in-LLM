@@ -159,20 +159,22 @@ def test_analyze_and_figures(run_dir, tmp_path, monkeypatch):
     with pytest.raises(ValueError):
         analyze.main(["--results-dir", str(root), "--output-dir", str(root / "lens" / "x")])
 
-    # Figuras com o config reduzido
+    # Figuras com o config reduzido (só Logit Lens, sem comportamento: fig4/fig6 pulam)
     monkeypatch.setattr(mf, "CONFIG", run_dir["cfg"])
     figs = tmp_path / "figs"
-    for fig in ("fig1", "fig6"):
+    for fig in ("fig1", "fig3"):
         assert mf.main(["--results-dir", str(root), "--metrics-dir", str(out),
-                        "--output-dir", str(figs), "--fig", fig]) == 0
-    assert {p.name for p in figs.iterdir()} == {"fig1_w3.png", "fig1_raw.png", "fig6.png"}
+                        "--output-dir", str(figs), "--fig", fig, "--scope", "main"]) == 0
+    assert {p.name for p in figs.iterdir()} == {
+        f"{b}.{e}" for b in ("fig1_divergence_map_w3", "fig1_divergence_map_raw",
+                             "fig3_peak_vs_final") for e in ("pdf", "png")}
     tables  = mf.load_tables(str(root), ("layers", "token_sets"))
     metrics = mf.load_metrics(out)
     run = mf.heatmap_run(tables, metrics, "llama", "aviao", "pt")
     assert len(run["layers"]) == run_dir["model"].config.num_hidden_layers
     assert run["dominant_ids"] and run["other_ids"]
-    mf.fig3_logit_lens_single(tables, metrics, "aviao", "llama", "pt", str(figs / "fig3.png"))
-    mf.fig3_logit_lens_combined(tables, metrics, "aviao", str(figs / "fig3c.png"))
-    assert (figs / "fig3.png").exists() and (figs / "fig3c.png").exists()
+    mf.figA_logit_lens_single(tables, metrics, "aviao", "llama", "pt", str(figs / "figA.png"))
+    mf.figA_logit_lens_combined(tables, metrics, "aviao", str(figs / "figAc"))
+    assert (figs / "figA.pdf").exists() and (figs / "figAc.png").exists()
     assert mf.model_layers(metrics["curves_mean"], "llama") == run_dir["model"].config.num_hidden_layers
     assert mf.decision_start(40) == 29

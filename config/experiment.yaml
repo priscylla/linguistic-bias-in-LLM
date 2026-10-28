@@ -36,6 +36,7 @@ top_k_tokens: 20
 heatmap_models: [llama, gemma]
 results_dir: results
 figures_dir: figures
+tables_dir: tables
 seed: 42
 
 # Estatística (Fase 6). Decisões confirmadas pela autora em 2026-10-28.
@@ -49,3 +50,22 @@ statistics:
   permutation_exact_max_n: 16    # sign-flip exato até 2^16; acima, Monte Carlo
   permutation_mc: 100000
   seed: 42
+
+# Figuras e tabelas (Fase 7). Decisões confirmadas pela autora em 2026-10-28.
+figures:
+  main_models: [llama, mistral, qwen, gemma]   # texto principal; apêndice: todos
+  formats: [pdf, png]
+  dpi: 300
+  # ACM sigconf (acmart): \columnwidth = 241.14pt, \textwidth = 506.295pt
+  column_width_in: 3.33
+  text_width_in: 7.0
+  font_size: 7
+  lens: logit_lens             # lens das figuras principais (Fig. 6 compara os dois)
+  # Okabe & Ito (2008), paleta segura para daltonismo + traço por idioma
+  language_colors: {pt: "#0072B2", en: "#D55E00", de: "#009E73", it: "#CC79A7",
+                    fr: "#E69F00", ru: "#56B4E9"}
+  language_dashes: {pt: [], en: [4, 1.5], de: [1, 1.2], it: [5, 1.5, 1, 1.5],
+                    fr: [2.5, 1.2], ru: [6, 1, 1, 1, 1, 1]}
+  model_colors: ["#000000", "#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00",
+                 "#56B4E9", "#F0E442", "#666666", "#999999", "#332288"]
+  model_markers: [o, s, "^", D, v, P, X, "<", ">", h, "*"]

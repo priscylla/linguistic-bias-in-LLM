@@ -43,5 +43,9 @@ Every fact, translation, model ID or license used by the pipeline is logged here
 | Bootstrap | `config/experiment.yaml` statistics | percentile, 10,000 resamples, stratified over paraphrases within F1–F3 (9 prompts per cell); per-formulation CIs (3 paraphrases) flagged coarse | Priscylla Silva | 2026-10-28 |
 | Stake test | `analysis/statistics.py` stake_tests | CS (not ΔCS); unit = model × format × prompt type; d = stake − mean non-stake; sign-flip permutation (exact n ≤ 16, else 100k Monte Carlo); Holm per lens × set × stake type; dominant candidates via P(dom) − mean P(alt) | Priscylla Silva | 2026-10-28 |
 | Mixed models | `analysis/statistics.py` mixed_models | two fits: A ΔCS ~ stake_type + format + base_vs_instruct; B (completion) ΔCS ~ stake_type + formulation + base_vs_instruct; (1|fact) + (1|model) | Priscylla Silva | 2026-10-28 |
+| Figure models | `config/experiment.yaml` figures.main_models | main text: llama, mistral, qwen, gemma (instruct); appendix (`_all`): all 11 | Priscylla Silva | 2026-10-28 |
+| Fig. 2 layout | `make_figures.py` fig2_delta_cs | one point per model with its bootstrap CI, stake languages shaded | Priscylla Silva | 2026-10-28 |
+| Results table | `make_figures.py` results_table | row = model × fact × language × alternative candidate (F1–F3 pooled); behavior = primary rate of e + majority answer; compact = main models, stake languages + EN | Priscylla Silva | 2026-10-28 |
+| Fig. 4 axes | `make_figures.py` fig4_internal_behavioral | two panels: CS* and decision-zone CS vs primary-attribution rate | Priscylla Silva | 2026-10-28 |
 
 EN and DE prompts were unchanged in Phase 0 (already correct). The prompts above are paraphrase 1 of each formulation since Phase 1 (moved from `data/prompts.py`, now removed); the new paraphrases and the FR/RU prompts are added to this log as they are confirmed.

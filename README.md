@@ -1,7 +1,7 @@
 # linguistic-bias-in-LLM
 Linguistic Bias in LLM Outputs
 
-> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 6; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
+> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 7; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
 
 ## Execution — Step by Step
 
@@ -44,9 +44,23 @@ python scripts/export_validation_sample.py   # reports/validation/sample.csv (la
 python scripts/validation_agreement.py       # reports/validation/agreement.json
 python scripts/fill_empirical_dominant.py    # writes empirical_dominant into facts.yaml
 
-# 5. Figures
-python make_figures.py                 # figures/
+# 5. Figures and tables
+python make_figures.py                 # figures/ (PDF + PNG), tables/ (LaTeX + CSV)
+python make_figures.py --fig fig2 --scope main
 ```
+
+Figures (sizes for ACM sigconf; Okabe-Ito palette with a dash pattern per language; main version with the four instruct models, `_all` appendix version with every model):
+
+| File | Content |
+| --- | --- |
+| `fig1_divergence_map{,_all}_{w3,raw}` | CS_e per layer, rows = fact × alternative, columns = models, shared y per row, decision zone |
+| `fig2_delta_cs{,_qa}{,_all}` | ΔCS (decision zone) per fact × language, one point per model with 95% bootstrap CI, stake languages shaded |
+| `fig3_peak_vs_final{,_all}` | peak vs final-layer P(e), controls beside disputed facts |
+| `fig4_internal_vs_behavior{,_all}` | CS* and decision-zone CS vs behavioral primary-attribution rate |
+| `fig5_names_vs_indicators{,_all}` | ΔCS from names vs places vs artifacts |
+| `fig6_lens_comparison{,_all}` | Logit vs Tuned Lens: ΔCS, peak shift, held-out KL per layer |
+| `figA_tokens_*` | top tokens per layer (qualitative, appendix) |
+| `tables/results_{compact,full}.tex` | model, fact, candidate, language, peak k*/L, CS*, suppression, ΔCS, behavior |
 
 Configuration lives in YAML files, read by `config/loader.py`:
 
