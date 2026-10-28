@@ -89,7 +89,8 @@ def check_model(model_key: str, results_dir: str, config: ExperimentConfig,
     return problems
 
 
-def check_behavioral(model_key: str, results_dir: str, config: ExperimentConfig) -> list:
+def check_behavioral(model_key: str, results_dir: str, config: ExperimentConfig,
+                     behavioral=None) -> list:
     """Respostas comportamentais: todo prompt QA com greedy + amostras."""
     from config.loader import load_behavioral
     out = behavioral_dir(results_dir, model_key)
@@ -97,7 +98,7 @@ def check_behavioral(model_key: str, results_dir: str, config: ExperimentConfig)
         return [f"{model_key}: sem respostas comportamentais ({out})"]
     if not (out / "answers.parquet").exists():
         return [f"{model_key}: sem answers.parquet (rode run_behavioral.py --consolidate-only)"]
-    g = load_behavioral().generation
+    g = (behavioral or load_behavioral()).generation
     per = g["greedy"] + g["samples"]
     a = pd.read_parquet(out / "answers.parquet")
     exp = {(p.fact, p.lang, p.paraphrase) for p in config.prompt_specs if p.type == "QA"}
@@ -158,7 +159,8 @@ def check_all_results(results_dir: str = None, config: ExperimentConfig = None) 
     print(f"\n❌ {len(problems)} PROBLEMA(S):")
     for p in problems:
         print(f"   → {p}")
-    print("\n   Rerun: python run_lens.py [modelo]  (unidades feitas são puladas)")
+    print("\n   Rerun: python run_lens.py --model <modelo> [--lens tuned] / "
+          "python run_behavioral.py --model <modelo>  (unidades feitas são puladas)")
     return False
 
 

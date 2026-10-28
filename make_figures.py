@@ -416,7 +416,7 @@ def fig4_internal_behavioral(metrics, out_base, models):
                 if len(g):
                     ax.scatter(g[col], g["primary_rate"], s=7, marker=mk, color=lang_color(l),
                                alpha=0.8, lw=0)
-        if len(d) > 2:
+        if len(d) > 2 and d[col].nunique() > 1 and d["primary_rate"].nunique() > 1:
             rho, p = spearmanr(d[col], d["primary_rate"])
             ax.text(0.03, 0.97, f"ρ = {rho:.2f}\nn = {len(d)}", transform=ax.transAxes,
                     va="top", fontsize=fcfg()["font_size"] - 1)

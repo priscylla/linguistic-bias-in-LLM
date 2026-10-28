@@ -18,6 +18,12 @@ models: [llama, mistral, qwen, gemma]     # modelos instruct (chaves de models.y
 
 lens_dir: lenses                          # lenses/{modelo}/ (fora do git)
 
+# Lentes pré-treinadas para estes checkpoints exatos e corpus multilíngue:
+# nenhuma encontrada (verificado em 2026-10-28, reports/verified_values.md).
+# Uma entrada {modelo: descrição} faz train_tuned_lens.py pular o modelo;
+# os arquivos vão em lenses/{modelo}/ (translators.pt, config.json).
+pretrained: {}
+
 corpus:
   # dataset, config, split e commit fixo no Hugging Face; coluna de texto
   # e de id (o id decide o held-out)

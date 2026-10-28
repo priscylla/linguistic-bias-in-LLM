@@ -79,7 +79,6 @@ def display_status():
 
     for model_key, info in summary.items():
         bar_len   = 28
-        completed = info["completed"] if isinstance(info["completed"], int) else 0
         filled    = int(bar_len * info["pct"] / 100)
         bar       = "█" * filled + "░" * (bar_len - filled)
 

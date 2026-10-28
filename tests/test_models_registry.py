@@ -12,7 +12,7 @@ import torch
 import yaml
 
 import run_lens
-import sanity_check_models as scm
+from logit_lens import sanity as scm
 from config.experiment_config import ExperimentConfig
 from config.loader import (
     CONFIG_DIR, Architecture, load_experiment, load_models, parse_models, validate_models,

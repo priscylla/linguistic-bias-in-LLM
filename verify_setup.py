@@ -176,7 +176,7 @@ def main():
         for mk in problems:
             print(f"  [{mk}] {excluded[mk]} palavra(s) excluida(s): ver {tokenization[mk]['csv']}")
     print("\n  Proximo passo (com o config confirmado):")
-    print("  python run_lens.py mistral")
+    print("  python run_lens.py --model mistral --sanity-only")
 
     # Salvar relatorio
     report = {

@@ -304,13 +304,18 @@ def evaluate(lens, model, tokenizer, sources: Dict[str, Source], tl_cfg: Dict,
         tuned = logit = None
         n_tok = 0
         for _ in range(n_seq):
-            ids = packer.next_sequence()
+            try:
+                ids = packer.next_sequence()
+            except StopIteration:      # held-out esgotado: avalia o que houver
+                break
             with torch.no_grad():
                 t = sequence_kl(lens, model, ids, tcfg["loss_chunk_tokens"])
             l = sequence_kl(lens, model, ids, tcfg["loss_chunk_tokens"], translate=False)
             tuned = t if tuned is None else tuned + t
             logit = l if logit is None else logit + l
             n_tok += len(ids)
+        if tuned is None:
+            continue
         for k in range(len(tuned)):
             rows.append({"lang": lang, "layer": k + 1, "n_tokens": n_tok,
                          "kl_tuned": float(tuned[k] / n_tok), "kl_logit": float(logit[k] / n_tok)})

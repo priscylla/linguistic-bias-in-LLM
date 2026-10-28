@@ -1,55 +1,130 @@
 # linguistic-bias-in-LLM
-Linguistic Bias in LLM Outputs
 
-> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 7; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
+Logit Lens and Tuned Lens study of cultural and linguistic bias in LLMs: for contested inventions (airplane, telephone, radio, …) and undisputed controls, it measures, layer by layer and in six prompt languages (PT, EN, DE, IT, FR, RU), how strongly a model commits to each candidate inventor (the Commitment Score, CS_e = P(e) − P(dominant)), and compares that internal commitment with what the model actually answers.
 
-## Execution — Step by Step
+## Pipeline
+
+One entry point per stage. Every model writes to its own files, every run resumes from checkpoints, and nothing downstream modifies raw results.
 
 ```bash
-# 0. Setup
+# 0. Setup (once)
 pip install -r requirements.txt
-export HF_TOKEN="hf_your_token_here"
-pytest                                 # CPU, tiny random models
+export HF_TOKEN="hf_..."                 # gated models: Llama 3.1, Gemma 2 (accept the licenses first)
+pytest                                   # 291 tests, CPU, tiny random models, no downloads
+python run_pipeline_dry.py               # whole pipeline on tiny models (CPU, ~2–3 min)
+python verify_setup.py                   # tokenizers only: prompts, name tokenization
 
-# 1. Verify (fast — tokenizers only)
-python verify_setup.py
+# 1. Sanity check, every model first (last-layer lens == model logits)
+python run_lens.py --model llama --sanity-only           # reports/sanity/llama.json
 
-# 1b. Lens sanity check on every real checkpoint (GPU; one model at a time)
-python sanity_check_models.py          # reports/sanity/{model}.json
+# 2. Logit Lens measurement (all facts, languages, prompt types, paraphrases, formats)
+python run_lens.py --model llama --lens logit            # results/lens/logit_lens/llama/
 
-# 2. Measure (one model at a time; resumes from checkpoint)
-#    Refuses to run until facts, prompts, baseline and forcing words are confirmed.
-#    Starts with the lens sanity check and stops if it fails.
-python run_lens.py mistral             # any key from config/models.yaml
-python run_lens.py mistral_base
-python run_lens.py gemma27             # 4-bit NF4
-python run_lens.py sabia
-python monitor.py                      # progress, in another terminal
+# 3. Behavioral study (instruct models: QA prompts, 1 greedy + 10 samples at T=0.7)
+python run_behavioral.py --model llama                   # results/behavioral/llama/
 
-# 2b. Tuned Lens (Phase 4; the four instruct models; resumable)
-python train_tuned_lens.py llama       # lenses/llama/ + reports/tuned_lens/llama_eval.csv
-python run_lens.py llama --lens tuned  # results/lens/tuned_lens/llama/
+# 4. Tuned Lens: train, then re-measure (the four instruct models)
+python train_tuned_lens.py --model llama                 # lenses/llama/, reports/tuned_lens/
+python run_lens.py --model llama --lens tuned            # results/lens/tuned_lens/llama/
 
-# 2c. Behavioral study (Phase 5; instruct models; resumable)
-python run_behavioral.py llama         # results/behavioral/llama/answers.parquet
+# 5. Checks, metrics, statistics, figures, tables (CPU)
+python check_results.py                  # every expected prompt, unit and answer present
+python analyze.py                        # results/metrics/ (metrics, CIs, tests, mixed models)
+python scripts/export_validation_sample.py     # reports/validation/sample.csv → label it
+python scripts/validation_agreement.py         # reports/validation/agreement.json
+python scripts/fill_empirical_dominant.py      # empirical English majority → facts.yaml
+python make_figures.py                   # figures/ (PDF + PNG), tables/ (LaTeX + CSV)
 
-# 3. Check integrity (expected prompts and units derived from config)
-python check_results.py
-
-# 4. Metrics (reads results/lens/*, never modifies them)
-python analyze.py                      # results/metrics/
-
-#    then, for the behavioral study:
-python scripts/export_validation_sample.py   # reports/validation/sample.csv (label it)
-python scripts/validation_agreement.py       # reports/validation/agreement.json
-python scripts/fill_empirical_dominant.py    # writes empirical_dominant into facts.yaml
-
-# 5. Figures and tables
-python make_figures.py                 # figures/ (PDF + PNG), tables/ (LaTeX + CSV)
-python make_figures.py --fig fig2 --scope main
+# 6. Release
+python scripts/make_anonymous_copy.py    # ../linguistic-bias-in-LLM-anonymous (no names, emails, tokens, history)
 ```
 
-Figures (sizes for ACM sigconf; Okabe-Ito palette with a dash pattern per language; main version with the four instruct models, `_all` appendix version with every model):
+`python monitor.py` shows progress in another terminal. Runs refuse to start until every value they use is confirmed (facts, prompts and native-speaker review, baseline prompts, forcing words; surface forms for the behavioral analysis); see `reports/verified_values.md` and the review documents below.
+
+### Options shared by the model scripts
+
+| Option | Scripts | Meaning |
+| --- | --- | --- |
+| `--model KEY` | all | key from `config/models.yaml` (below) |
+| `--gpus "1 2"` | all | GPUs for this job; two or more split the model across them. Without it, `CUDA_VISIBLE_DEVICES` applies |
+| `--dtype bf16\|fp16\|fp32\|nf4` | `run_lens.py`, `run_behavioral.py` | override the registry precision (e.g. Gemma 2 27B in bf16 on two GPUs instead of NF4). Changes the method: recorded in the manifest, and a run never resumes over results made with another precision |
+| `--lens logit\|tuned` | `run_lens.py` | Logit Lens or the trained Tuned Lens |
+| `--sanity-only` | `run_lens.py` | only the sanity check |
+| `--consolidate-only` | `run_lens.py`, `run_behavioral.py` | rebuild the tables from finished checkpoints |
+| `--max-steps N`, `--eval-only`, `--force` | `train_tuned_lens.py` | short session (resumes later), evaluation only, retrain a finished lens |
+
+`train_tuned_lens.py` skips a model that already has a finished lens, or a pretrained one declared in `config/tuned_lens.yaml` (none exists for these checkpoints).
+
+### Several GPUs
+
+`scripts/run_queue.sh jobs.txt "0 1 2 3"` keeps a list of GPUs busy with a list of jobs (one command per line). Each entry of the GPU list is a worker; a comma joins GPUs into one worker for a model split across them (`"0 1,2 3"`). Each job gets its own log in `logs/queue/`, a failing job is recorded and the queue continues, and the script exits with 1 if any job failed. Don't pass `--gpus` inside queued jobs.
+
+```bash
+for m in llama mistral qwen gemma; do echo "python run_lens.py --model $m --lens logit"; done > jobs.txt
+scripts/run_queue.sh jobs.txt "0 1 2 3"
+```
+
+## Models (`config/models.yaml`)
+
+| Key | Model | Kind | Precision | Formats |
+| --- | --- | --- | --- | --- |
+| `llama_base` / `llama` | Llama 3.1 8B / Instruct | base / instruct | bf16 | completion / + QA |
+| `mistral_base` / `mistral` | Mistral 7B v0.3 / Instruct | base / instruct | bf16 | completion / + QA |
+| `qwen_base` / `qwen` | Qwen 2.5 7B / Instruct | base / instruct | bf16 | completion / + QA |
+| `gemma_base` / `gemma` | Gemma 2 9B / it | base / instruct | bf16 | completion / + QA |
+| `gemma27` | Gemma 2 27B it | instruct | 4-bit NF4 | completion + QA |
+| `sabia_base` / `sabia` | LLaMA-1 7B (huggyllama) / Sabiá-7B | base / base (pt-adapted) | bf16 | completion |
+
+Every model is pinned to a commit. Behavioral runs use the five instruct models; Tuned Lens uses `llama`, `mistral`, `qwen`, `gemma`.
+
+## Expected runtimes and memory
+
+Workload per model, counted by the full dry run (`run_pipeline_dry.py`, all 12 facts × 6 languages): **1,116 prompts + 108 neutral baseline prompts + forced article/contraction passes** per lens (318 on a random model; real models trigger the article test more often, up to about 1,100 more), and for behavior **216 QA prompts × 11 answers = 2,376 answers**, at most 200 new tokens each (≈ 475k tokens if no answer stops early). The GPU times below are **estimates** from those counts, not measurements: one forward with every layer read out takes roughly 0.05–0.15 s for a 7–9B model in bf16, and generation roughly 25–40 ms per step (a batch of 10 samples costs about one step).
+
+| Step | Per model (24–48 GB GPU) | All models |
+| --- | --- | --- |
+| Sanity check | 2–5 min (+ first download) | ~45 min (11 models) |
+| Logit Lens | 5–15 min; Gemma 2 27B NF4 ~30–45 min | 1.5–3 h (11 models) |
+| Behavioral | 30–60 min; Gemma 2 27B NF4 2–3 h | 4–7 h (5 instruct) |
+| Tuned Lens training (16M tokens) | Mistral ~3 h, Qwen ~7 h, Llama ~8 h, Gemma ~16 h | ~34 h (4 models) |
+| Tuned Lens re-measurement | 5–15 min | ~1 h (4 models) |
+| Analysis, statistics, figures | CPU, minutes | < 30 min |
+
+On the dry run (CPU, tiny models, 2 models) the whole pipeline took 139 s and 1.3 GB of RAM; behavioral generation dominated (107 s).
+
+GPU memory (weights; activations add little at these prompt lengths): Llama 3.1 8B ~16 GB, Mistral 7B ~14.5 GB, Qwen 2.5 7B ~15 GB, Gemma 2 9B ~18.5 GB, Gemma 2 27B NF4 ~16–17 GB (about 55 GB in bf16, i.e. two GPUs), LLaMA-1 / Sabiá 7B ~13.5 GB. Tuned Lens training adds ~4 GB (translators + optimizer) plus the per-chunk logits: Gemma 2 9B needs a 48 GB GPU, or `seq_len: 1024` in `config/tuned_lens.yaml` on 24 GB.
+
+## Configuration
+
+Everything that varies lives in YAML, read and validated by `config/loader.py`:
+
+- `config/experiment.yaml`: languages, prompt types, decision zone, smoothing, statistics (`statistics`), figures (`figures`);
+- `config/facts.yaml`: facts, candidates, single-name sets per language (Russian by case), stakes, narrative indicators;
+- `config/prompts.yaml`: every prompt (3 paraphrases per type) with its review and grammar flags;
+- `config/baseline_prompts.yaml`: neutral prompts (same slot shape as each real paraphrase) for the common-token baseline;
+- `config/forcing.yaml`: articles, plural nouns and contracted prepositions for the article-confound test;
+- `config/models.yaml`: model registry and, per architecture, where the final norm, unembedding and logit softcap live;
+- `config/tuned_lens.yaml`: Tuned Lens corpus (FineWeb-2 + FineWeb, pinned, balanced across languages, 1% held out, fact documents filtered out) and recipe;
+- `config/behavioral.yaml`: generation settings, surface forms for answer extraction, validation sample, report questions.
+
+`python scripts/make_review_doc.py` regenerates the review documents `reports/phase1_review.md`, `reports/prompts_review.md` and `reports/behavioral_review.md`. Every value confirmed by the author is logged in `reports/verified_values.md`.
+
+## Code map
+
+| Path | Role |
+| --- | --- |
+| `logit_lens/lens.py`, `tuned_lens.py` | pluggable `Lens` (model head + per-layer translation): Logit Lens, Tuned Lens |
+| `logit_lens/measure.py` | exact per-candidate probability over distinct token IDs, KL to the final layer, top-20, neutral baseline |
+| `logit_lens/confound.py` | article-confound passes (article + plural noun, contractions, shared prefixes) |
+| `logit_lens/lens_training.py` | Tuned Lens data, training (resumable) and held-out evaluation |
+| `logit_lens/sanity.py`, `store.py` | sanity report; checkpointed tables (`results/lens/{lens}/{model}/`) |
+| `behavior/` | generation with explicit decoding settings, extraction, validation sample and agreement |
+| `analyze.py`, `analysis/statistics.py` | metrics (CS_e, ΔCS, peak, suppression, article verdicts, behavior) and statistics (bootstrap CIs, stake tests, mixed models) |
+| `make_figures.py` | figures 1–6 + appendix heatmaps (ACM sizes, Okabe-Ito palette) and LaTeX tables |
+| `models/` | registry loader, chat template, `--gpus` / `--dtype` handling |
+| `devtools/tiny.py` | tiny random models and toy tokenizers for tests and the dry run |
+
+Figures (main version with the four instruct models; `_all` appendix version with every model):
 
 | File | Content |
 | --- | --- |
@@ -61,38 +136,3 @@ Figures (sizes for ACM sigconf; Okabe-Ito palette with a dash pattern per langua
 | `fig6_lens_comparison{,_all}` | Logit vs Tuned Lens: ΔCS, peak shift, held-out KL per layer |
 | `figA_tokens_*` | top tokens per layer (qualitative, appendix) |
 | `tables/results_{compact,full}.tex` | model, fact, candidate, language, peak k*/L, CS*, suppression, ΔCS, behavior |
-
-Configuration lives in YAML files, read by `config/loader.py`:
-
-- `config/experiment.yaml`: languages, prompt types, decision zone, smoothing, thresholds, models;
-- `config/facts.yaml`: facts, candidates, single-name sets per language (Russian by case), stakes, narrative indicators;
-- `config/prompts.yaml`: every prompt (3 paraphrases per type) with its review and grammar flags;
-- `config/baseline_prompts.yaml`: neutral prompts (unrelated topics, same slot shape as each real paraphrase) for the common-token baseline;
-- `config/forcing.yaml`: articles, plural nouns and contracted prepositions for the article-confound test;
-- `config/tuned_lens.yaml`: Tuned Lens corpus (FineWeb-2 + FineWeb, pinned commits, equal tokens per language, 1% held out, fact documents filtered out) and training recipe (tuned-lens 0.2.0 recipe, 250 steps × 2^16 tokens);
-- `config/behavioral.yaml`: behavioral generation settings, surface forms for answer extraction (Latin + Cyrillic, per-language exclusions), validation sample size and the report questions;
-- `config/models.yaml`: model registry (ID, pinned commit, base/instruct, base model, license, gating, precision, quantization) and, per architecture, where the final norm, unembedding and logit softcap live.
-
-| Key | Model | Kind | Precision |
-| --- | --- | --- | --- |
-| `llama_base` / `llama` | Llama 3.1 8B / Instruct | base / instruct | bf16 |
-| `mistral_base` / `mistral` | Mistral 7B v0.3 / Instruct | base / instruct | bf16 |
-| `qwen_base` / `qwen` | Qwen 2.5 7B / Instruct | base / instruct | bf16 |
-| `gemma_base` / `gemma` | Gemma 2 9B / it | base / instruct | bf16 |
-| `gemma27` | Gemma 2 27B it | instruct | 4-bit NF4 |
-| `sabia_base` / `sabia` | LLaMA-1 7B (huggyllama) / Sabiá-7B | base / base (pt-adapted) | bf16 |
-
-Base models run only the completion format; instruct models run completion and QA. Gated models (Llama, Gemma) need `HF_TOKEN`.
-
-`python scripts/make_review_doc.py` regenerates `reports/phase1_review.md`, `reports/prompts_review.md` and `reports/behavioral_review.md` from them. Runs refuse facts that are not `status: confirmed`, prompts that still need native review, an unconfirmed baseline and unconfirmed forcing words.
-
-## Measurement (Phase 2)
-
-- `logit_lens/lens.py`: pluggable `Lens` (the model's own head plus a per-layer translation); `LogitLens` now, Tuned Lens in Phase 4. Every forward pass checks that the last layer reproduces the model's logits.
-- `logit_lens/measure.py`: `LensRunner`, exact per-candidate probability over distinct token IDs (names on F1–F3/QA, indicators on place/artifact), KL(lens_k ‖ final), top-20 for inspection, neutral baseline. Formats: completion (raw prompt) and QA (chat template, instruct only).
-- `logit_lens/confound.py`: article-confound passes (forced article, then plural noun; contracted prepositions for blocked prompts; shared prefixes of split indicators).
-- `logit_lens/tuned_lens.py` + `logit_lens/lens_training.py` + `train_tuned_lens.py`: Tuned Lens (per-layer affine translator h + A·h + b, zero-init, KL to the final distribution), same `Lens` interface; held-out KL per language and layer against the Logit Lens.
-- `run_lens.py` writes `results/lens/{lens}/{model}/` (lens = `logit_lens` | `tuned_lens`): `probs`, `baseline`, `forced`, `layers`, `token_sets` (Parquet) and `manifest.json`.
-- `analysis/statistics.py` (run by `analyze.py`): stratified bootstrap CIs for the decision-zone CS, CS*, suppression and ΔCS; stake vs non-stake permutation tests per entity (Holm, nationality and place of event separate); mixed models with crossed random effects for fact and model; internal metrics joined with behavioral rates. Settings in `config/experiment.yaml` (`statistics`).
-- `behavior/`: generation with explicit decoding settings (`generation.py`), candidate and indicator extraction (`extraction.py`), validation sample and agreement (`validation.py`).
-- `analyze.py` writes `results/metrics/`: CS_e = P(e) − P(dominant), baseline-adjusted CS, k*, CS*, suppression, decision-zone mean, article verdict, and ΔCS_e(l) = CS_e(l) − CS_e(en) on paraphrase means; with both lenses, `lens_agreement_summary.csv` (peak-layer distance, sign agreement and correlation of ΔCS); with behavioral answers, per-answer attribution, rates per cell, indicator mentions given the credited candidate, the empirical English dominant and the report questions (Reis before Meucci in German; Santos-Dumont in French vs EN/DE/IT).

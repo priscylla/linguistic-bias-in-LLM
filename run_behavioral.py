@@ -3,8 +3,9 @@ run_behavioral.py
 Estudo comportamental (Fase 5): respostas dos modelos instruct aos
 prompts QA, com chat template e sem system prompt.
 
-    python run_behavioral.py llama
-    python run_behavioral.py llama --consolidate-only
+    python run_behavioral.py --model llama
+    python run_behavioral.py --model gemma27 --gpus "1 2" --dtype bf16
+    python run_behavioral.py --model llama --consolidate-only
 
 Por prompt: 1 resposta greedy + 10 amostras a T=0.7 (temperatura pura,
 top_p=1, top_k=0), max_new_tokens=200, semente fixa por prompt
@@ -29,6 +30,9 @@ from behavior.generation import Generator, effective_config
 from config.experiment_config import ExperimentConfig
 from config.loader import load_behavioral, prompts_for, require_confirmed, require_valid
 from logit_lens.store import ChunkStore, behavioral_dir, read_manifest, write_manifest
+from models.runtime import (
+    add_model_args, apply_gpus, check_resume, precision_tag, registry_with_dtype,
+)
 from run_lens import _config_hashes, _gpu, _quantization
 
 TABLES = ("answers",)
@@ -49,6 +53,7 @@ def run_model(model_key, model, tokenizer, config, out_dir, chat_formatter, beha
         "model_key": model_key, "model_id": spec.id if spec else None,
         "revision": getattr(model.config, "_commit_hash", None),
         "registry_revision": spec.revision if spec else None,
+        "precision_tag": precision_tag(spec) if spec else None,
         "dtype": str(next(model.parameters()).dtype).replace("torch.", ""),
         "quantization": _quantization(model),
         "generation": b.generation,
@@ -85,8 +90,8 @@ def run_model(model_key, model, tokenizer, config, out_dir, chat_formatter, beha
 def main(argv=None):
     config = ExperimentConfig()
     instruct = [k for k, m in config.registry.models.items() if m.kind == "instruct"]
-    parser = argparse.ArgumentParser()
-    parser.add_argument("model", choices=instruct)
+    parser = argparse.ArgumentParser(description="Respostas dos modelos instruct aos prompts QA.")
+    add_model_args(parser, instruct)
     parser.add_argument("--results-dir", default=config.results_dir)
     parser.add_argument("--consolidate-only", action="store_true")
     args = parser.parse_args(argv)
@@ -96,15 +101,18 @@ def main(argv=None):
         print(ChunkStore(out, TABLES).consolidate())
         return 0
 
+    apply_gpus(args.gpus)
+    registry = registry_with_dtype(config.registry, args.model, args.dtype)
+    spec = registry[args.model]
     require_valid()
     # Prompts QA e fatos confirmados; as formas de superfície só são
     # exigidas na extração (analyze.py)
     require_confirmed(config.fact_specs, config.prompt_specs)
+    check_resume(read_manifest(out), spec, out)
 
     from models.chat_template import apply_template
     from models.model_loader import load_model
-    spec = config.model(args.model)
-    model, tok = load_model(args.model, config.registry)
+    model, tok = load_model(args.model, registry)
     chat = lambda t, x, mk=args.model: apply_template(t, mk, x)[0]   # noqa: E731
     m = run_model(args.model, model, tok, config, out, chat, spec=spec)
     print(f"\n✅ {args.model}: {m['units_done']}/{m['units_expected']} unidades, "

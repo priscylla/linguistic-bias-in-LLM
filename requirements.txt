@@ -1,37 +1,41 @@
 # requirements.txt
+# Versões fixas: as do ambiente em que os testes e o dry run passaram
+# (Python 3.13, CPU). Exceção: bitsandbytes (só Linux/CUDA, não testado
+# aqui; versão atual compatível com torch>=2.4,<3).
+# O pacote tuned-lens não é usado (implementação própria, Fase 4).
+# Atenção: datasets 5.x puxa huggingface_hub 2.x, incompatível com
+# transformers 5.7 (exige huggingface_hub<2.0).
 
 # ── Core ML ──
-torch>=2.1.0
-transformers>=4.40.0
-accelerate>=0.27.0
-bitsandbytes>=0.43.0; platform_system == "Linux"   # NF4 do gemma27 (CUDA)
-einops>=0.7.0
+torch==2.11.0
+transformers==5.7.0
+accelerate==1.13.0
+bitsandbytes==0.50.2; platform_system == "Linux"   # NF4 do gemma27 (CUDA)
 
 # ── Hugging Face ──
-huggingface_hub>=0.23.0
-safetensors>=0.4.0
+huggingface_hub==1.12.2
+safetensors==0.7.0
+datasets==4.8.5          # corpus do Tuned Lens (streaming, Fase 4)
 
-# ── Dados e Análise ──
-datasets>=2.18.0    # corpus do Tuned Lens (streaming, Fase 4)
-numpy>=1.24.0
-pandas>=2.0.0
-pyarrow>=15.0       # tabelas Parquet (Fase 2)
-scipy>=1.11.0
-statsmodels>=0.14    # modelos mistos (Fase 6)
+# ── Dados, análise e estatística ──
+numpy==2.4.4
+pandas==3.0.2
+pyarrow==26.0.0          # tabelas Parquet (Fase 2)
+scipy==1.17.1
+statsmodels==0.15.0      # modelos mistos (Fase 6)
 
 # ── Visualização ──
-matplotlib>=3.8.0
-
-# ── Utilidades ──
-tqdm>=4.65.0
-python-dotenv>=1.0.0
-
-# ── Reprodutibilidade ──
-setuptools>=68.0.0
-
-# ── Testes ──
-pytest>=8.0.0
+matplotlib==3.10.9
 
 # ── Configuração e verificação de tokenização ──
-pyyaml>=6.0
-wordfreq>=3.1
+pyyaml==6.0.3
+wordfreq==3.1.1
+
+# ── Utilidades ──
+tqdm==4.67.3
+python-dotenv==1.2.2
+setuptools==81.0.0
+
+# ── Testes ──
+pytest==9.2.0
+pyflakes==4.1.0

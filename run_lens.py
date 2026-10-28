@@ -2,9 +2,13 @@
 run_lens.py
 Medição da Fase 2 para um modelo (substitui run_single_model.py).
 
-    python run_lens.py llama
-    python run_lens.py llama --lens tuned      # Tuned Lens (lenses/llama/, Fase 4)
-    python run_lens.py llama --consolidate-only
+    python run_lens.py --model llama --sanity-only      # primeiro, em todo modelo
+    python run_lens.py --model llama --lens logit
+    python run_lens.py --model llama --lens tuned       # Tuned Lens (lenses/llama/)
+    python run_lens.py --model gemma27 --gpus "1 2" --dtype bf16
+    python run_lens.py --model llama --consolidate-only
+
+--gpus, --dtype: ver models/runtime.py.
 
 Passos:
     1. configuração válida e confirmada (fatos, prompts, revisão nativa,
@@ -36,6 +40,7 @@ Saída em results/lens/{lens}/{modelo}/ (ver logit_lens/store.py):
 import argparse
 import dataclasses
 import hashlib
+import json
 import platform
 import sys
 import time
@@ -46,13 +51,18 @@ import torch
 import transformers
 
 from config.experiment_config import ExperimentConfig
-from config.loader import CONFIG_DIR, prompts_for, require_confirmed, require_valid
+from config.loader import CONFIG_DIR, load_models, prompts_for, require_confirmed, require_valid
 from logit_lens.confound import ConfoundTester
 from logit_lens.lens import LogitLens
 from logit_lens.measure import LensRunner
 from logit_lens.store import ChunkStore, lens_dir, read_manifest, write_manifest
 
+from models.runtime import (  # noqa: E402
+    add_model_args, apply_gpus, check_resume, precision_tag, registry_with_dtype,
+)
+
 LENS_CHOICES = {"logit": "logit_lens", "tuned": "tuned_lens"}
+SANITY_DIR   = Path("reports") / "sanity"
 
 CONFIG_FILES = ("experiment.yaml", "facts.yaml", "prompts.yaml",
                 "baseline_prompts.yaml", "forcing.yaml", "models.yaml")
@@ -175,6 +185,7 @@ def base_manifest(model_key, model_id, model, lens, formats, sanity, spec=None):
         "model_key":    model_key,
         "model_id":     model_id,
         "registry":     dataclasses.asdict(spec) if spec is not None else None,
+        "precision_tag": precision_tag(spec) if spec is not None else None,
         "revision":     getattr(model.config, "_commit_hash", None),
         "model_type":   model.config.model_type,
         "n_layers":     model.config.num_hidden_layers,
@@ -267,15 +278,36 @@ def load_tuned(model_key, model, spec, lens_root=None):
     from logit_lens.tuned_lens import TunedLens
     root = Path(lens_root or load_tuned_lens()["lens_dir"]) / model_key
     if not (root / "translators.pt").exists():
-        raise FileNotFoundError(f"sem Tuned Lens em {root}: rode train_tuned_lens.py {model_key}")
+        raise FileNotFoundError(f"sem Tuned Lens em {root}: rode train_tuned_lens.py --model {model_key}")
     return TunedLens.load(model, root, expected_revision=spec.revision if spec else None)
+
+
+def instruct_chat(model_key, spec, tokenizer):
+    """Formatador QA para modelos instruct (None para base)."""
+    if spec.kind != "instruct":
+        return None
+    if not getattr(tokenizer, "chat_template", None):
+        raise ValueError(f"{model_key}: instruct sem chat template no tokenizer")
+    from models.chat_template import apply_template
+    return lambda tok, text, mk=model_key: apply_template(tok, mk, text)[0]
+
+
+def write_sanity(report: dict, model_key: str, spec, report_dir=SANITY_DIR) -> Path:
+    report_dir = Path(report_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    tag = "" if precision_tag(spec) == precision_tag(load_models()[model_key]) else f"_{precision_tag(spec)}"
+    path = report_dir / f"{model_key}{tag}.json"
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    return path
 
 
 def main(argv=None):
     config = ExperimentConfig()
-    parser = argparse.ArgumentParser()
-    parser.add_argument("model", choices=list(config.models))
+    parser = argparse.ArgumentParser(description="Medição por camada (Logit Lens ou Tuned Lens).")
+    add_model_args(parser, config.models)
     parser.add_argument("--lens", choices=list(LENS_CHOICES), default="logit")
+    parser.add_argument("--sanity-only", action="store_true",
+                        help="só o teste de sanidade (reports/sanity/{modelo}.json)")
     parser.add_argument("--results-dir", default=config.results_dir)
     parser.add_argument("--consolidate-only", action="store_true")
     args = parser.parse_args(argv)
@@ -285,28 +317,30 @@ def main(argv=None):
         print(ChunkStore(out_dir).consolidate())
         return 0
 
-    # Nada roda com valores não confirmados
+    apply_gpus(args.gpus)
+    registry = registry_with_dtype(config.registry, args.model, args.dtype)
+    spec = registry[args.model]
     require_valid()
-    require_confirmed(config.fact_specs, config.prompt_specs,
-                      config.baseline_spec, config.forcing_spec)
+    if not args.sanity_only:
+        # Nada roda com valores não confirmados (a sanidade não usa resultados)
+        require_confirmed(config.fact_specs, config.prompt_specs,
+                          config.baseline_spec, config.forcing_spec)
+        check_resume(read_manifest(out_dir), spec, out_dir)
 
-    from models.chat_template import apply_template
     from models.model_loader import load_model
+    model, tokenizer = load_model(args.model, registry)
+    chat = instruct_chat(args.model, spec, tokenizer)
 
-    spec = config.model(args.model)
-    model, tokenizer = load_model(args.model, config.registry)
-    chat = None
-    if spec.kind == "instruct":
-        if not getattr(tokenizer, "chat_template", None):
-            raise ValueError(f"{args.model}: instruct sem chat template no tokenizer")
-        chat = lambda tok, text, mk=args.model: apply_template(tok, mk, text)[0]
-    else:
-        print("  modelo base: só formato completion")
+    if args.sanity_only:
+        from logit_lens.sanity import sanity_report
+        rep = sanity_report(args.model, model, tokenizer, spec, config, chat)
+        rep["precision_tag"] = precision_tag(spec)
+        path = write_sanity(rep, args.model, spec)
+        print(f"  {'✅' if rep['passed'] else '❌'} {args.model}: max |diff| = {rep['max_abs_diff']}"
+              + "".join(f"\n      {f}" for f in rep["failures"]) + f"\n  → {path}")
+        return 0 if rep["passed"] else 1
 
-    lens = None
-    if args.lens == "tuned":
-        lens = load_tuned(args.model, model, spec)
-
+    lens = load_tuned(args.model, model, spec) if args.lens == "tuned" else None
     m = run_model(args.model, model, tokenizer, config, out_dir, model_id=spec.id,
                   lens=lens, chat_formatter=chat, spec=spec)
     print(f"\n✅ {args.model}: {m['units_done']}/{m['units_expected']} unidades, "

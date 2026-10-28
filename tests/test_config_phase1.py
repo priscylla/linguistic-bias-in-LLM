@@ -223,7 +223,7 @@ def test_run_lens_refuses_unconfirmed(monkeypatch):
     monkeypatch.setattr(models.model_loader, "load_model",
                         lambda *a, **k: pytest.fail("não deveria carregar o modelo"))
     with pytest.raises(UnconfirmedError):
-        run_lens.main(["llama"])
+        run_lens.main(["--model", "llama"])
 
 
 # ── Derivados ──
