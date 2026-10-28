@@ -1,7 +1,7 @@
 # linguistic-bias-in-LLM
 Linguistic Bias in LLM Outputs
 
-> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 4; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
+> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 5; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
 
 ## Execution — Step by Step
 
@@ -30,11 +30,19 @@ python monitor.py                      # progress, in another terminal
 python train_tuned_lens.py llama       # lenses/llama/ + reports/tuned_lens/llama_eval.csv
 python run_lens.py llama --lens tuned  # results/lens/tuned_lens/llama/
 
+# 2c. Behavioral study (Phase 5; instruct models; resumable)
+python run_behavioral.py llama         # results/behavioral/llama/answers.parquet
+
 # 3. Check integrity (expected prompts and units derived from config)
 python check_results.py
 
 # 4. Metrics (reads results/lens/*, never modifies them)
 python analyze.py                      # results/metrics/
+
+#    then, for the behavioral study:
+python scripts/export_validation_sample.py   # reports/validation/sample.csv (label it)
+python scripts/validation_agreement.py       # reports/validation/agreement.json
+python scripts/fill_empirical_dominant.py    # writes empirical_dominant into facts.yaml
 
 # 5. Figures
 python make_figures.py                 # figures/
@@ -48,6 +56,7 @@ Configuration lives in YAML files, read by `config/loader.py`:
 - `config/baseline_prompts.yaml`: neutral prompts (unrelated topics, same slot shape as each real paraphrase) for the common-token baseline;
 - `config/forcing.yaml`: articles, plural nouns and contracted prepositions for the article-confound test;
 - `config/tuned_lens.yaml`: Tuned Lens corpus (FineWeb-2 + FineWeb, pinned commits, equal tokens per language, 1% held out, fact documents filtered out) and training recipe (tuned-lens 0.2.0 recipe, 250 steps × 2^16 tokens);
+- `config/behavioral.yaml`: behavioral generation settings, surface forms for answer extraction (Latin + Cyrillic, per-language exclusions), validation sample size and the report questions;
 - `config/models.yaml`: model registry (ID, pinned commit, base/instruct, base model, license, gating, precision, quantization) and, per architecture, where the final norm, unembedding and logit softcap live.
 
 | Key | Model | Kind | Precision |
@@ -61,7 +70,7 @@ Configuration lives in YAML files, read by `config/loader.py`:
 
 Base models run only the completion format; instruct models run completion and QA. Gated models (Llama, Gemma) need `HF_TOKEN`.
 
-`python scripts/make_review_doc.py` regenerates `reports/phase1_review.md` and `reports/prompts_review.md` from them. Runs refuse facts that are not `status: confirmed`, prompts that still need native review, an unconfirmed baseline and unconfirmed forcing words.
+`python scripts/make_review_doc.py` regenerates `reports/phase1_review.md`, `reports/prompts_review.md` and `reports/behavioral_review.md` from them. Runs refuse facts that are not `status: confirmed`, prompts that still need native review, an unconfirmed baseline and unconfirmed forcing words.
 
 ## Measurement (Phase 2)
 
@@ -70,4 +79,5 @@ Base models run only the completion format; instruct models run completion and Q
 - `logit_lens/confound.py`: article-confound passes (forced article, then plural noun; contracted prepositions for blocked prompts; shared prefixes of split indicators).
 - `logit_lens/tuned_lens.py` + `logit_lens/lens_training.py` + `train_tuned_lens.py`: Tuned Lens (per-layer affine translator h + A·h + b, zero-init, KL to the final distribution), same `Lens` interface; held-out KL per language and layer against the Logit Lens.
 - `run_lens.py` writes `results/lens/{lens}/{model}/` (lens = `logit_lens` | `tuned_lens`): `probs`, `baseline`, `forced`, `layers`, `token_sets` (Parquet) and `manifest.json`.
-- `analyze.py` writes `results/metrics/`: CS_e = P(e) − P(dominant), baseline-adjusted CS, k*, CS*, suppression, decision-zone mean, article verdict, and ΔCS_e(l) = CS_e(l) − CS_e(en) on paraphrase means; with both lenses, `lens_agreement_summary.csv` (peak-layer distance, sign agreement and correlation of ΔCS).
+- `behavior/`: generation with explicit decoding settings (`generation.py`), candidate and indicator extraction (`extraction.py`), validation sample and agreement (`validation.py`).
+- `analyze.py` writes `results/metrics/`: CS_e = P(e) − P(dominant), baseline-adjusted CS, k*, CS*, suppression, decision-zone mean, article verdict, and ΔCS_e(l) = CS_e(l) − CS_e(en) on paraphrase means; with both lenses, `lens_agreement_summary.csv` (peak-layer distance, sign agreement and correlation of ΔCS); with behavioral answers, per-answer attribution, rates per cell, indicator mentions given the credited candidate, the empirical English dominant and the report questions (Reis before Meucci in German; Santos-Dumont in French vs EN/DE/IT).

@@ -22,7 +22,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config.experiment_config import ExperimentConfig
-from logit_lens.store import ChunkStore, lens_dir, read_manifest
+from logit_lens.store import ChunkStore, behavioral_dir, lens_dir, read_manifest
 from run_lens import lens_units
 
 KL_LAST_TOL = 1e-3
@@ -89,6 +89,30 @@ def check_model(model_key: str, results_dir: str, config: ExperimentConfig,
     return problems
 
 
+def check_behavioral(model_key: str, results_dir: str, config: ExperimentConfig) -> list:
+    """Respostas comportamentais: todo prompt QA com greedy + amostras."""
+    from config.loader import load_behavioral
+    out = behavioral_dir(results_dir, model_key)
+    if not read_manifest(out):
+        return [f"{model_key}: sem respostas comportamentais ({out})"]
+    if not (out / "answers.parquet").exists():
+        return [f"{model_key}: sem answers.parquet (rode run_behavioral.py --consolidate-only)"]
+    g = load_behavioral().generation
+    per = g["greedy"] + g["samples"]
+    a = pd.read_parquet(out / "answers.parquet")
+    exp = {(p.fact, p.lang, p.paraphrase) for p in config.prompt_specs if p.type == "QA"}
+    got = a.groupby(["fact", "lang", "paraphrase"]).size()
+    problems = []
+    lack = exp - set(got.index)
+    if lack:
+        problems.append(f"{model_key}: {len(lack)} prompts QA sem respostas")
+    if (got != per).any():
+        problems.append(f"{model_key}: {(got != per).sum()} prompts sem {per} respostas")
+    if a["text"].isna().any():
+        problems.append(f"{model_key}: respostas sem texto")
+    return problems
+
+
 def check_all_results(results_dir: str = None, config: ExperimentConfig = None) -> bool:
     config      = config or ExperimentConfig()
     results_dir = results_dir or config.results_dir
@@ -115,6 +139,16 @@ def check_all_results(results_dir: str = None, config: ExperimentConfig = None) 
             print(f"  {'✅' if not p else '❌'} {model} (tuned lens)  "
                   f"{gpu_h[f'{model}/tuned']:.2f} GPU-h")
             problems += [f"[tuned] {x}" for x in p]
+    # Comportamental: modelos instruct
+    for model, spec in config.registry.models.items():
+        if spec.kind != "instruct":
+            continue
+        p = check_behavioral(model, results_dir, config)
+        man = read_manifest(behavioral_dir(results_dir, model))
+        if man:
+            gpu_h[f"{model}/behavioral"] = man.get("gpu_hours", 0.0)
+        print(f"  {'✅' if not p else '❌'} {model} (comportamental)")
+        problems += [f"[comportamental] {x}" for x in p]
     print(f"\n  GPU-horas registradas: {sum(gpu_h.values()):.2f}")
 
     if not problems:

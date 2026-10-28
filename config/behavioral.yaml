@@ -1,0 +1,142 @@
+# config/behavioral.yaml
+# Estudo comportamental (Fase 5). Decisões confirmadas pela autora em
+# 2026-10-28: amostragem por temperatura pura (sem top_p/top_k dos
+# modelos), formas de superfície revisadas (este arquivo), dominante
+# empírico pelas respostas em inglês agregadas, amostra de validação
+# estratificada por modelo × idioma.
+#
+# status: proposed até a confirmação das formas de superfície;
+# ru_needs_native_review: true até a revisão das declinações russas.
+# A extração recusa rodar enquanto qualquer um estiver pendente.
+
+status: proposed
+ru_needs_native_review: true
+
+generation:
+  # Modelos instruct do registro (kind: instruct), formato QA
+  greedy: 1                  # resposta greedy por prompt
+  samples: 10                # amostras por prompt
+  temperature: 0.7
+  top_p: 1.0                 # sobrescreve o generation_config do modelo
+  top_k: 0
+  repetition_penalty: 1.0
+  max_new_tokens: 200
+  # semente de cada prompt = sha256(seed, modelo, fato, idioma, paráfrase)
+
+validation:
+  per_cell: 13               # respostas por modelo × idioma (≈ 5 × 6 × 13 = 390)
+  seed: 42
+
+# Perguntas do relatório (Fase 5)
+report:
+  precedence:                # o primeiro candidato é citado antes do segundo?
+    - {fact: telefone, first: reis, second: meucci, lang: de}
+  mention_rate:              # taxa de menção em um idioma vs. outros
+    - {fact: aviao, candidate: santos_dumont, lang: fr, compare: [en, de, it]}
+
+# Formas de superfície: casadas com fronteira de palavra, sem caixa e sem
+# diacríticos (data/text_matching.py), em toda resposta, em qualquer
+# idioma (uma resposta em russo pode escrever "Bell" em latim).
+#   latin / cyrillic: formas (sobrenomes, variantes, nomes completos);
+#                     cirílico com os seis casos (acusativo = genitivo)
+#   exclude:          formas que sozinhas não contam naquele idioma da
+#                     resposta (palavras comuns); as formas mais longas
+#                     que as contêm continuam valendo
+# Primeiros nomes sozinhos nunca contam.
+surface_forms:
+  aviao:
+    wright:
+      latin: [Wright, Orville Wright, Wilbur Wright]
+      cyrillic: [Райт, Райта, Райту, Райтом, Райте, Райтов, Райтам, Райтами, Райтах]
+    santos_dumont:
+      latin: [Santos-Dumont, Santos Dumont, Dumont]
+      cyrillic: [Сантос-Дюмон, Сантос-Дюмона, Сантос-Дюмону, Сантос-Дюмоном, Сантос-Дюмоне,
+                 Дюмон, Дюмона, Дюмону, Дюмоном, Дюмоне]
+  telefone:
+    bell:
+      latin: [Bell, Graham Bell]
+      cyrillic: [Белл, Белла, Беллу, Беллом, Белле]
+    meucci:
+      latin: [Meucci]
+      cyrillic: [Меуччи]
+    reis:
+      latin: [Reis, Philipp Reis, Johann Philipp Reis]
+      cyrillic: [Рейс, Рейса, Рейсу, Рейсом, Рейсе,
+                 Филипп Рейс, Филиппа Рейса, Филиппу Рейсу, Филиппом Рейсом, Филиппе Рейсе]
+      exclude:
+        pt: [Reis]            # "reis" = reis (monarcas)
+        ru: [Рейс, Рейса, Рейсу, Рейсом, Рейсе]   # "рейс" = voo, viagem
+  radio:
+    marconi:
+      latin: [Marconi]
+      cyrillic: [Маркони]
+    popov:
+      latin: [Popov, Popow, Popoff]
+      cyrillic: [Попов, Попова, Попову, Поповым, Попове]
+    landell:
+      latin: [Landell, Landell de Moura]
+      cyrillic: [Ланделл, Ланделла, Ланделлу, Ланделлом, Ланделле, Ланделл де Моура]
+  lampada:
+    edison:
+      latin: [Edison]
+      cyrillic: [Эдисон, Эдисона, Эдисону, Эдисоном, Эдисоне]
+    lodygin:
+      latin: [Lodygin, Lodyguine, Lodygine]
+      cyrillic: [Лодыгин, Лодыгина, Лодыгину, Лодыгиным, Лодыгине]
+  cinema:
+    lumiere:
+      latin: [Lumière, Auguste Lumière, Louis Lumière, frères Lumière]
+      cyrillic: [Люмьер, Люмьера, Люмьеру, Люмьером, Люмьере,
+                 Люмьеров, Люмьерам, Люмьерами, Люмьерах]
+      exclude:
+        fr: [Lumière]         # "lumière" = luz
+    edison_cinema:
+      latin: [Edison]
+      cyrillic: [Эдисон, Эдисона, Эдисону, Эдисоном, Эдисоне]
+  calculo:
+    newton:
+      latin: [Newton]
+      cyrillic: [Ньютон, Ньютона, Ньютону, Ньютоном, Ньютоне]
+    leibniz:
+      latin: [Leibniz, Leibnitz]
+      cyrillic: [Лейбниц, Лейбница, Лейбницу, Лейбницем, Лейбнице]
+  fotografia:
+    daguerre:
+      latin: [Daguerre]
+      cyrillic: [Дагер, Дагера, Дагеру, Дагером, Дагере]
+    niepce:
+      latin: [Niépce]
+      cyrillic: [Ньепс, Ньепса, Ньепсу, Ньепсом, Ньепсе]
+    talbot:
+      latin: [Talbot, Fox Talbot]
+      cyrillic: [Тальбот, Тальбота, Тальботу, Тальботом, Тальботе,
+                 Толбот, Толбота, Толботу, Толботом, Толботе]
+    florence:
+      latin: [Florence, Hércules Florence, Hercule Florence]
+      cyrillic: [Флоранс, Флоранса, Флорансу, Флорансом, Флорансе]
+      exclude:
+        en: [Florence]        # a cidade (Firenze)
+        fr: [Florence]
+  tabela_periodica:
+    mendeleev:
+      latin: [Mendeleev, Mendeleyev, Mendeleiev, Mendelejew, Mendelejev]
+      cyrillic: [Менделеев, Менделеева, Менделееву, Менделеевым, Менделееве]
+    meyer:
+      latin: [Meyer, Lothar Meyer]
+      cyrillic: [Мейер, Мейера, Мейеру, Мейером, Мейере]
+  penicilina:
+    fleming:
+      latin: [Fleming]
+      cyrillic: [Флеминг, Флеминга, Флемингу, Флемингом, Флеминге]
+  dinamite:
+    nobel:
+      latin: [Nobel]
+      cyrillic: [Нобель, Нобеля, Нобелю, Нобелем, Нобеле]
+  www:
+    berners_lee:
+      latin: [Berners-Lee, Berners Lee]
+      cyrillic: [Бернерс-Ли, Бернерса-Ли, Бернерсу-Ли, Бернерсом-Ли, Бернерсе-Ли]
+  raios_x:
+    rontgen:
+      latin: [Röntgen, Roentgen]
+      cyrillic: [Рентген, Рентгена, Рентгену, Рентгеном, Рентгене]

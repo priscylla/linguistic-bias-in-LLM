@@ -39,6 +39,22 @@ Saídas (results/metrics/):
     lens_agreement.parquet          (se houver Tuned Lens) Tuned vs Logit
     lens_agreement_summary.csv      Lens por modelo × conjunto (Fase 4)
 
+Comportamental (Fase 5; results/behavioral/*/answers.parquet, só com as
+formas de superfície confirmadas):
+    behavioral_attribution  por resposta: primary, ordem, also_cited
+    behavioral_mentions     por resposta × candidato: citado, posição, primário
+    behavioral_indicators   por resposta × indicador: citado
+    behavioral_rates        por modelo × fato × idioma × kind × candidato:
+                            taxa primária, de menção, posição média
+    indicator_rates         taxa de menção de cada indicador, e por
+                            candidato primário da resposta (ex.: respostas
+                            em pt que creditam os Wright e citam o 14-bis)
+    empirical_dominant.csv  maioria das atribuições primárias em inglês
+                            (todas as respostas de todos os modelos; "none"
+                            fora do denominador), agregada e por modelo
+    behavioral_report.csv   perguntas de config/behavioral.yaml (report)
+    kind = all (greedy + amostras) | greedy | sample
+
 Concordância Tuned Lens × Logit Lens (mesmas células):
     pico      |depth(k*_tuned) − depth(k*_logit)| por prompt × candidato
     ΔCS       sinal igual (fração) e magnitude (Pearson, Spearman,
@@ -76,11 +92,16 @@ def in_decision_zone(layer, n_layers, zone: float):
     return np.asarray(layer) > np.asarray(n_layers) * (1 - zone) + 1e-9
 
 
+RAW_DIRS = ("lens", "behavioral")
+
+
 def _guard_output(output_dir: str, results_dir: str):
-    """Nada é gravado dentro dos resultados brutos (results/lens/)."""
-    out, raw = Path(output_dir).resolve(), (Path(results_dir) / "lens").resolve()
-    if out == raw or raw in out.parents:
-        raise ValueError(f"Recusado: {output_dir} está dentro dos resultados brutos ({raw})")
+    """Nada é gravado dentro dos resultados brutos (results/lens/, results/behavioral/)."""
+    out = Path(output_dir).resolve()
+    for d in RAW_DIRS:
+        raw = (Path(results_dir) / d).resolve()
+        if out == raw or raw in out.parents:
+            raise ValueError(f"Recusado: {output_dir} está dentro dos resultados brutos ({raw})")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -272,6 +293,136 @@ def lens_agreement(M: pd.DataFrame, D: pd.DataFrame, ref: str):
 
 
 # ══════════════════════════════════════════════════════════════
+# Comportamental
+# ══════════════════════════════════════════════════════════════
+
+BCELL = ["model", "fact", "lang"]
+
+
+def _kinds(df: pd.DataFrame):
+    """(kind, recorte): all, greedy, sample."""
+    yield "all", df
+    for k in ("greedy", "sample"):
+        yield k, df[df["kind"] == k]
+
+
+def behavioral_rates(ment: pd.DataFrame) -> pd.DataFrame:
+    out = []
+    for kind, d in _kinds(ment):
+        g = d.groupby(BCELL + ["candidate"])
+        r = g.agg(n_answers=("mentioned", "size"), primary_rate=("primary", "mean"),
+                  mention_rate=("mentioned", "mean"), mean_rank=("rank", "mean"),
+                  dominant=("dominant", "first")).reset_index()
+        r["kind"] = kind
+        out.append(r)
+    return pd.concat(out, ignore_index=True)
+
+
+def none_rates(attr: pd.DataFrame) -> pd.DataFrame:
+    out = []
+    for kind, d in _kinds(attr):
+        r = d.assign(none=d["primary"] == "none").groupby(BCELL).agg(
+            n_answers=("none", "size"), none_rate=("none", "mean")).reset_index()
+        r["kind"] = kind
+        out.append(r)
+    return pd.concat(out, ignore_index=True)
+
+
+def indicator_rates(ind: pd.DataFrame, attr: pd.DataFrame) -> pd.DataFrame:
+    """Menção de cada indicador, no total e por candidato primário da resposta."""
+    key = ["model", "fact", "lang", "paraphrase", "sample_id"]
+    d = ind.merge(attr[key + ["primary"]], on=key, how="left")
+    cols = BCELL + ["candidate", "indicator_type", "indicator"]
+    tot = d.groupby(cols).agg(n_answers=("mentioned", "size"),
+                              mention_rate=("mentioned", "mean")).reset_index()
+    tot["given_primary"] = "any"
+    by = d.groupby(cols + ["primary"]).agg(n_answers=("mentioned", "size"),
+                                            mention_rate=("mentioned", "mean")).reset_index()
+    by = by.rename(columns={"primary": "given_primary"})
+    return pd.concat([tot, by], ignore_index=True)
+
+
+def empirical_dominant(attr: pd.DataFrame, config: ExperimentConfig) -> pd.DataFrame:
+    """Maioria das atribuições primárias no idioma de referência (pooled e por modelo)."""
+    ref = config.reference_language
+    d = attr[attr["lang"] == ref]
+    rows = []
+    for scope, part in [("pooled", d)] + [(m, g) for m, g in d.groupby("model")]:
+        for fact, g in part.groupby("fact"):
+            named = g[g["primary"] != "none"]
+            counts = named["primary"].value_counts()
+            top = counts[counts == counts.max()].index.tolist() if len(counts) else []
+            winner = top[0] if len(top) == 1 else ("tie" if top else "none")
+            configured = config.fact_specs[fact].dominant.id
+            rows.append({"scope": scope, "fact": fact, "lang": ref,
+                         "empirical_dominant": winner, "configured_dominant": configured,
+                         "agrees": winner == configured, "n_answers": len(g),
+                         "n_named": len(named), "n_none": int((g["primary"] == "none").sum()),
+                         "share": float(counts.max() / len(named)) if len(named) else np.nan,
+                         "counts": ";".join(f"{k}={v}" for k, v in counts.items())})
+    return pd.DataFrame(rows)
+
+
+def behavioral_report(ment: pd.DataFrame, b) -> pd.DataFrame:
+    """Perguntas de config/behavioral.yaml, por modelo e agregadas, em todos os idiomas."""
+    rows = []
+    key = ["model", "fact", "lang", "paraphrase", "sample_id"]
+    scopes = lambda d: [("pooled", d)] + [(m, g) for m, g in d.groupby("model")]  # noqa: E731
+    for q in b.report.get("precedence", []):
+        d = ment[ment["fact"] == q["fact"]]
+        w = d.pivot_table(index=key, columns="candidate", values="rank", aggfunc="first")
+        w = w.reset_index()
+        for scope, g in scopes(w):
+            for lang, h in g.groupby("lang"):
+                a = h[q["first"]].fillna(np.inf)
+                c = h[q["second"]].fillna(np.inf)
+                cited = (a < np.inf) | (c < np.inf)
+                both  = (a < np.inf) & (c < np.inf)
+                rows.append({"question": f"precedence:{q['fact']}:{q['first']}<{q['second']}",
+                             "scope": scope, "lang": lang, "target_lang": lang == q["lang"],
+                             "n_answers": len(h), "n_citing_either": int(cited.sum()),
+                             "n_citing_both": int(both.sum()),
+                             "value": float((a[cited] < c[cited]).mean()) if cited.any() else np.nan,
+                             "value_among_both": float((a[both] < c[both]).mean()) if both.any() else np.nan})
+    for q in b.report.get("mention_rate", []):
+        d = ment[(ment["fact"] == q["fact"]) & (ment["candidate"] == q["candidate"])]
+        for scope, g in scopes(d):
+            rates = g.groupby("lang")["mentioned"].agg(["mean", "size"])
+            comp = [l for l in q.get("compare", []) if l in rates.index]
+            base = float(rates.loc[comp, "mean"].mean()) if comp else np.nan
+            for lang in rates.index:
+                rows.append({"question": f"mention_rate:{q['fact']}:{q['candidate']}",
+                             "scope": scope, "lang": lang, "target_lang": lang == q["lang"],
+                             "n_answers": int(rates.loc[lang, "size"]),
+                             "value": float(rates.loc[lang, "mean"]),
+                             "compare_langs": ",".join(comp), "compare_mean": base,
+                             "diff_vs_compare": float(rates.loc[lang, "mean"]) - base})
+    return pd.DataFrame(rows)
+
+
+def compute_behavioral(answers: pd.DataFrame, config: ExperimentConfig, b=None) -> Dict[str, pd.DataFrame]:
+    """Extração e taxas. Recusa (UnconfirmedError) sem as formas de superfície confirmadas."""
+    from behavior.extraction import Extractor
+    from config.loader import load_behavioral, require_confirmed
+    b = b or load_behavioral()
+    require_confirmed({}, [], behavioral=b)
+    ex  = Extractor(config.fact_specs, b, config.languages)
+    res = ex.extract(answers.to_dict("records"))
+    attr, ment, ind = (pd.DataFrame(res[k]) for k in ("attribution", "mentions", "indicators"))
+    return {"behavioral_attribution": attr, "behavioral_mentions": ment,
+            "behavioral_indicators": ind,
+            "behavioral_rates": behavioral_rates(ment), "behavioral_none": none_rates(attr),
+            "indicator_rates": indicator_rates(ind, attr) if len(ind) else pd.DataFrame(),
+            "empirical_dominant": empirical_dominant(attr, config),
+            "behavioral_report": behavioral_report(ment, b)}
+
+
+def load_answers(results_dir: str):
+    parts = [pd.read_parquet(p) for p in sorted((Path(results_dir) / "behavioral").glob("*/answers.parquet"))]
+    return pd.concat(parts, ignore_index=True) if parts else None
+
+
+# ══════════════════════════════════════════════════════════════
 # Pipeline
 # ══════════════════════════════════════════════════════════════
 
@@ -305,12 +456,24 @@ def main(argv=None):
     _guard_output(str(out), args.results_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    print(f"Lendo {args.results_dir}/lens/*/")
-    res = compute_all(load_tables(args.results_dir), config)
+    print(f"Lendo {args.results_dir}/lens/*/*/")
+    tables = load_tables(args.results_dir)
+    res = compute_all(tables, config) if "probs" in tables else {}
+    if not res:
+        print("  (sem resultados do lens)")
+
+    answers = load_answers(args.results_dir)
+    if answers is not None:
+        from config.loader import UnconfirmedError
+        try:
+            res.update(compute_behavioral(answers, config))
+        except UnconfirmedError as e:
+            print(f"  ⚠️  comportamental pulado: formas de superfície não confirmadas\n{e}")
     for name, df in res.items():
         df.to_parquet(out / f"{name}.parquet", index=False)
         print(f"  OK  {out / name}.parquet  ({len(df)} linhas)")
-    for name in ("metrics", "delta_cs", "lens_agreement_summary"):
+    for name in ("metrics", "delta_cs", "lens_agreement_summary", "behavioral_rates",
+                 "empirical_dominant", "behavioral_report"):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)
     print(f"\nPróximo passo: python make_figures.py")

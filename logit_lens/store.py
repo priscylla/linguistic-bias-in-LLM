@@ -33,10 +33,15 @@ def lens_dir(results_dir: str, model_key: str, lens: str = "logit_lens") -> Path
     return Path(results_dir) / "lens" / lens / model_key
 
 
+def behavioral_dir(results_dir: str, model_key: str) -> Path:
+    return Path(results_dir) / "behavioral" / model_key
+
+
 class ChunkStore:
 
-    def __init__(self, out_dir):
+    def __init__(self, out_dir, tables=TABLES):
         self.out_dir = Path(out_dir)
+        self.tables  = tuple(tables)
         self.chunks  = self.out_dir / "chunks"
         self.chunks.mkdir(parents=True, exist_ok=True)
 
@@ -56,7 +61,7 @@ class ChunkStore:
             shutil.rmtree(tmp)
         tmp.mkdir(parents=True)
         for name, rows in tables.items():
-            if name not in TABLES:
+            if name not in self.tables:
                 raise ValueError(f"tabela desconhecida: {name}")
             if rows:
                 pd.DataFrame(rows).to_parquet(tmp / f"{name}.parquet", index=False)
@@ -67,7 +72,7 @@ class ChunkStore:
         """Concatena os chunks feitos em {tabela}.parquet. Devolve linhas por tabela."""
         units = list(units) if units is not None else self.done_units()
         counts = {}
-        for name in TABLES:
+        for name in self.tables:
             parts = [pd.read_parquet(p) for u in units
                      if (p := self.chunks / u / f"{name}.parquet").exists()]
             if not parts:

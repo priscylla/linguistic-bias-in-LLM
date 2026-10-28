@@ -20,11 +20,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from config.loader import (  # noqa: E402
-    load_baseline, load_experiment, load_facts, load_forcing, load_prompts, prompts_for,
+    load_baseline, load_behavioral, load_experiment, load_facts, load_forcing, load_prompts,
+    prompts_for,
 )
 
 OUT_FACTS   = ROOT / "reports" / "phase1_review.md"
 OUT_PROMPTS = ROOT / "reports" / "prompts_review.md"
+OUT_BEHAV   = ROOT / "reports" / "behavioral_review.md"
 
 
 def _names_cell(c, lang):
@@ -151,6 +153,37 @@ def prompts_doc(exp, facts, prompts, baseline=None, forcing=None) -> str:
     return "\n".join(out)
 
 
+def behavioral_doc(exp, facts, b) -> str:
+    out = [
+        "# Behavioral extraction review: surface forms",
+        "",
+        f"Generated from `config/behavioral.yaml` (edit the YAML). Status: `{b.status}`; "
+        f"Russian declensions native review pending: `{b.ru_needs_native_review}`. "
+        "Extraction refuses to run until both are cleared.",
+        "",
+        "A candidate is mentioned when any of its forms appears as a whole word, ignoring case and "
+        "accents, in an answer in any language. Latin and Cyrillic forms are both matched in every "
+        "answer. **Excluded** forms don't count on their own in answers in that language (common "
+        "words); longer forms containing them still count. First names alone never count.",
+        "",
+        "| Fact | Candidate | Latin | Cyrillic (6 cases) | Excluded |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for key, f in facts.items():
+        for c in f.candidates:
+            spec = b.forms.get(key, {}).get(c.id, {})
+            ex = "<br>".join(f"{l}: {', '.join(v)}" for l, v in (spec.get("exclude") or {}).items())
+            out.append(f"| `{key}` | {c.label} | {', '.join(spec.get('latin') or [])} | "
+                       f"{', '.join(spec.get('cyrillic') or [])} | {ex or '—'} |")
+    g = b.generation
+    out += ["", "## Generation", "",
+            f"Instruct models, QA prompts: {g['greedy']} greedy + {g['samples']} samples at "
+            f"T={g['temperature']} (top_p={g['top_p']}, top_k={g['top_k']}, repetition penalty "
+            f"{g['repetition_penalty']}; the models' own decoding defaults are overridden), "
+            f"max_new_tokens={g['max_new_tokens']}.", ""]
+    return "\n".join(out)
+
+
 def main():
     exp, facts, prompts = load_experiment(), load_facts(), load_prompts()
     baseline = load_baseline()
@@ -158,7 +191,8 @@ def main():
     OUT_FACTS.parent.mkdir(parents=True, exist_ok=True)
     OUT_FACTS.write_text(facts_doc(exp, facts), encoding="utf-8")
     OUT_PROMPTS.write_text(prompts_doc(exp, facts, prompts, baseline, forcing), encoding="utf-8")
-    print(f"OK {OUT_FACTS}\nOK {OUT_PROMPTS}")
+    OUT_BEHAV.write_text(behavioral_doc(exp, facts, load_behavioral()), encoding="utf-8")
+    print(f"OK {OUT_FACTS}\nOK {OUT_PROMPTS}\nOK {OUT_BEHAV}")
 
 
 if __name__ == "__main__":

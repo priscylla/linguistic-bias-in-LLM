@@ -10,6 +10,7 @@ Leitura e validação dos arquivos de configuração (YAML):
                              confundidor de artigo (Fase 2)
     config/models.yaml       registro de modelos e arquiteturas (Fase 3)
     config/tuned_lens.yaml   corpus e receita do Tuned Lens (Fase 4)
+    config/behavioral.yaml   geração, formas de superfície e relatório (Fase 5)
 
 Toda lista que varia (fatos, idiomas, candidatos, prompts) vem daqui;
 o código não tem cópias.
@@ -190,6 +191,29 @@ class Registry:
         return self.architectures[model_type]
 
 
+@dataclass
+class Behavioral:
+    """Estudo comportamental: geração, formas de superfície, validação."""
+    status: str
+    ru_needs_native_review: bool
+    generation: dict
+    validation: dict
+    report: dict
+    forms: Dict[str, Dict[str, dict]]     # fato -> candidato -> {latin, cyrillic, exclude}
+
+    def forms_for(self, fact: str, cid: str, lang: str) -> List[str]:
+        """Formas que contam numa resposta no idioma `lang` (sem as excluídas)."""
+        f = self.forms[fact][cid]
+        excl = {normalize(x) for x in (f.get("exclude") or {}).get(lang, [])}
+        return [x for x in list(f.get("latin") or []) + list(f.get("cyrillic") or [])
+                if normalize(x) not in excl]
+
+
+def normalize(text: str) -> str:
+    from data.text_matching import normalize_text
+    return normalize_text(text)
+
+
 def last_word(text: str) -> str:
     """Última palavra do prompt (a preposição da lacuna)."""
     return text.rstrip().split()[-1]
@@ -314,6 +338,21 @@ def load_models(config_dir: str = str(CONFIG_DIR)) -> Registry:
 @lru_cache(maxsize=None)
 def load_tuned_lens(config_dir: str = str(CONFIG_DIR)) -> dict:
     return _read_yaml(Path(config_dir) / "tuned_lens.yaml")
+
+
+def parse_behavioral(raw: dict) -> Behavioral:
+    return Behavioral(status=raw.get("status"),
+                      ru_needs_native_review=bool(raw.get("ru_needs_native_review", False)),
+                      generation=dict(raw.get("generation") or {}),
+                      validation=dict(raw.get("validation") or {}),
+                      report=dict(raw.get("report") or {}),
+                      forms={f: {c: dict(v) for c, v in (cands or {}).items()}
+                             for f, cands in (raw.get("surface_forms") or {}).items()})
+
+
+@lru_cache(maxsize=None)
+def load_behavioral(config_dir: str = str(CONFIG_DIR)) -> Behavioral:
+    return parse_behavioral(_read_yaml(Path(config_dir) / "behavioral.yaml"))
 
 
 def prompts_for(prompts, fact: str = None, lang: str = None, ptype: str = None) -> List[Prompt]:
@@ -541,6 +580,68 @@ def validate_tuned_lens(exp: dict, tl: dict, reg: Registry) -> List[str]:
     return errs
 
 
+def validate_behavioral(exp: dict, facts: Dict[str, Fact], b: Behavioral) -> List[str]:
+    errs  = []
+    langs = list(exp["languages"])
+    if b.status not in STATUSES:
+        errs.append(f"behavioral: status '{b.status}' inválido")
+    for key, f in facts.items():
+        got = b.forms.get(key)
+        if got is None:
+            errs.append(f"behavioral.surface_forms: sem o fato '{key}'")
+            continue
+        ids = {c.id for c in f.candidates}
+        for cid in sorted(ids - set(got)):
+            errs.append(f"behavioral.surface_forms.{key}: sem o candidato '{cid}'")
+        for cid in sorted(set(got) - ids):
+            errs.append(f"behavioral.surface_forms.{key}: candidato desconhecido '{cid}'")
+        owner = {}
+        for cid, spec in got.items():
+            forms = list(spec.get("latin") or []) + list(spec.get("cyrillic") or [])
+            if not forms:
+                errs.append(f"behavioral.surface_forms.{key}.{cid}: sem formas")
+            for x in forms:
+                if not isinstance(x, str):
+                    errs.append(f"behavioral.surface_forms.{key}.{cid}: valor {x!r} não é texto")
+                    continue
+                n = normalize(x)
+                if n in owner and owner[n] != cid:
+                    errs.append(f"behavioral.surface_forms.{key}: '{x}' em {owner[n]} e {cid}")
+                owner[n] = cid
+            norm = {normalize(x) for x in forms if isinstance(x, str)}
+            for lang, ex in (spec.get("exclude") or {}).items():
+                if lang not in langs:
+                    errs.append(f"behavioral.surface_forms.{key}.{cid}.exclude: idioma '{lang}'")
+                for x in ex:
+                    if normalize(x) not in norm:
+                        errs.append(f"behavioral.surface_forms.{key}.{cid}.exclude: '{x}' não é forma")
+    for key in sorted(set(b.forms) - set(facts)):
+        errs.append(f"behavioral.surface_forms: fato desconhecido '{key}'")
+
+    def _cand(fk, cid, where):
+        if fk not in facts or cid not in {c.id for c in facts[fk].candidates}:
+            errs.append(f"behavioral.report.{where}: '{fk}.{cid}' desconhecido")
+    for q in b.report.get("precedence", []):
+        _cand(q["fact"], q["first"], "precedence")
+        _cand(q["fact"], q["second"], "precedence")
+        if q["lang"] not in langs:
+            errs.append(f"behavioral.report.precedence: idioma '{q['lang']}'")
+    for q in b.report.get("mention_rate", []):
+        _cand(q["fact"], q["candidate"], "mention_rate")
+        for l in [q["lang"]] + list(q.get("compare", [])):
+            if l not in langs:
+                errs.append(f"behavioral.report.mention_rate: idioma '{l}'")
+    g = b.generation
+    for f in ("greedy", "samples", "max_new_tokens", "top_k"):
+        if not isinstance(g.get(f), int) or g[f] < 0:
+            errs.append(f"behavioral.generation.{f}: inteiro >= 0")
+    if not (isinstance(g.get("temperature"), (int, float)) and g["temperature"] > 0):
+        errs.append("behavioral.generation.temperature: > 0")
+    if not isinstance(b.validation.get("per_cell"), int) or b.validation["per_cell"] <= 0:
+        errs.append("behavioral.validation.per_cell: inteiro positivo")
+    return errs
+
+
 def require_valid(config_dir: str = str(CONFIG_DIR)):
     prompts = load_prompts(config_dir)
     errs = validate(load_experiment(config_dir), load_facts(config_dir), prompts)
@@ -551,13 +652,16 @@ def require_valid(config_dir: str = str(CONFIG_DIR)):
     errs += validate_models(load_experiment(config_dir), load_models(config_dir))
     errs += validate_tuned_lens(load_experiment(config_dir), load_tuned_lens(config_dir),
                                 load_models(config_dir))
+    errs += validate_behavioral(load_experiment(config_dir), load_facts(config_dir),
+                                load_behavioral(config_dir))
     if errs:
         raise ConfigError("Configuração inválida:\n  " + "\n  ".join(errs))
 
 
 def require_confirmed(facts: Dict[str, Fact], prompts,
                       baseline: Optional[Baseline] = None,
-                      forcing: Optional[Forcing] = None) -> None:
+                      forcing: Optional[Forcing] = None,
+                      behavioral: Optional["Behavioral"] = None) -> None:
     """
     Falha se algum fato ainda não foi confirmado, algum prompt espera
     revisão nativa ou (se dada) a linha de base não foi confirmada.
@@ -573,7 +677,13 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
         if langs_b:
             pend_base.append(f"revisão nativa pendente {langs_b}")
     pend_force = forcing is not None and forcing.status != "confirmed"
-    if pend_facts or pend_review or pend_base or pend_force:
+    pend_beh   = []
+    if behavioral is not None:
+        if behavioral.status != "confirmed":
+            pend_beh.append("status != confirmed")
+        if behavioral.ru_needs_native_review:
+            pend_beh.append("declinações ru sem revisão nativa")
+    if pend_facts or pend_review or pend_base or pend_force or pend_beh:
         langs = sorted({l for _, l in pend_review})
         raise UnconfirmedError(
             "Valores não confirmados — runs bloqueados.\n"
@@ -582,6 +692,7 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
             f"(idiomas {langs})\n"
             f"  linha de base: {'; '.join(pend_base) or 'ok'}\n"
             f"  forcing (artigos/contrações): {'status != confirmed' if pend_force else 'ok'}\n"
+            f"  formas de superfície: {'; '.join(pend_beh) or 'ok'}\n"
             "  Veja reports/phase1_review.md, reports/prompts_review.md e "
             "reports/verified_values.md."
         )

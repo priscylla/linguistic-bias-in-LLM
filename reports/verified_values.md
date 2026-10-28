@@ -35,5 +35,9 @@ Every fact, translation, model ID or license used by the pipeline is logged here
 | Tuned Lens corpus filter | `config/tuned_lens.yaml` filter_fact_terms | drop documents mentioning any candidate name (all forms, all languages) or a fact keyword of the document's language | Priscylla Silva | 2026-10-28 |
 | Tuned Lens budget | `config/tuned_lens.yaml` training | 250 steps × 2^16 tokens (16M tokens per model) | Priscylla Silva | 2026-10-28 |
 | Pretrained tuned lenses | — | none usable: official AlignmentResearch/tuned-lens has Llama-3-8B but not 3.1, Mistral, Qwen 2.5 or Gemma 2; community lenses are for base models or English-only corpora (kdhole/Llama-3.1-8B-Instruct-tuned-lens: corpus not stated) | Priscylla Silva | 2026-10-28 |
+| Behavioral sampling | `config/behavioral.yaml` generation | 1 greedy + 10 samples, pure temperature 0.7 (top_p 1, top_k 0, no repetition penalty; models' own decoding defaults overridden), max_new_tokens 200, fixed seed per prompt | Priscylla Silva | 2026-10-28 |
+| Behavioral surface forms | `config/behavioral.yaml` surface_forms | new reviewed list (surnames/full names, Latin + Cyrillic six cases, per-language exclusions); **list itself still `proposed`** | Priscylla Silva (approach) | 2026-10-28 |
+| Empirical dominant | `analyze.py` empirical_dominant | majority primary attribution over all English answers of all instruct models, 'none' excluded; also per model | Priscylla Silva | 2026-10-28 |
+| Validation sample | `config/behavioral.yaml` validation | stratified, 13 answers per model × language (≈390), seed 42 | Priscylla Silva | 2026-10-28 |
 
 EN and DE prompts were unchanged in Phase 0 (already correct). The prompts above are paraphrase 1 of each formulation since Phase 1 (moved from `data/prompts.py`, now removed); the new paraphrases and the FR/RU prompts are added to this log as they are confirmed.
