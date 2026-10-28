@@ -9,20 +9,29 @@ Atualiza a cada 30 segundos.
 """
 
 import os
+import sys
 import json
 import time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from analyze import raw_results_path
+from config.experiment_config import ExperimentConfig
 
-def count_completed_runs(results_dir: str = "results") -> dict:
+
+def count_completed_runs(results_dir: str = None) -> dict:
     """
     Conta quantos runs foram completados para cada modelo.
+    O total esperado por modelo vem do config.
     """
-    total_expected = 3 * 4 * 3   # fatos × idiomas × formulações = 36
+    config         = ExperimentConfig()
+    results_dir    = results_dir or config.results_dir
+    total_expected = (len(config.facts) * len(config.languages)
+                      * len(config.formulations))
 
     summary = {}
 
-    for model_key in ["llama", "mistral", "qwen", "gemma"]:
-        path = os.path.join(results_dir, f"{model_key}_results.json")
+    for model_key in config.models:
+        path = raw_results_path(results_dir, model_key)
 
         if not os.path.exists(path):
             summary[model_key] = {

@@ -16,14 +16,14 @@ import unicodedata
 #   - sufixos comuns quando a keyword e quebrada em subtokens
 #   - prefixo especial de SentencePiece (unicode underscore)
 KEYWORD_VARIANTS = {
-    # ── Aviao ──
-    "aviao": [
-        "aviao", "Aviao", "AVIAO",
-        " aviao", " Aviao",          # espaco prefixado (LLaMA, Mistral)
+    # ── Avião ──
+    "avião": [
+        "avião", "Avião", "AVIÃO",
+        " avião", " Avião",          # espaco prefixado (LLaMA, Mistral)
         "aviao",                      # sem acento
-        "\u2581aviao",               # underscore SentencePiece
-        "iao",                        # sufixo quando quebrado em av+iao
-        "viao",                       # sufixo alternativo
+        "\u2581avião",               # underscore SentencePiece
+        "ião",                        # sufixo quando quebrado em av+ião
+        "vião",                       # sufixo alternativo
     ],
     "airplane": [
         "airplane", "Airplane", "AIRPLANE",
@@ -216,54 +216,3 @@ def _decode_all(
 ) -> List[str]:
     """Decodifica todos os tokens -- usado para debug/logging."""
     return [tokenizer.decode([tid]) for tid in input_ids]
-
-
-def verify_keyword_finding(
-    tokenizers_dict: Dict,
-    prompts_sample: Dict
-):
-    """
-    Utilitario de verificacao -- testa a localizacao de keywords
-    em todos os modelos antes de rodar o experimento completo.
-    """
-    from config.experiment_config import ExperimentConfig
-    from models.chat_template import apply_template
-
-    config = ExperimentConfig()
-
-    print("\n" + "=" * 60)
-    print("VERIFICACAO: KEYWORD FINDING")
-    print("=" * 60)
-
-    for model_key, tokenizer in tokenizers_dict.items():
-        print(f"\n[{model_key.upper()}]")
-
-        for fact in ["aviao", "telefone"]:
-            for lang in ["pt", "en", "de", "it"]:
-
-                keyword = config.keyword_tokens[fact][lang]
-                prompt  = prompts_sample[fact][lang]["F1"]
-
-                formatted, _ = apply_template(tokenizer, model_key, prompt)
-                input_ids = tokenizer.encode(
-                    formatted, add_special_tokens=False
-                )
-
-                pos, strategy = find_keyword_position_robust(
-                    tokenizer, input_ids, keyword, model_key
-                )
-
-                if pos is not None:
-                    found_token = tokenizer.decode([input_ids[pos]])
-                    status = "OK " if strategy == "exact" else "OK*"
-                else:
-                    found_token = "NOT FOUND"
-                    status = "ERR"
-
-                print(
-                    f"  {status} [{fact}][{lang}]  "
-                    f"kw='{keyword:12s}'  "
-                    f"pos={str(pos):4s}  "
-                    f"token='{found_token:12s}'  "
-                    f"{strategy}"
-                )

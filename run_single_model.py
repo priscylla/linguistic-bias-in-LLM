@@ -12,7 +12,7 @@ from logit_lens.analyzer import LogitLensAnalyzer
 from logit_lens.normalizer import normalize_layer_results
 
 
-VALID_MODELS = ["llama", "mistral", "qwen", "gemma"]
+VALID_MODELS = list(ExperimentConfig().models)
 
 
 def run_model(model_key: str):
@@ -38,9 +38,9 @@ def run_model(model_key: str):
     # reproduzir os logits do modelo na última camada
     extractor.sanity_check()
 
-    facts        = ["aviao", "telefone"]
-    languages    = ["pt", "en", "de", "it"]
-    formulations = ["F1", "F2", "F3"]
+    facts        = config.facts
+    languages    = config.languages
+    formulations = config.formulations
 
     total   = len(facts) * len(languages) * len(formulations)
     current = 0
@@ -95,12 +95,13 @@ def run_model(model_key: str):
                         }
                     )
 
+                    n_layers = logit_data["n_layers"]
                     logit_data["last_token"] = normalize_layer_results(
-                        logit_data["last_token"], model_key
+                        logit_data["last_token"], n_layers
                     )
                     if logit_data["keyword_token"]:
                         logit_data["keyword_token"] = normalize_layer_results(
-                            logit_data["keyword_token"], model_key
+                            logit_data["keyword_token"], n_layers
                         )
 
                     metrics_last = analyzer.compute_all_metrics(

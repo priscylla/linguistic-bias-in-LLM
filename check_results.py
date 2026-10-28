@@ -2,122 +2,101 @@
 check_results.py
 Verificação de integridade dos resultados após os experimentos.
 
-Executa após todos os modelos terem rodado:
     python check_results.py
 
-Verifica:
-    - Todos os 288 runs estão presentes
-    - Nenhum run tem apenas erro (sem dados de Logit Lens)
-    - Métricas parecem razoáveis (IV > 0, PCC not None)
+O número de runs esperado vem do config
+(modelos × fatos × idiomas × formulações). Verifica:
+    - todos os runs esperados estão presentes
+    - nenhum run tem apenas erro (sem dados de Logit Lens)
+    - cada camada tem as probabilidades exatas (entity_probs) e a
+      auditoria dos token IDs (entity_tokens) está presente
 """
 
 import json
 import os
 import sys
-import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from analyze import raw_results_path
+from config.experiment_config import ExperimentConfig
 
 
-def check_all_results(results_dir: str = "results") -> bool:
+def check_run(run: dict):
+    """Retorna None se o run está válido, senão a descrição do problema."""
+    if not run:
+        return "missing"
+    if "error" in run and "last_token" not in run:
+        return f"error: {run['error'][:50]}"
+    layers = run.get("last_token")
+    if not layers:
+        return "no logit data"
+    if any("entity_probs" not in l for l in layers):
+        return "old format (no entity_probs)"
+    if not run.get("entity_tokens"):
+        return "no entity_tokens"
+    return None
+
+
+def check_all_results(results_dir: str = None, config: ExperimentConfig = None) -> bool:
     """
     Verifica integridade completa dos resultados.
 
     Returns:
-        True se todos os 288 runs estão válidos.
+        True se todos os runs esperados estão presentes e válidos.
     """
-    models       = ["llama", "mistral", "qwen", "gemma"]
-    facts        = ["aviao", "telefone"]
-    languages    = ["pt", "en", "de", "it"]
-    formulations = ["F1", "F2", "F3"]
+    config      = config or ExperimentConfig()
+    results_dir = results_dir or config.results_dir
+    expected    = config.expected_cells()
 
     print("=" * 60)
-    print("VERIFICAÇÃO FINAL DOS RESULTADOS")
+    print(f"VERIFICAÇÃO DOS RESULTADOS — {expected} runs esperados")
     print("=" * 60)
 
-    all_ok   = True
     problems = []
-    stats    = []
+    valid    = 0
 
-    for model_key in models:
-        path = os.path.join(results_dir, f"{model_key}_results.json")
-
+    for model in config.models:
+        path = raw_results_path(results_dir, model)
         if not os.path.exists(path):
-            print(f"\n❌ {model_key}: arquivo não encontrado — {path}")
-            all_ok = False
+            print(f"\n❌ {model}: arquivo não encontrado — {path}")
+            n = len(config.facts) * len(config.languages) * len(config.formulations)
+            problems.append(f"{model} — arquivo ausente ({n} runs)")
             continue
 
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
-        print(f"\n[{model_key.upper()}]")
-
-        for fact in facts:
-            for lang in languages:
-                for form in formulations:
-
+        print(f"\n[{model.upper()}]")
+        for fact in config.facts:
+            for lang in config.languages:
+                for form in config.formulations:
                     run = data.get(fact, {}).get(lang, {}).get(form, {})
-
-                    if not run:
-                        status = "❌ MISSING"
-                        problems.append(f"{model_key}/{fact}/{lang}/{form} — missing")
-                        all_ok = False
-
-                    elif "error" in run and "last_token" not in run:
-                        status = f"❌ ERROR: {run['error'][:50]}"
-                        problems.append(f"{model_key}/{fact}/{lang}/{form} — error")
-                        all_ok = False
-
-                    elif not run.get("last_token"):
-                        status = "⚠️  NO LOGIT DATA"
-                        problems.append(f"{model_key}/{fact}/{lang}/{form} — no logit data")
-                        all_ok = False
-
+                    problem = check_run(run)
+                    cell = f"{model}/{fact}/{lang}/{form}"
+                    if problem:
+                        problems.append(f"{cell} — {problem}")
+                        print(f"  ❌ [{fact}][{lang}][{form}] {problem}")
                     else:
-                        m   = run.get("metrics_last", {})
-                        iv  = m.get("iv", 0)
-                        pcc = m.get("pcc_norm")
-                        kw  = run.get("keyword_strategy", "?")
-                        status = f"✅ iv={iv:.3f}  pcc={str(pcc)[:5]}  kw={kw}"
+                        valid += 1
+                        m = run.get("metrics_last", {})
+                        print(f"  ✅ [{fact}][{lang}][{form}] "
+                              f"CS_final={m.get('commitment_final', float('nan')):+.3f}")
 
-                        stats.append({
-                            "model": model_key, "fact": fact,
-                            "lang": lang, "form": form,
-                            "iv": iv, "pcc_norm": pcc
-                        })
-
-                    print(f"  [{fact}][{lang}][{form}] {status}")
-
-    # ── Resumo ──
     print("\n" + "=" * 60)
+    print(f"  {valid}/{expected} runs válidos")
+    if not problems:
+        print("✅ TODOS OS RUNS COMPLETOS E VÁLIDOS")
+        print("   Próximo passo: python analyze.py && python make_figures.py")
+        return True
 
-    if all_ok:
-        df = pd.DataFrame(stats)
-        print("✅ TODOS OS 288 RUNS COMPLETOS E VÁLIDOS\n")
-
-        print("── Média de IV por idioma/fato (F1) ──")
-        pivot = df[df["form"] == "F1"].groupby(
-            ["fact", "lang"]
-        )["iv"].mean().round(3).unstack()
-        print(pivot.to_string())
-
-        print("\n── PCC normalizado médio por modelo (F1) ──")
-        pcc_summary = df[
-            (df["form"] == "F1") & (df["pcc_norm"].notna())
-        ].groupby("model")["pcc_norm"].mean().round(3)
-        print(pcc_summary.to_string())
-
-        print(f"\n   Próximo passo: python run_visualization.py")
-
-    else:
-        print(f"❌ {len(problems)} PROBLEMA(S) ENCONTRADO(S):\n")
-        for p in problems:
-            print(f"   → {p}")
-        print("\n   Rerun:")
-        print("   python run_single_model.py [modelo]")
-        print("   (runs já completos são pulados automaticamente)")
-
-    return all_ok
+    print(f"❌ {len(problems)} PROBLEMA(S):")
+    for p in problems:
+        print(f"   → {p}")
+    print("\n   Rerun: python run_single_model.py [modelo]"
+          "  (runs completos são pulados)")
+    return False
 
 
 if __name__ == "__main__":
-    ok = check_all_results()
-    sys.exit(0 if ok else 1)
+    sys.exit(0 if check_all_results() else 1)

@@ -29,3 +29,24 @@ old_results/
 
 # macOS
 .DS_Store
+
+# Saídas do pipeline (geradas localmente; .gitkeep mantém as pastas)
+results/*
+!results/.gitkeep
+figures/*
+!figures/.gitkeep
+paper_figures/
+tables/
+logs/
+reports/*.log
+
+# Pesos de modelos e checkpoints (nunca versionar)
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.gguf
+*.onnx
+hf_cache/
+lenses/

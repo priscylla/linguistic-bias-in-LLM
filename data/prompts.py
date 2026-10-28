@@ -1,9 +1,16 @@
+"""
+data/prompts.py
+Prompts de completion por fato × idioma × formulação.
+F1 direta, F2 atributiva, F3 disputativa ("verdadeiro inventor").
+Texto com acentos corretos (confirmados em reports/verified_values.md).
+"""
+
 COMPLETION_PROMPTS = {
     "aviao": {
         "pt": {
-            "F1": "O aviao foi inventado por",
-            "F2": "O inventor do aviao e considerado",
-            "F3": "O verdadeiro inventor do aviao e"
+            "F1": "O avião foi inventado por",
+            "F2": "O inventor do avião é considerado",
+            "F3": "O verdadeiro inventor do avião é"
         },
         "en": {
             "F1": "The airplane was invented by",
@@ -16,16 +23,16 @@ COMPLETION_PROMPTS = {
             "F3": "Der wahre Erfinder des Flugzeugs war"
         },
         "it": {
-            "F1": "L'aereo e stato inventato da",
-            "F2": "L'inventore dell'aereo e considerato",
-            "F3": "Il vero inventore dell'aereo e stato"
+            "F1": "L'aereo è stato inventato da",
+            "F2": "L'inventore dell'aereo è considerato",
+            "F3": "Il vero inventore dell'aereo è stato"
         }
     },
     "telefone": {
         "pt": {
             "F1": "O telefone foi inventado por",
-            "F2": "O inventor do telefone e considerado",
-            "F3": "O verdadeiro inventor do telefone e"
+            "F2": "O inventor do telefone é considerado",
+            "F3": "O verdadeiro inventor do telefone é"
         },
         "en": {
             "F1": "The telephone was invented by",
@@ -38,9 +45,9 @@ COMPLETION_PROMPTS = {
             "F3": "Der wahre Erfinder des Telefons war"
         },
         "it": {
-            "F1": "Il telefono e stato inventato da",
-            "F2": "L'inventore del telefono e considerato",
-            "F3": "Il vero inventore del telefono e stato"
+            "F1": "Il telefono è stato inventato da",
+            "F2": "L'inventore del telefono è considerato",
+            "F3": "Il vero inventore del telefono è stato"
         }
     }
 }

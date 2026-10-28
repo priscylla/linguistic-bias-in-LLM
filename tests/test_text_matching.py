@@ -1,16 +1,14 @@
 """
 tests/test_text_matching.py
-Fase 0, correção 5: classificador comportamental com fronteira de
-palavra, sem diferenciar maiúsculas nem diacríticos; cores do heatmap
-por token ID.
+Fase 0, correção 5: busca de termos com fronteira de palavra, sem
+diferenciar maiúsculas nem diacríticos (usada na Fase 5); cores do
+heatmap por token ID.
 """
 
 import pytest
 
 from data.text_matching import find_terms, groups_by_order, normalize_text
-from generate_visualizations import (
-    ENTITY_COLOR_COMPETING, ENTITY_COLOR_LOCAL, classify, token_color,
-)
+from make_figures import ENTITY_COLOR_DOMINANT, ENTITY_COLOR_OTHER, token_color
 
 
 @pytest.mark.parametrize("text", [
@@ -49,29 +47,9 @@ def test_group_order():
     assert groups_by_order("Graham Bell e Meucci", groups) == ["Bell", "Meucci"]
 
 
-TERMS = {
-    "aviao":    {"Santos": ["santos", "dumont"],
-                 "Wright": ["wright", "orville", "wilbur", "irmãos", "hermanos"]},
-    "telefone": {"Meucci": ["meucci", "antonio meucci"],
-                 "Bell":   ["bell", "graham", "alexander"]},
-}
-
-
-@pytest.mark.parametrize("resp,fact,expected", [
-    ("Antonio Meucci, una bella storia", "telefone", "Meucci"),  # sem falso Bell
-    ("Alexander Graham Bell", "telefone", "Bell"),
-    ("Meucci, anche se Bell ha il brevetto", "telefone", "Both\n(Meucci 1st)"),
-    ("Bell, ma Meucci prima", "telefone", "Both\n(Bell 1st)"),
-    ("Alberto Santos-Dúmont", "aviao", "Santos\nDumont"),
-    ("os irmãos Wright e depois Santos Dumont", "aviao", "Both\n(Wright 1st)"),
-    ("un inventore bellissimo", "telefone", "Ambiguous /\nNo name"),
-])
-def test_classify(resp, fact, expected):
-    assert classify(resp, fact, TERMS) == expected
-
-
-def test_classify_uses_config_by_default():
-    assert classify("Alexander Graham Bell", "telefone") == "Bell"
+def test_group_order_ignores_words_containing_terms():
+    groups = {"Meucci": ["meucci"], "Bell": ["bell"]}
+    assert groups_by_order("Antonio Meucci, una bella storia", groups) == ["Meucci"]
 
 
 # ── Cor do heatmap por token ID ──
@@ -82,13 +60,13 @@ RUN = {"entity_tokens": {"sets": {"local": {"ids": [10, 11]},
 
 def test_token_color_by_id():
     # pt para telefone: local = Bell (dominante) → vermelho
-    assert token_color(10, RUN, "telefone", "pt") == ENTITY_COLOR_LOCAL
-    assert token_color(20, RUN, "telefone", "pt") == ENTITY_COLOR_COMPETING
+    assert token_color(10, RUN, "telefone", "pt") == ENTITY_COLOR_DOMINANT
+    assert token_color(20, RUN, "telefone", "pt") == ENTITY_COLOR_OTHER
     assert token_color(99, RUN, "telefone", "pt") == "#AAAAAA"
     assert token_color(None, RUN, "telefone", "pt") == "#AAAAAA"
 
 
 def test_token_color_flips_in_stake_language():
     # it é o stake do telefone: local = Meucci, competing = Bell (dominante)
-    assert token_color(20, RUN, "telefone", "it") == ENTITY_COLOR_LOCAL
-    assert token_color(10, RUN, "telefone", "it") == ENTITY_COLOR_COMPETING
+    assert token_color(20, RUN, "telefone", "it") == ENTITY_COLOR_DOMINANT
+    assert token_color(10, RUN, "telefone", "it") == ENTITY_COLOR_OTHER

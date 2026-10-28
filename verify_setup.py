@@ -72,15 +72,14 @@ def check_completion_prompts(tokenizers: dict):
     Ultimo token esperado por formulacao:
         F1: "por" / "by" / "von" / "da"
         F2: "considerado" / "be" / "als" / "considerato"
-        F3: "e" / "was" / "war" / "stato"
+        F3: "é" / "was" / "war" / "stato"
     """
     print("\n" + "=" * 60)
     print("VERIFICACAO 1: COMPLETION PROMPTS")
     print("=" * 60)
 
-    facts = ["aviao", "telefone"]
-    langs = ["pt", "en", "de", "it"]
-    forms = ["F1", "F2", "F3"]
+    config = ExperimentConfig()
+    facts, langs, forms = config.facts, config.languages, config.formulations
 
     report = {}
 
@@ -127,8 +126,8 @@ def check_keyword_finding(tokenizers: dict, config: ExperimentConfig):
     for model_key, tokenizer in tokenizers.items():
         print(f"\n[{model_key.upper()}]")
 
-        for fact in ["aviao", "telefone"]:
-            for lang in ["pt", "en", "de", "it"]:
+        for fact in config.facts:
+            for lang in config.languages:
 
                 keyword = config.keyword_tokens[fact][lang]
 
