@@ -100,8 +100,9 @@ def load_metrics(metrics_dir):
     return out
 
 
-# Recorte das figuras: completion, F1, nomes
-FIG_FILTER = {"format": "completion", "prompt_type": "F1", "token_set": "names"}
+# Recorte das figuras: Logit Lens, completion, F1, nomes
+FIG_FILTER = {"lens": "logit_lens", "format": "completion", "prompt_type": "F1",
+              "token_set": "names"}
 
 
 def _select(df, **kw):
@@ -275,7 +276,7 @@ def heatmap_run(raw, metrics, model, fact, lang, form="F1", paraphrase=1):
     if layers is None or not len(layers):
         return {}
     sel = dict(model=model, fact=fact, lang=lang, format="completion",
-               prompt_type=form, paraphrase=paraphrase)
+               prompt_type=form, paraphrase=paraphrase, lens="logit_lens")
     m = pd.Series(True, index=layers.index)
     for k, v in {**sel, "source": "prompt"}.items():
         m &= layers[k] == v
@@ -293,7 +294,8 @@ def heatmap_run(raw, metrics, model, fact, lang, form="F1", paraphrase=1):
         oth = set(kept[kept["candidate"] != dom_id]["token_id"].astype(int))
     met = metrics.get("metrics")
     if met is not None and len(met):
-        mm = met[(met["model"] == model) & (met["fact"] == fact) & (met["lang"] == lang)
+        mm = met[(met["lens"] == "logit_lens") & (met["model"] == model)
+                 & (met["fact"] == fact) & (met["lang"] == lang)
                  & (met["format"] == "completion") & (met["prompt_type"] == form)
                  & (met["paraphrase"] == paraphrase)]
     else:

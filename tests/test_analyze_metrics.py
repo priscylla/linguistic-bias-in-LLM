@@ -168,3 +168,35 @@ def test_guard_refuses_raw_dir(tmp_path):
     with pytest.raises(ValueError):
         analyze._guard_output(str(tmp_path / "lens" / "llama"), str(tmp_path))
     analyze._guard_output(str(tmp_path / "metrics"), str(tmp_path))
+
+
+def test_lens_agreement():
+    rows = []
+    # pt: tuned com o mesmo sinal e pico uma camada depois; de: sinal oposto
+    curves = {
+        ("logit_lens", "pt"): {"wright": WR, "santos_dumont": SD},
+        ("tuned_lens", "pt"): {"wright": WR, "santos_dumont": [0.1, 0.2, 0.6, 0.05]},
+        ("logit_lens", "de"): {"wright": WR, "santos_dumont": [0.0, 0.0, 0.9, 0.0]},
+        ("tuned_lens", "de"): {"wright": WR, "santos_dumont": [0.0, 0.0, 0.0, 0.0]},
+        ("logit_lens", "en"): {"wright": WR, "santos_dumont": [0.0, 0.1, 0.1, 0.0]},
+        ("tuned_lens", "en"): {"wright": WR, "santos_dumont": [0.0, 0.1, 0.1, 0.0]},
+    }
+    for (lens, lang), c in curves.items():
+        for r in _rows(c, lang=lang):
+            r["lens"] = lens
+            rows.append(r)
+    res = _metrics(rows)
+    s = res["lens_agreement_summary"]
+    assert len(s) == 1 and s.iloc[0]["n_cells"] == 2           # pt e de (en é a referência)
+    peaks = res["lens_agreement_peaks"]
+    sd = peaks[(peaks.candidate == "santos_dumont") & (peaks.lang == "pt")].iloc[0]
+    assert sd.abs_d_peak_depth == pytest.approx(0.25)          # k* 2 -> 3 de 4 camadas
+    cells = res["lens_agreement"].set_index("lang")
+    assert np.sign(cells.loc["pt", "d_cs_zone_logit"]) == np.sign(cells.loc["pt", "d_cs_zone_tuned"])
+    assert np.sign(cells.loc["de", "d_cs_zone_logit"]) != np.sign(cells.loc["de", "d_cs_zone_tuned"])
+    assert s.iloc[0]["d_cs_zone_sign_agree"] == pytest.approx(0.5)
+
+
+def test_no_agreement_without_tuned_lens():
+    res = _metrics(_rows({"wright": WR, "santos_dumont": SD}))
+    assert "lens_agreement_summary" not in res

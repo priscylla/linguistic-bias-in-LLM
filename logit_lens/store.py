@@ -2,7 +2,7 @@
 logit_lens/store.py
 Armazenamento dos resultados brutos da Fase 2 com checkpoint.
 
-    results/lens/{modelo}/
+    results/lens/{lens}/{modelo}/          lens = logit_lens | tuned_lens
         chunks/{unidade}/{tabela}.parquet   uma unidade = fato × idioma
         chunks/{unidade}/DONE               ou linha de base × idioma
         {tabela}.parquet                    tabelas consolidadas
@@ -24,8 +24,13 @@ import pandas as pd
 TABLES = ("probs", "baseline", "forced", "layers", "token_sets")
 
 
-def lens_dir(results_dir: str, model_key: str) -> Path:
-    return Path(results_dir) / "lens" / model_key
+LENSES = ("logit_lens", "tuned_lens")
+
+
+def lens_dir(results_dir: str, model_key: str, lens: str = "logit_lens") -> Path:
+    if lens not in LENSES:
+        raise ValueError(f"lens '{lens}' desconhecido: {LENSES}")
+    return Path(results_dir) / "lens" / lens / model_key
 
 
 class ChunkStore:
@@ -86,11 +91,11 @@ def write_manifest(out_dir, manifest: Dict):
 
 
 def load_tables(results_dir: str, tables=TABLES) -> Dict[str, pd.DataFrame]:
-    """Tabelas consolidadas de todos os modelos em results/lens/*/ (concatenadas)."""
+    """Tabelas consolidadas de todos os lenses e modelos em results/lens/*/*/ (concatenadas)."""
     out = {}
     root = Path(results_dir) / "lens"
     for name in tables:
-        parts = [pd.read_parquet(p) for p in sorted(root.glob(f"*/{name}.parquet"))]
+        parts = [pd.read_parquet(p) for p in sorted(root.glob(f"*/*/{name}.parquet"))]
         if parts:
             out[name] = pd.concat(parts, ignore_index=True)
     return out

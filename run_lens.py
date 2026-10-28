@@ -3,6 +3,7 @@ run_lens.py
 Medição da Fase 2 para um modelo (substitui run_single_model.py).
 
     python run_lens.py llama
+    python run_lens.py llama --lens tuned      # Tuned Lens (lenses/llama/, Fase 4)
     python run_lens.py llama --consolidate-only
 
 Passos:
@@ -20,7 +21,7 @@ instruct (kind do registro, não a presença de chat template: alguns
 tokenizers base, como o do Qwen 2.5, trazem um). Retoma de checkpoint:
 unidades feitas são puladas.
 
-Saída em results/lens/{modelo}/ (ver logit_lens/store.py):
+Saída em results/lens/{lens}/{modelo}/ (ver logit_lens/store.py):
     probs.parquet       modelo × fato × idioma × formato × tipo × paráfrase
                         × camada × candidato × conjunto (names/indicators)
     baseline.parquet    o mesmo para os prompts neutros (coluna fact = fato
@@ -50,6 +51,8 @@ from logit_lens.confound import ConfoundTester
 from logit_lens.lens import LogitLens
 from logit_lens.measure import LensRunner
 from logit_lens.store import ChunkStore, lens_dir, read_manifest, write_manifest
+
+LENS_CHOICES = {"logit": "logit_lens", "tuned": "tuned_lens"}
 
 CONFIG_FILES = ("experiment.yaml", "facts.yaml", "prompts.yaml",
                 "baseline_prompts.yaml", "forcing.yaml", "models.yaml")
@@ -258,15 +261,26 @@ def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
     return manifest
 
 
+def load_tuned(model_key, model, spec, lens_root=None):
+    """Tuned Lens treinado de lenses/{modelo}/ (recusa lente de outro modelo/commit)."""
+    from config.loader import load_tuned_lens
+    from logit_lens.tuned_lens import TunedLens
+    root = Path(lens_root or load_tuned_lens()["lens_dir"]) / model_key
+    if not (root / "translators.pt").exists():
+        raise FileNotFoundError(f"sem Tuned Lens em {root}: rode train_tuned_lens.py {model_key}")
+    return TunedLens.load(model, root, expected_revision=spec.revision if spec else None)
+
+
 def main(argv=None):
     config = ExperimentConfig()
     parser = argparse.ArgumentParser()
     parser.add_argument("model", choices=list(config.models))
+    parser.add_argument("--lens", choices=list(LENS_CHOICES), default="logit")
     parser.add_argument("--results-dir", default=config.results_dir)
     parser.add_argument("--consolidate-only", action="store_true")
     args = parser.parse_args(argv)
 
-    out_dir = lens_dir(args.results_dir, args.model)
+    out_dir = lens_dir(args.results_dir, args.model, LENS_CHOICES[args.lens])
     if args.consolidate_only:
         print(ChunkStore(out_dir).consolidate())
         return 0
@@ -289,8 +303,12 @@ def main(argv=None):
     else:
         print("  modelo base: só formato completion")
 
+    lens = None
+    if args.lens == "tuned":
+        lens = load_tuned(args.model, model, spec)
+
     m = run_model(args.model, model, tokenizer, config, out_dir, model_id=spec.id,
-                  chat_formatter=chat, spec=spec)
+                  lens=lens, chat_formatter=chat, spec=spec)
     print(f"\n✅ {args.model}: {m['units_done']}/{m['units_expected']} unidades, "
           f"{m['wall_time_s'] / 60:.1f} min, {m['gpu_hours']:.2f} GPU-h  →  {out_dir}")
     return 0

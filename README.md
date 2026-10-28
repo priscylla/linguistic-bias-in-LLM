@@ -1,7 +1,7 @@
 # linguistic-bias-in-LLM
 Linguistic Bias in LLM Outputs
 
-> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 3; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
+> The pipeline is being revised (see `REVISION_PLAN.md`). This is the interim pipeline after Phase 4; the full pipeline and runtimes are documented at the end of the revision (Phase 8).
 
 ## Execution — Step by Step
 
@@ -26,6 +26,10 @@ python run_lens.py gemma27             # 4-bit NF4
 python run_lens.py sabia
 python monitor.py                      # progress, in another terminal
 
+# 2b. Tuned Lens (Phase 4; the four instruct models; resumable)
+python train_tuned_lens.py llama       # lenses/llama/ + reports/tuned_lens/llama_eval.csv
+python run_lens.py llama --lens tuned  # results/lens/tuned_lens/llama/
+
 # 3. Check integrity (expected prompts and units derived from config)
 python check_results.py
 
@@ -43,6 +47,7 @@ Configuration lives in YAML files, read by `config/loader.py`:
 - `config/prompts.yaml`: every prompt (3 paraphrases per type) with its review and grammar flags;
 - `config/baseline_prompts.yaml`: neutral prompts (unrelated topics, same slot shape as each real paraphrase) for the common-token baseline;
 - `config/forcing.yaml`: articles, plural nouns and contracted prepositions for the article-confound test;
+- `config/tuned_lens.yaml`: Tuned Lens corpus (FineWeb-2 + FineWeb, pinned commits, equal tokens per language, 1% held out, fact documents filtered out) and training recipe (tuned-lens 0.2.0 recipe, 250 steps × 2^16 tokens);
 - `config/models.yaml`: model registry (ID, pinned commit, base/instruct, base model, license, gating, precision, quantization) and, per architecture, where the final norm, unembedding and logit softcap live.
 
 | Key | Model | Kind | Precision |
@@ -63,5 +68,6 @@ Base models run only the completion format; instruct models run completion and Q
 - `logit_lens/lens.py`: pluggable `Lens` (the model's own head plus a per-layer translation); `LogitLens` now, Tuned Lens in Phase 4. Every forward pass checks that the last layer reproduces the model's logits.
 - `logit_lens/measure.py`: `LensRunner`, exact per-candidate probability over distinct token IDs (names on F1–F3/QA, indicators on place/artifact), KL(lens_k ‖ final), top-20 for inspection, neutral baseline. Formats: completion (raw prompt) and QA (chat template, instruct only).
 - `logit_lens/confound.py`: article-confound passes (forced article, then plural noun; contracted prepositions for blocked prompts; shared prefixes of split indicators).
-- `run_lens.py` writes `results/lens/{model}/`: `probs`, `baseline`, `forced`, `layers`, `token_sets` (Parquet) and `manifest.json`.
-- `analyze.py` writes `results/metrics/`: CS_e = P(e) − P(dominant), baseline-adjusted CS, k*, CS*, suppression, decision-zone mean, article verdict, and ΔCS_e(l) = CS_e(l) − CS_e(en) on paraphrase means.
+- `logit_lens/tuned_lens.py` + `logit_lens/lens_training.py` + `train_tuned_lens.py`: Tuned Lens (per-layer affine translator h + A·h + b, zero-init, KL to the final distribution), same `Lens` interface; held-out KL per language and layer against the Logit Lens.
+- `run_lens.py` writes `results/lens/{lens}/{model}/` (lens = `logit_lens` | `tuned_lens`): `probs`, `baseline`, `forced`, `layers`, `token_sets` (Parquet) and `manifest.json`.
+- `analyze.py` writes `results/metrics/`: CS_e = P(e) − P(dominant), baseline-adjusted CS, k*, CS*, suppression, decision-zone mean, article verdict, and ΔCS_e(l) = CS_e(l) − CS_e(en) on paraphrase means; with both lenses, `lens_agreement_summary.csv` (peak-layer distance, sign agreement and correlation of ΔCS).

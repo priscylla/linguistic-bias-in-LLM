@@ -9,6 +9,7 @@ Leitura e validação dos arquivos de configuração (YAML):
     config/forcing.yaml      artigos, plurais e contrações do teste do
                              confundidor de artigo (Fase 2)
     config/models.yaml       registro de modelos e arquiteturas (Fase 3)
+    config/tuned_lens.yaml   corpus e receita do Tuned Lens (Fase 4)
 
 Toda lista que varia (fatos, idiomas, candidatos, prompts) vem daqui;
 o código não tem cópias.
@@ -310,6 +311,11 @@ def load_models(config_dir: str = str(CONFIG_DIR)) -> Registry:
     return parse_models(_read_yaml(Path(config_dir) / "models.yaml"))
 
 
+@lru_cache(maxsize=None)
+def load_tuned_lens(config_dir: str = str(CONFIG_DIR)) -> dict:
+    return _read_yaml(Path(config_dir) / "tuned_lens.yaml")
+
+
 def prompts_for(prompts, fact: str = None, lang: str = None, ptype: str = None) -> List[Prompt]:
     return [p for p in prompts
             if (fact is None or p.fact == fact)
@@ -499,6 +505,42 @@ def validate_models(exp: dict, reg: Registry) -> List[str]:
     return errs
 
 
+def _is_sha(x) -> bool:
+    return isinstance(x, str) and len(x) == 40 and all(c in "0123456789abcdef" for c in x)
+
+
+def validate_tuned_lens(exp: dict, tl: dict, reg: Registry) -> List[str]:
+    errs = []
+    for k in tl.get("models", []):
+        if k not in reg.models:
+            errs.append(f"tuned_lens.models: '{k}' fora do registro")
+        elif reg.models[k].kind != "instruct":
+            errs.append(f"tuned_lens.models: '{k}' não é instruct")
+    corpus = tl.get("corpus") or {}
+    for lang in exp["languages"]:
+        c = corpus.get(lang)
+        if not c:
+            errs.append(f"tuned_lens.corpus: sem '{lang}'")
+            continue
+        for f in ("dataset", "config", "split", "revision", "text", "id"):
+            if not c.get(f):
+                errs.append(f"tuned_lens.corpus.{lang}: sem '{f}'")
+        if c.get("revision") and not _is_sha(c["revision"]):
+            errs.append(f"tuned_lens.corpus.{lang}: revision precisa ser o hash completo (40 hex)")
+    t = tl.get("training") or {}
+    for f in ("num_steps", "tokens_per_step", "seq_len", "loss_chunk_tokens", "checkpoint_every"):
+        if not isinstance(t.get(f), int) or t[f] <= 0:
+            errs.append(f"tuned_lens.training.{f}: inteiro positivo")
+    if isinstance(t.get("tokens_per_step"), int) and isinstance(t.get("seq_len"), int) \
+            and t["seq_len"] > 0 and t["tokens_per_step"] % t["seq_len"]:
+        errs.append("tuned_lens.training: tokens_per_step precisa ser múltiplo de seq_len")
+    if t.get("translator_dtype") not in PRECISIONS:
+        errs.append("tuned_lens.training.translator_dtype inválido")
+    if not isinstance(tl.get("held_out_mod"), int) or tl["held_out_mod"] < 2:
+        errs.append("tuned_lens.held_out_mod: inteiro >= 2")
+    return errs
+
+
 def require_valid(config_dir: str = str(CONFIG_DIR)):
     prompts = load_prompts(config_dir)
     errs = validate(load_experiment(config_dir), load_facts(config_dir), prompts)
@@ -507,6 +549,8 @@ def require_valid(config_dir: str = str(CONFIG_DIR)):
     errs += validate_forcing(load_experiment(config_dir), load_forcing(config_dir),
                              list(prompts) + list(baseline.prompts))
     errs += validate_models(load_experiment(config_dir), load_models(config_dir))
+    errs += validate_tuned_lens(load_experiment(config_dir), load_tuned_lens(config_dir),
+                                load_models(config_dir))
     if errs:
         raise ConfigError("Configuração inválida:\n  " + "\n  ".join(errs))
 

@@ -34,9 +34,10 @@ def _expected(prompts, formats, facts=None):
             if p.format in formats and (facts is None or p.fact in facts)}
 
 
-def check_model(model_key: str, results_dir: str, config: ExperimentConfig) -> list:
+def check_model(model_key: str, results_dir: str, config: ExperimentConfig,
+                lens: str = "logit_lens") -> list:
     """Lista de problemas do modelo (vazia se tudo ok)."""
-    out = lens_dir(results_dir, model_key)
+    out = lens_dir(results_dir, model_key, lens)
     man = read_manifest(out)
     if not man:
         return [f"{model_key}: sem manifest ({out})"]
@@ -105,6 +106,15 @@ def check_all_results(results_dir: str = None, config: ExperimentConfig = None) 
         print(f"  {'✅' if not p else '❌'} {model}{hours}"
               + ("" if not p else f"  ({len(p)} problema(s))"))
         problems += p
+    # Tuned Lens: só os modelos que já têm resultados com ele
+    for model in config.models:
+        if read_manifest(lens_dir(results_dir, model, "tuned_lens")):
+            p = check_model(model, results_dir, config, "tuned_lens")
+            man = read_manifest(lens_dir(results_dir, model, "tuned_lens"))
+            gpu_h[f"{model}/tuned"] = man.get("gpu_hours", 0.0)
+            print(f"  {'✅' if not p else '❌'} {model} (tuned lens)  "
+                  f"{gpu_h[f'{model}/tuned']:.2f} GPU-h")
+            problems += [f"[tuned] {x}" for x in p]
     print(f"\n  GPU-horas registradas: {sum(gpu_h.values()):.2f}")
 
     if not problems:

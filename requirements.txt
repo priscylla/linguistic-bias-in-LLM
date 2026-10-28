@@ -12,6 +12,7 @@ huggingface_hub>=0.23.0
 safetensors>=0.4.0
 
 # ── Dados e Análise ──
+datasets>=2.18.0    # corpus do Tuned Lens (streaming, Fase 4)
 numpy>=1.24.0
 pandas>=2.0.0
 pyarrow>=15.0       # tabelas Parquet (Fase 2)

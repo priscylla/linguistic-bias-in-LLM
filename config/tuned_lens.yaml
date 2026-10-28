@@ -1,0 +1,60 @@
+# config/tuned_lens.yaml
+# Tuned Lens (Fase 4). Decisões confirmadas pela autora em 2026-10-28
+# (reports/verified_values.md):
+#   - implementação própria para os quatro modelos (o pacote tuned-lens
+#     0.2.0 só reconhece LlamaModel e não tem o softcap do Gemma 2)
+#   - corpus FineWeb-2 (pt, de, it, fr, ru) + FineWeb sample-10BT (en),
+#     mesma quantidade de tokens por idioma
+#   - documentos que citam candidatos ou fatos ficam fora
+#   - 16M tokens por modelo (250 passos × 2^16 tokens)
+#
+# Receita igual à do pacote tuned-lens 0.2.0 (scripts/train_loop.py,
+# scripts/ingredients.py, nn/lenses.py): tradutor afim por camada
+# h + A·h + b, A e b começam em zero (= Logit Lens); perda
+# KL(final ‖ lens) na mesma posição; SGD Nesterov, momento 0.9,
+# lr = 1.0 · (1 − 0.9), weight decay 1e-3, sem warmup, decaimento linear.
+
+models: [llama, mistral, qwen, gemma]     # modelos instruct (chaves de models.yaml)
+
+lens_dir: lenses                          # lenses/{modelo}/ (fora do git)
+
+corpus:
+  # dataset, config, split e commit fixo no Hugging Face; coluna de texto
+  # e de id (o id decide o held-out)
+  pt: {dataset: HuggingFaceFW/fineweb-2, config: por_Latn, split: train,
+       revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
+  en: {dataset: HuggingFaceFW/fineweb, config: sample-10BT, split: train,
+       revision: 9bb295ddab0e05d785b879661af7260fed5140fc, text: text, id: id}
+  de: {dataset: HuggingFaceFW/fineweb-2, config: deu_Latn, split: train,
+       revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
+  it: {dataset: HuggingFaceFW/fineweb-2, config: ita_Latn, split: train,
+       revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
+  fr: {dataset: HuggingFaceFW/fineweb-2, config: fra_Latn, split: train,
+       revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
+  ru: {dataset: HuggingFaceFW/fineweb-2, config: rus_Cyrl, split: train,
+       revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
+
+# Held-out: documentos com sha256(id) mod held_out_mod == 0 (1%), em todos
+# os idiomas; nunca entram no treino
+held_out_mod: 100
+
+# Filtro: fora todo documento que cita nome de candidato (qualquer caso,
+# qualquer idioma) ou palavra-chave de fato (fronteira de palavra, sem
+# acento/caixa)
+filter_fact_terms: true
+
+training:
+  num_steps: 250
+  tokens_per_step: 65536        # 2^16
+  seq_len: 2048                 # sequências empacotadas, separador eos
+  loss_chunk_tokens: 512        # posições por pedaço na perda (limita VRAM)
+  lr: 0.1                       # = lr_scale 1.0 · (1 − momento)
+  momentum: 0.9
+  nesterov: true
+  weight_decay: 0.001
+  translator_dtype: float32
+  checkpoint_every: 10          # passos
+  seed: 42
+
+eval:
+  tokens_per_language: 65536    # held-out, KL por camada e idioma

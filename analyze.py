@@ -36,6 +36,16 @@ Saídas (results/metrics/):
     confound.parquet     uma linha por passada forçada × candidato
     curves_mean.parquet  por camada, média das paráfrases, com ΔCS
     delta_cs.parquet/csv por célula × idioma, médias e ΔCS dos escalares
+    lens_agreement.parquet          (se houver Tuned Lens) Tuned vs Logit
+    lens_agreement_summary.csv      Lens por modelo × conjunto (Fase 4)
+
+Concordância Tuned Lens × Logit Lens (mesmas células):
+    pico      |depth(k*_tuned) − depth(k*_logit)| por prompt × candidato
+    ΔCS       sinal igual (fração) e magnitude (Pearson, Spearman,
+              |diferença| média) de ΔCS na zona de decisão e em k*.
+              ΔCS final não entra: a última camada não tem tradutor,
+              então é igual nos dois lenses. O idioma de referência
+              (ΔCS = 0 por definição) fica fora.
 """
 
 import argparse
@@ -211,6 +221,57 @@ def delta_cs(M: pd.DataFrame, ref: str) -> pd.DataFrame:
 
 
 # ══════════════════════════════════════════════════════════════
+# Concordância Tuned Lens × Logit Lens
+# ══════════════════════════════════════════════════════════════
+
+LENS_A, LENS_B = "logit_lens", "tuned_lens"
+AGREE_DELTAS   = ["d_cs_zone", "d_cs_star"]
+
+
+def _pair(df: pd.DataFrame, keys: list, cols: list) -> pd.DataFrame:
+    """Linhas do Logit Lens e do Tuned Lens lado a lado (sufixos _logit, _tuned)."""
+    a = df[df["lens"] == LENS_A][keys + cols]
+    b = df[df["lens"] == LENS_B][keys + cols]
+    return a.merge(b, on=keys, suffixes=("_logit", "_tuned"))
+
+
+def lens_agreement(M: pd.DataFrame, D: pd.DataFrame, ref: str):
+    """
+    Returns:
+        (por_célula, resumo): por_célula com o pico por prompt ×
+        candidato e os ΔCS por célula × idioma; resumo por modelo ×
+        conjunto. (None, None) se não há os dois lenses.
+    """
+    if not {LENS_A, LENS_B} <= set(M["lens"]):
+        return None, None
+    pk = [k for k in GROUP if k != "lens"]
+    peaks = _pair(M, pk, ["k_star_depth"])
+    peaks["abs_d_peak_depth"] = (peaks["k_star_depth_tuned"] - peaks["k_star_depth_logit"]).abs()
+
+    ck = [k for k in CELL if k != "lens"] + ["lang"]
+    cells = _pair(D[~D["dominant"] & (D["lang"] != ref)], ck, AGREE_DELTAS)
+
+    rows = []
+    for (model, ts), g in cells.groupby(["model", "token_set"]):
+        p = peaks[(peaks["model"] == model) & (peaks["token_set"] == ts)]
+        r = {"model": model, "token_set": ts, "n_prompt_candidates": len(p),
+             "median_abs_d_peak_depth": p["abs_d_peak_depth"].median(),
+             "mean_abs_d_peak_depth": p["abs_d_peak_depth"].mean(), "n_cells": len(g)}
+        for c in AGREE_DELTAS:
+            x, y = g[f"{c}_logit"], g[f"{c}_tuned"]
+            ok = x.notna() & y.notna()
+            x, y = x[ok], y[ok]
+            r[f"{c}_n"] = int(ok.sum())
+            r[f"{c}_sign_agree"] = float((np.sign(x) == np.sign(y)).mean()) if len(x) else np.nan
+            r[f"{c}_pearson"]  = x.corr(y) if len(x) > 2 else np.nan
+            r[f"{c}_spearman"] = x.corr(y, method="spearman") if len(x) > 2 else np.nan
+            r[f"{c}_mean_abs_diff"] = float((x - y).abs().mean()) if len(x) else np.nan
+        rows.append(r)
+    per_cell = {"peaks": peaks, "cells": cells}
+    return per_cell, pd.DataFrame(rows)
+
+
+# ══════════════════════════════════════════════════════════════
 # Pipeline
 # ══════════════════════════════════════════════════════════════
 
@@ -222,8 +283,15 @@ def compute_all(tables: Dict[str, pd.DataFrame], config: ExperimentConfig) -> Di
     conf = confound(tables.get("forced"), M)
     M    = add_article_verdict(M, conf)
     ref  = config.reference_language
-    return {"curves": C, "metrics": M, "confound": conf,
-            "curves_mean": curves_mean(C, ref), "delta_cs": delta_cs(M, ref)}
+    D    = delta_cs(M, ref)
+    out  = {"curves": C, "metrics": M, "confound": conf,
+            "curves_mean": curves_mean(C, ref), "delta_cs": D}
+    per_cell, summary = lens_agreement(M, D, ref)
+    if summary is not None:
+        out["lens_agreement_peaks"] = per_cell["peaks"]
+        out["lens_agreement"] = per_cell["cells"]
+        out["lens_agreement_summary"] = summary
+    return out
 
 
 def main(argv=None):
@@ -242,8 +310,9 @@ def main(argv=None):
     for name, df in res.items():
         df.to_parquet(out / f"{name}.parquet", index=False)
         print(f"  OK  {out / name}.parquet  ({len(df)} linhas)")
-    for name in ("metrics", "delta_cs"):
-        res[name].to_csv(out / f"{name}.csv", index=False)
+    for name in ("metrics", "delta_cs", "lens_agreement_summary"):
+        if name in res:
+            res[name].to_csv(out / f"{name}.csv", index=False)
     print(f"\nPróximo passo: python make_figures.py")
     return 0
 

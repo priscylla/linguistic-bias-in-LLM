@@ -1,0 +1,115 @@
+"""
+train_tuned_lens.py
+Treina o Tuned Lens de um modelo instruct (Fase 4). Roda na GPU da
+autora; aqui só é testado por alguns passos com o modelo minúsculo.
+
+    python train_tuned_lens.py llama
+    python train_tuned_lens.py llama --max-steps 50     # sessão curta; retoma depois
+    python train_tuned_lens.py llama --eval-only
+
+Receita, corpus, filtro e orçamento em config/tuned_lens.yaml. Retoma
+de lenses/{modelo}/checkpoint.pt. Ao terminar os num_steps:
+    lenses/{modelo}/translators.pt, config.json   (lido por run_lens.py --lens tuned)
+    reports/tuned_lens/{modelo}_eval.csv           KL held-out por idioma × camada,
+                                                   Tuned Lens e Logit Lens
+    reports/tuned_lens/{modelo}_train.json         perdas, corpus, tempo
+"""
+
+import argparse
+import hashlib
+import sys
+import time
+from pathlib import Path
+
+import pandas as pd
+import torch
+
+from config.experiment_config import ExperimentConfig
+from config.loader import load_tuned_lens, require_confirmed, require_valid
+from logit_lens.lens_training import evaluate, fact_terms, train, write_json
+from logit_lens.tuned_lens import TunedLens
+
+REPORT_DIR = Path("reports") / "tuned_lens"
+
+
+def hf_sources(tl_cfg, langs):
+    """Uma fonte por idioma: streaming do dataset no commit fixo."""
+    from datasets import load_dataset
+
+    def make(c):
+        return lambda: iter(load_dataset(c["dataset"], c["config"], split=c["split"],
+                                         revision=c["revision"], streaming=True))
+    return {l: make(tl_cfg["corpus"][l]) for l in langs}
+
+
+def filter_hash(facts, langs) -> str:
+    terms = "\n".join(f"{l}:{t}" for l in langs for t in fact_terms(facts, l))
+    return hashlib.sha256(terms.encode("utf-8")).hexdigest()
+
+
+def run(key, model, tokenizer, config, tl_cfg, sources, lens_root, report_dir,
+        max_steps=None, eval_only=False, log=print) -> dict:
+    """Treina (ou só avalia) e grava lente e relatórios. Testável sem rede."""
+    spec    = config.model(key)
+    out     = Path(lens_root) / key
+    langs   = config.languages
+    report_dir = Path(report_dir)
+
+    if eval_only:
+        lens = TunedLens.load(model, out, expected_revision=spec.revision)
+        summary = {"step": lens.meta.get("steps"), "done": True}
+    else:
+        lens = TunedLens(model, translator_dtype=tl_cfg["training"]["translator_dtype"])
+        t0 = time.time()
+        summary = train(lens, model, tokenizer, sources, tl_cfg, config.fact_specs, out,
+                        max_steps=max_steps, log=log)
+        summary["wall_time_s"] = round(time.time() - t0, 1)
+        write_json(report_dir / f"{key}_train.json", summary)
+        if not summary["done"]:
+            log(f"  parado no passo {summary['step']}/{summary['num_steps']}; rode de novo para continuar")
+            return summary
+        t = tl_cfg["training"]
+        lens.save(out, meta={
+            "model_key": key, "model_id": spec.id, "registry_revision": spec.revision,
+            "steps": summary["step"], "tokens": summary["step"] * t["tokens_per_step"],
+            "recipe": t, "corpus": tl_cfg["corpus"], "held_out_mod": tl_cfg["held_out_mod"],
+            "filter_fact_terms": tl_cfg["filter_fact_terms"],
+            "filter_terms_sha256": filter_hash(config.fact_specs, langs),
+            "corpus_stats": summary["corpus_stats"], "final_loss": summary["losses"][-1]})
+
+    rows = evaluate(lens, model, tokenizer, sources, tl_cfg, config.fact_specs)
+    df = pd.DataFrame(rows)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(report_dir / f"{key}_eval.csv", index=False)
+    summary["eval"] = {"mean_kl_tuned": float(df["kl_tuned"].mean()),
+                       "mean_kl_logit": float(df["kl_logit"].mean())}
+    log(f"  held-out KL médio: tuned = {summary['eval']['mean_kl_tuned']:.4f}, "
+        f"logit = {summary['eval']['mean_kl_logit']:.4f}")
+    return summary
+
+
+def main(argv=None):
+    config = ExperimentConfig()
+    tl_cfg = load_tuned_lens()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("model", choices=tl_cfg["models"])
+    parser.add_argument("--max-steps", type=int, default=None)
+    parser.add_argument("--eval-only", action="store_true")
+    args = parser.parse_args(argv)
+
+    require_valid()
+    # O filtro do corpus usa os nomes de facts.yaml: só com fatos confirmados
+    require_confirmed(config.fact_specs, [])
+
+    from models.model_loader import load_model
+    model, tok = load_model(args.model, config.registry)
+    sources = hf_sources(tl_cfg, config.languages)
+    s = run(args.model, model, tok, config, tl_cfg, sources, tl_cfg["lens_dir"], REPORT_DIR,
+            max_steps=args.max_steps, eval_only=args.eval_only)
+    if torch.cuda.is_available():
+        print(f"  pico de VRAM: {torch.cuda.max_memory_allocated() / 2**30:.1f} GiB")
+    return 0 if s.get("done") else 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

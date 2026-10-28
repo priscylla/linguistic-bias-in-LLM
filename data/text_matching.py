@@ -57,3 +57,15 @@ def groups_by_order(text: str, groups: Dict[str, Sequence[str]]) -> List[str]:
         if pos is not None:
             firsts[name] = pos
     return sorted(firsts, key=firsts.get)
+
+
+def compile_terms(terms: Sequence[str]) -> Optional[re.Pattern]:
+    """
+    Um único padrão (alternância, termos mais longos primeiro) com a
+    mesma regra de find_terms; para varrer textos longos uma vez só.
+    Aplicar ao texto já normalizado (normalize_text). None se vazio.
+    """
+    norm = sorted({normalize_text(t) for t in terms if t.strip()}, key=len, reverse=True)
+    if not norm:
+        return None
+    return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(t) for t in norm) + r")(?!\w)")
