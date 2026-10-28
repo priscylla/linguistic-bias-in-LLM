@@ -113,8 +113,13 @@ class WordTokenizer:
     def _pieces(self, text):
         import re
         pieces = []
-        for w in re.findall(r"\s?\S+", text):
-            pieces.extend(self.splits.get(w, [w]))
+        # Marcadores "<...>" (tokens especiais do chat template) ficam isolados
+        for chunk in re.split(r"(<[^>]+>)", text):
+            if chunk.startswith("<") and chunk.endswith(">"):
+                pieces.append(chunk)
+                continue
+            for w in re.findall(r"\s?\S+", chunk):
+                pieces.extend(self.splits.get(w, [w]))
         changed = True
         while changed:
             changed = False
@@ -126,8 +131,9 @@ class WordTokenizer:
                     break
         return pieces
 
-    def __call__(self, text, return_tensors=None):
-        ids = [self.BOS] + [self._id(t) for t in self._pieces(text)]
+    def __call__(self, text, return_tensors=None, add_special_tokens=True):
+        ids = ([self.BOS] if add_special_tokens else []) + \
+              [self._id(t) for t in self._pieces(text)]
         if return_tensors == "pt":
             t = torch.tensor([ids])
             return _Batch(input_ids=t, attention_mask=torch.ones_like(t))

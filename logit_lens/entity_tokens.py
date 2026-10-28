@@ -19,9 +19,16 @@ from typing import Dict, List, Sequence
 import torch
 
 
-def encode_ids(tokenizer, text: str) -> List[int]:
-    """Tokeniza (com tokens especiais, como no forward) e devolve lista de ids."""
-    ids = tokenizer(text)["input_ids"]
+def encode_ids(tokenizer, text: str, add_special_tokens: bool = True) -> List[int]:
+    """
+    Tokeniza e devolve lista de ids. Com add_special_tokens=True (padrão)
+    é igual ao forward do prompt cru; para texto já formatado com chat
+    template use False (o template já contém os tokens especiais).
+    """
+    if add_special_tokens:
+        ids = tokenizer(text)["input_ids"]
+    else:
+        ids = tokenizer(text, add_special_tokens=False)["input_ids"]
     if hasattr(ids, "tolist"):
         ids = ids.tolist()
     if len(ids) > 0 and isinstance(ids[0], list):
@@ -29,7 +36,8 @@ def encode_ids(tokenizer, text: str) -> List[int]:
     return list(ids)
 
 
-def first_token_after(tokenizer, prompt: str, word: str, sep: str = " ") -> Dict:
+def first_token_after(tokenizer, prompt: str, word: str, sep: str = " ",
+                      add_special_tokens: bool = True) -> Dict:
     """
     Primeiro token que o modelo emitiria para `word` logo após `prompt`.
 
@@ -45,8 +53,8 @@ def first_token_after(tokenizer, prompt: str, word: str, sep: str = " ") -> Dict
                             bem definido na posição de decisão e a
                             palavra é excluída
     """
-    p_ids    = encode_ids(tokenizer, prompt)
-    full_ids = encode_ids(tokenizer, prompt + sep + word)
+    p_ids    = encode_ids(tokenizer, prompt, add_special_tokens)
+    full_ids = encode_ids(tokenizer, prompt + sep + word, add_special_tokens)
 
     # Maior prefixo comum
     i = 0
@@ -70,6 +78,7 @@ def build_token_sets(
     prompt: str,
     sets: Dict[str, Sequence[str]],
     sep: str = " ",
+    add_special_tokens: bool = True,
 ) -> Dict:
     """
     Constrói os conjuntos de token IDs distintos de cada conjunto de
@@ -96,7 +105,8 @@ def build_token_sets(
         details[name] = []
         raw_ids[name] = []
         for w in words:
-            d = first_token_after(tokenizer, prompt, w, sep=sep)
+            d = first_token_after(tokenizer, prompt, w, sep=sep,
+                                  add_special_tokens=add_special_tokens)
             details[name].append(d)
             if d["token_id"] is None:
                 excluded.append({"set": name, "word": w})

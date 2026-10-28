@@ -1,0 +1,44 @@
+# config/experiment.yaml
+# Parâmetros gerais do experimento. Fatos e candidatos ficam em
+# facts.yaml; prompts em prompts.yaml.
+
+languages: [pt, en, de, it, fr, ru]
+
+# Idioma de referência: ΔCS_e(l) = CS_e(l) − CS_e(en) (Fase 2)
+reference_language: en
+
+# Tipos de prompt.
+#   name_types:      medem nomes de pessoas (fatos disputados e controles)
+#   indicator_types: medem indicadores de narrativa (só fatos disputados
+#                    que têm indicadores daquele tipo)
+formulations: [F1, F2, F3]          # completion: direta, atributiva, disputativa
+name_types: [F1, F2, F3, QA]
+indicator_types: [place, artifact]
+paraphrases: 3
+
+# Idiomas que precisam de revisão nativa dos prompts (needs_native_review)
+native_review_languages: [fr, ru, de, it]
+
+# Zona de decisão: fração final da profundidade (0.30 = últimos 30%)
+decision_zone: 0.30
+
+# Suavização só para figuras (1 = sem suavização); métricas usam valores brutos
+smoothing_windows: [3, 1]
+
+# Verificação de tokenização: token "comum" se a frequência da palavra
+# no idioma do prompt (wordfreq, escala Zipf) for >= este limiar
+common_word_zipf: 4.0
+
+# Modelos (registro completo na Fase 3)
+models:
+  llama:   meta-llama/Meta-Llama-3.1-8B-Instruct
+  mistral: mistralai/Mistral-7B-Instruct-v0.3
+  qwen:    Qwen/Qwen2.5-7B-Instruct
+  gemma:   google/gemma-2-9b-it
+
+dtype: bfloat16
+top_k_tokens: 10
+heatmap_models: [llama, gemma]
+results_dir: results
+figures_dir: figures
+seed: 42

@@ -59,14 +59,13 @@ RUN = {"entity_tokens": {"sets": {"local": {"ids": [10, 11]},
 
 
 def test_token_color_by_id():
-    # pt para telefone: local = Bell (dominante) → vermelho
-    assert token_color(10, RUN, "telefone", "pt") == ENTITY_COLOR_DOMINANT
-    assert token_color(20, RUN, "telefone", "pt") == ENTITY_COLOR_OTHER
+    # competing = dominante (vermelho), local = alternativas (azul)
+    assert token_color(20, RUN, "telefone", "pt") == ENTITY_COLOR_DOMINANT
+    assert token_color(10, RUN, "telefone", "pt") == ENTITY_COLOR_OTHER
     assert token_color(99, RUN, "telefone", "pt") == "#AAAAAA"
     assert token_color(None, RUN, "telefone", "pt") == "#AAAAAA"
 
 
-def test_token_color_flips_in_stake_language():
-    # it é o stake do telefone: local = Meucci, competing = Bell (dominante)
-    assert token_color(20, RUN, "telefone", "it") == ENTITY_COLOR_DOMINANT
-    assert token_color(10, RUN, "telefone", "it") == ENTITY_COLOR_OTHER
+def test_token_color_same_meaning_in_every_language():
+    for lang in ("pt", "it", "de", "ru"):
+        assert token_color(20, RUN, "telefone", lang) == ENTITY_COLOR_DOMINANT

@@ -50,3 +50,4 @@ reports/*.log
 *.onnx
 hf_cache/
 lenses/
+reports/tokenization/

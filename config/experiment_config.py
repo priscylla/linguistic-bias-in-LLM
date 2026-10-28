@@ -1,108 +1,129 @@
-    # Entidade concorrente (narrativa alternativa) por fato e idioma.
-    # Usada para calcular o Commitment Score:
-    #
-    #     CS = P(expected_entity) - P(competing_entity)
-    #
-    # CS > 0  -> modelo favorece a narrativa cultural local
-    # CS ~= 0 -> modelo ambiguo, as duas narrativas competem
-    # CS < 0  -> modelo favorece a narrativa concorrente
-    #            mesmo quando perguntado naquele idioma
+"""
+config/experiment_config.py
+Acesso único à configuração do experimento.
+
+Os valores vêm dos arquivos YAML em config/ (experiment.yaml,
+facts.yaml, prompts.yaml) via config/loader.py. Esta classe só expõe
+esses valores e alguns derivados usados pelo pipeline atual.
+
+Pipeline atual (até a Fase 2 substituí-lo por run_lens.py): um
+Commitment Score de dois conjuntos por fato,
+
+    CS = P(local) − P(competing)
+
+com local = nomes de todos os candidatos não dominantes e
+competing = nomes do candidato dominante. O mesmo sentido em todos
+os idiomas, como o CS_e = P(e) − P(dominante) da Fase 2.
+"""
 
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import Dict, List
+
+from config.loader import (
+    Fact, Prompt, load_experiment, load_facts, load_prompts, prompts_for,
+)
 
 
 @dataclass
 class ExperimentConfig:
 
-    models: Dict[str, str] = field(default_factory=lambda: {
-        "llama":   "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        "mistral": "mistralai/Mistral-7B-Instruct-v0.3",
-        "qwen":    "Qwen/Qwen2.5-7B-Instruct",
-        "gemma":   "google/gemma-2-9b-it"
-    })
+    experiment: dict = field(default_factory=lambda: load_experiment())
+    fact_specs: Dict[str, Fact] = field(default_factory=lambda: load_facts())
+    prompt_specs: tuple = field(default_factory=lambda: load_prompts())
 
-    facts: List[str] = field(default_factory=lambda: ["aviao", "telefone"])
+    # ── Parâmetros gerais ──
+    @property
+    def models(self) -> Dict[str, str]:
+        return dict(self.experiment["models"])
 
-    languages: List[str] = field(default_factory=lambda: ["pt", "en", "de", "it"])
+    @property
+    def languages(self) -> List[str]:
+        return list(self.experiment["languages"])
 
-    formulations: List[str] = field(default_factory=lambda: ["F1", "F2", "F3"])
+    @property
+    def formulations(self) -> List[str]:
+        return list(self.experiment["formulations"])
 
-    # Idioma(s) com stake cultural por fato (narrativa local)
-    stake_languages: Dict[str, List[str]] = field(default_factory=lambda: {
-        "aviao":    ["pt"],
-        "telefone": ["it"],
-    })
+    @property
+    def facts(self) -> List[str]:
+        return list(self.fact_specs)
 
-    # Idioma de referência (ΔCS na Fase 2; idioma neutro nas figuras)
-    reference_language: str = "en"
+    @property
+    def reference_language(self) -> str:
+        return self.experiment["reference_language"]
 
-    # Zona de decisão: fração final da profundidade (0.30 = últimos 30%
-    # das camadas). Um único valor usado em todas as figuras e métricas.
-    decision_zone: float = 0.30
+    @property
+    def decision_zone(self) -> float:
+        return float(self.experiment["decision_zone"])
 
-    keyword_tokens: Dict[str, Dict[str, str]] = field(default_factory=lambda: {
-        "aviao": {
-            "pt": "avião", "en": "airplane",
-            "de": "Flugzeug", "it": "aereo"
-        },
-        "telefone": {
-            "pt": "telefone", "en": "telephone",
-            "de": "Telefon", "it": "telefono"
-        }
-    })
+    @property
+    def smoothing_windows(self) -> List[int]:
+        return list(self.experiment["smoothing_windows"])
 
-    expected_entities: Dict[str, Dict[str, List[str]]] = field(default_factory=lambda: {
-        "aviao": {
-            "pt": ["Santos", "Dumont"],
-            "en": ["Wright", "Brothers", "Orville", "Wilbur", "Kitty"],
-            "de": ["Wright", "Brothers", "Orville", "Wilbur", "Kitty"],
-            "it": ["Wright", "Brothers", "Orville", "Wilbur", "Kitty"]
-        },
-        "telefone": {
-            "pt": ["Bell", "Graham", "Alexander"],
-            "en": ["Bell", "Graham", "Alexander"],
-            "de": ["Bell", "Graham", "Alexander"],
-            "it": ["Meucci", "Antonio"]
-        }
-    })
+    @property
+    def common_word_zipf(self) -> float:
+        return float(self.experiment["common_word_zipf"])
 
-    competing_entities: Dict[str, Dict[str, List[str]]] = field(default_factory=lambda: {
-        "aviao": {
-            "pt": ["Wright", "Brothers", "Orville", "Wilbur", "Kitty"],
-            "en": ["Santos", "Dumont"],
-            "de": ["Santos", "Dumont"],
-            "it": ["Santos", "Dumont"]
-        },
-        "telefone": {
-            "pt": ["Meucci", "Antonio"],
-            "en": ["Meucci", "Antonio"],
-            "de": ["Meucci", "Antonio"],
-            "it": ["Bell", "Graham", "Alexander"]
-        }
-    })
+    @property
+    def heatmap_models(self) -> List[str]:
+        return list(self.experiment["heatmap_models"])
 
-    # Janelas de suavização das figuras de curva (só para os gráficos;
-    # métricas usam valores brutos). 1 = sem suavização. Cada figura de
-    # curva é gerada uma vez por janela (sufixos _w3 e _raw).
-    smoothing_windows: List[int] = field(default_factory=lambda: [3, 1])
+    @property
+    def dtype(self) -> str:
+        return self.experiment["dtype"]
 
-    # Modelos mostrados na figura combinada do heatmap de top tokens
-    heatmap_models: List[str] = field(default_factory=lambda: ["llama", "gemma"])
+    @property
+    def top_k_tokens(self) -> int:
+        return int(self.experiment["top_k_tokens"])
 
-    top_k_tokens: int = 10
-    # Precisão de carregamento dos modelos (bfloat16 | float16 | float32)
-    dtype: str        = "bfloat16"
-    results_dir: str  = "results"
-    figures_dir: str  = "figures"
-    seed: int         = 42
+    @property
+    def results_dir(self) -> str:
+        return self.experiment["results_dir"]
+
+    @property
+    def figures_dir(self) -> str:
+        return self.experiment["figures_dir"]
+
+    @property
+    def seed(self) -> int:
+        return int(self.experiment["seed"])
+
+    # ── Derivados de facts.yaml ──
+    @property
+    def keyword_tokens(self) -> Dict[str, Dict[str, str]]:
+        return {k: dict(f.keyword) for k, f in self.fact_specs.items()}
+
+    @property
+    def stake_languages(self) -> Dict[str, List[str]]:
+        """Idiomas com stake de algum candidato não dominante (narrativa local)."""
+        return {k: sorted({l for c in f.alternatives for l in c.stake_languages()})
+                for k, f in self.fact_specs.items()}
 
     def stake(self, fact: str, lang: str) -> bool:
-        """True se `lang` tem stake cultural no fato."""
+        """True se `lang` tem stake de uma narrativa não dominante no fato."""
         return lang in self.stake_languages.get(fact, [])
 
+    def entity_sets(self, fact: str, lang: str, case: str = "nom") -> Dict[str, List[str]]:
+        """Conjuntos do pipeline atual: local = alternativas, competing = dominante."""
+        f = self.fact_specs[fact]
+        local = [n for c in f.alternatives for n in c.names_for(lang, case)]
+        return {"local": local, "competing": f.dominant.names_for(lang, case)}
+
+    @property
+    def expected_entities(self) -> Dict[str, Dict[str, List[str]]]:
+        return {k: {l: self.entity_sets(k, l)["local"] for l in self.languages}
+                for k in self.fact_specs}
+
+    @property
+    def competing_entities(self) -> Dict[str, Dict[str, List[str]]]:
+        return {k: {l: self.entity_sets(k, l)["competing"] for l in self.languages}
+                for k in self.fact_specs}
+
+    # ── Prompts ──
+    def prompt(self, fact: str, lang: str, ptype: str, paraphrase: int = 1) -> Prompt:
+        return prompts_for(self.prompt_specs, fact, lang, ptype)[paraphrase - 1]
+
     def expected_cells(self) -> int:
-        """Número de runs esperados: modelos × fatos × idiomas × formulações."""
+        """Runs do pipeline atual: modelos × fatos × idiomas × formulações."""
         return (len(self.models) * len(self.facts)
                 * len(self.languages) * len(self.formulations))
-

@@ -27,3 +27,7 @@ setuptools>=68.0.0
 
 # ── Testes ──
 pytest>=8.0.0
+
+# ── Configuração e verificação de tokenização ──
+pyyaml>=6.0
+wordfreq>=3.1

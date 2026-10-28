@@ -4,15 +4,23 @@ Verificacao do setup ANTES de rodar os experimentos completos.
 
 Carrega apenas tokenizers (~30s) para verificar:
     0. Token HuggingFace — acesso a modelos restritos
-    1. Completion prompts — ultimo token correto por formulacao
+    1. Completion prompts — ultimo token por formulacao
     2. Keyword finding — localizacao de keywords nos tokens
+    3. Tokenizacao de nomes e indicadores apos cada prompt
+       (split, compartilhado entre candidatos, palavra comum)
 
-Nao verifica mais chat templates — removidos do pipeline.
-Executar sempre antes de run_single_model.py.
+A configuracao (config/*.yaml) e validada antes de tudo.
+Saidas: verification_report.json (resumo) e
+        reports/tokenization/{modelo}.csv (tabela completa).
+Executar sempre antes de rodar modelos.
 """
 
 import json
+import os
 import sys
+from pathlib import Path
+
+import pandas as pd
 from transformers import AutoTokenizer
 from huggingface_hub import HfApi
 
@@ -20,6 +28,11 @@ from config.experiment_config import ExperimentConfig
 from models.model_loader import get_hf_token, requires_token
 from data.keyword_finder import find_keyword_position_robust
 from data.prompts import COMPLETION_PROMPTS
+from config.loader import require_valid
+from data.tokenization_check import check_tokenizer
+from models.chat_template import apply_template
+
+TOKENIZATION_DIR = Path("reports") / "tokenization"
 
 
 def check_token_access(config: ExperimentConfig):
@@ -164,7 +177,49 @@ def check_keyword_finding(tokenizers: dict, config: ExperimentConfig):
     return problems
 
 
+def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
+    """
+    Verificacao 3: como cada nome e indicador tokeniza apos cada prompt.
+    QA so para tokenizers com chat template (modelos instruct).
+    """
+    print("\n" + "=" * 60)
+    print("VERIFICACAO 3: TOKENIZACAO DE NOMES E INDICADORES")
+    print("=" * 60)
+
+    TOKENIZATION_DIR.mkdir(parents=True, exist_ok=True)
+    summaries = {}
+
+    for model_key, tokenizer in tokenizers.items():
+        chat = None
+        if getattr(tokenizer, "chat_template", None):
+            chat = lambda tok, text, mk=model_key: apply_template(tok, mk, text)[0]
+
+        res = check_tokenizer(
+            model_key, tokenizer, config.fact_specs, config.prompt_specs,
+            zipf_threshold=config.common_word_zipf, chat_formatter=chat)
+
+        csv_path = TOKENIZATION_DIR / f"{model_key}.csv"
+        pd.DataFrame(res["rows"]).to_csv(csv_path, index=False)
+        summaries[model_key] = {**res["summary"], "csv": str(csv_path),
+                                "qa_checked": chat is not None}
+
+        c = res["summary"]["counts"]
+        print(f"\n[{model_key.upper()}] {res['summary']['n_rows']} linhas -> {csv_path}")
+        print(f"  split={c.get('split', 0)}  shared={c.get('shared', 0)}  "
+              f"common={c.get('common', 0)}  excluded={c.get('excluded', 0)}"
+              + ("" if chat else "  (QA nao verificado: sem chat template)"))
+        for issue in res["summary"]["issues"]:
+            if issue["flag"] in ("shared", "excluded"):
+                print(f"  {issue['flag']:8s} [{issue['fact']}][{issue['lang']}] "
+                      f"{issue['candidate']}: {issue['word']!r} -> {issue['token']!r}"
+                      + (f" (com {issue['shared_with']})" if issue["shared_with"] else ""))
+
+    return summaries
+
+
 def main():
+    # Configuracao consistente antes de carregar qualquer tokenizer
+    require_valid()
     config = ExperimentConfig()
 
     # ── Verificacao 0: Token ──
@@ -190,6 +245,9 @@ def main():
     # ── Verificacao 2: Keyword Finding ──
     problems = check_keyword_finding(tokenizers, config)
 
+    # ── Verificacao 3: Tokenizacao de nomes e indicadores ──
+    tokenization = check_name_tokenization(tokenizers, config)
+
     # ── Relatorio Final ──
     print("\n\n" + "=" * 60)
     print("RELATORIO FINAL")
@@ -213,7 +271,8 @@ def main():
     report = {
         "token_ok": token_ok,
         "prompts":  prompt_report,
-        "problems": problems
+        "problems": problems,
+        "tokenization": tokenization,
     }
     with open("verification_report.json", "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)

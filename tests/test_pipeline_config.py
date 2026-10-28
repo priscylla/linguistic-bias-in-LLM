@@ -40,9 +40,9 @@ def test_no_unaccented_forms(bad):
 def test_keyword_appears_in_every_prompt():
     for fact in CONFIG.facts:
         for lang in CONFIG.languages:
-            kw = CONFIG.keyword_tokens[fact][lang]
+            kw = CONFIG.keyword_tokens[fact][lang].casefold()
             for form in CONFIG.formulations:
-                assert kw in COMPLETION_PROMPTS[fact][lang][form]
+                assert kw in COMPLETION_PROMPTS[fact][lang][form].casefold()
 
 
 # ── Correção 10: contagem esperada vem do config ──
@@ -50,7 +50,6 @@ def test_keyword_appears_in_every_prompt():
 def test_expected_cells_from_config():
     assert CONFIG.expected_cells() == (len(CONFIG.models) * len(CONFIG.facts)
                                        * len(CONFIG.languages) * len(CONFIG.formulations))
-    assert CONFIG.expected_cells() == 96
 
 
 def test_check_results_all_valid(tmp_path):

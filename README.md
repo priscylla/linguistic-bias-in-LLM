@@ -31,4 +31,10 @@ python analyze.py                      # results/metrics_computed.{json,csv}
 python make_figures.py                 # figures/
 ```
 
-Models, facts, languages, formulations, stake languages, decision zone and smoothing windows are set in `config/experiment_config.py`.
+Configuration lives in YAML files, read by `config/loader.py`:
+
+- `config/experiment.yaml`: languages, prompt types, decision zone, smoothing, thresholds, models;
+- `config/facts.yaml`: facts, candidates, single-name sets per language (Russian by case), stakes, narrative indicators;
+- `config/prompts.yaml`: every prompt (3 paraphrases per type) with its review and grammar flags.
+
+`python scripts/make_review_doc.py` regenerates `reports/phase1_review.md` and `reports/prompts_review.md` from them. Runs refuse facts that are not `status: confirmed` and prompts that still need native review.

@@ -57,14 +57,17 @@ def test_analyze_then_make_figures(tmp_path):
     assert len(computed["gemma"]["telefone"]["it"]["F3"]
                ["metrics_last"]["commitment_curve"]) == 7
 
-    assert mf.main(["--results-dir", str(res), "--output-dir", str(figs)]) == 0
-    names = {p.name for p in figs.iterdir()}
-    assert {"fig1_w3.png", "fig1_raw.png", "fig6.png",
-            "fig3_logit_lens_aviao.png", "fig3_logit_lens_telefone_abs.png",
-            "fig3_logit_lens_aviao_llama.png",
-            "fig3_logit_lens_telefone_gemma_it_abs.png"} <= names
-    n_fig3 = len(config.facts) * 2 * (1 + len(config.models) * (1 + len(config.languages)))
-    assert len(names) == 3 + n_fig3
+    for fig in ("fig1", "fig6"):
+        assert mf.main(["--results-dir", str(res), "--output-dir", str(figs),
+                        "--fig", fig]) == 0
+    assert {p.name for p in figs.iterdir()} == {"fig1_w3.png", "fig1_raw.png", "fig6.png"}
+
+    # Heatmaps: um fato (todas as variantes de todos os fatos levariam minutos)
+    raw = analyze.load_raw_results(str(res), config)
+    mf.fig3_logit_lens_combined(raw, "telefone", str(figs / "fig3_telefone.png"))
+    mf.fig3_logit_lens_per_model(raw, "telefone", "qwen", str(figs / "fig3_qwen.png"), True)
+    mf.fig3_logit_lens_single(raw, "telefone", "gemma", "ru", str(figs / "fig3_one.png"))
+    assert {"fig3_telefone.png", "fig3_qwen.png", "fig3_one.png"} <= {p.name for p in figs.iterdir()}
 
 
 def test_model_layers_from_data():

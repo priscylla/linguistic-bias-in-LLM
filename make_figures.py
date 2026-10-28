@@ -217,17 +217,17 @@ def fig1_cultural_divergence_map(computed, output, window=3):
 # azul = a outra narrativa, cinza = demais tokens.
 # ══════════════════════════════════════════════════════════════
 
-def token_color(token_id, run, fact, lang):
+def token_color(token_id, run, fact=None, lang=None):
     """
     Cor do token pelo seu ID exato (nunca por substring).
 
-    Os conjuntos de ids vêm de run["entity_tokens"]. No idioma com stake
-    o conjunto "local" é o da narrativa local, então os papéis se invertem.
+    Os conjuntos de ids vêm de run["entity_tokens"]: "competing" é o
+    candidato dominante e "local" são as narrativas alternativas, no
+    mesmo sentido em todos os idiomas.
     """
-    sets  = (run.get("entity_tokens") or {}).get("sets", {})
-    local = set(sets.get("local", {}).get("ids", []))
-    comp  = set(sets.get("competing", {}).get("ids", []))
-    dominant, other = (comp, local) if CONFIG.stake(fact, lang) else (local, comp)
+    sets     = (run.get("entity_tokens") or {}).get("sets", {})
+    other    = set(sets.get("local", {}).get("ids", []))
+    dominant = set(sets.get("competing", {}).get("ids", []))
     if token_id in dominant:
         return ENTITY_COLOR_DOMINANT
     if token_id in other:
@@ -309,15 +309,15 @@ def _render_logit_lens_ax(ax, run, fact, model, lang, use_absolute):
         fontsize=7.5, fontweight="bold")
 
 
-def _narrative_label(words):
-    return "/".join(words[:2]) + " tokens" if words else "tokens"
+def _narrative_label(labels):
+    return " / ".join(labels) + " tokens" if labels else "tokens"
 
 
 def _logit_lens_legend(fig, fact):
     """Legenda: nomes das narrativas tirados dos conjuntos do config."""
-    ref = CONFIG.reference_language
-    dom = CONFIG.expected_entities.get(fact, {}).get(ref, [])
-    oth = CONFIG.competing_entities.get(fact, {}).get(ref, [])
+    spec = CONFIG.fact_specs[fact]
+    dom  = [spec.dominant.label]
+    oth  = [c.label for c in spec.alternatives]
     leg = [
         mpatches.Patch(facecolor=ENTITY_COLOR_DOMINANT, alpha=0.8, label=_narrative_label(dom)),
         mpatches.Patch(facecolor=ENTITY_COLOR_OTHER,    alpha=0.8, label=_narrative_label(oth)),

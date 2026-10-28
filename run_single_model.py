@@ -5,7 +5,7 @@ import torch
 from pathlib import Path
 
 from config.experiment_config import ExperimentConfig
-from data.prompts import COMPLETION_PROMPTS
+from config.loader import require_confirmed
 from models.model_loader import load_model
 from logit_lens.extractor import LogitLensExtractor
 from logit_lens.analyzer import LogitLensAnalyzer
@@ -17,6 +17,8 @@ VALID_MODELS = list(ExperimentConfig().models)
 
 def run_model(model_key: str):
     config = ExperimentConfig()
+    # Nenhum run com fatos não confirmados ou prompts sem revisão nativa
+    require_confirmed(config.fact_specs, config.prompt_specs)
     Path(config.results_dir).mkdir(exist_ok=True)
 
     output_path = os.path.join(
@@ -69,7 +71,8 @@ def run_model(model_key: str):
                     )
                     continue
 
-                prompt = COMPLETION_PROMPTS[fact][lang][formulation]
+                spec   = config.prompt(fact, lang, formulation, paraphrase=1)
+                prompt = spec.text
 
                 print(f"\n  [{current:3d}/{total}] [{fact}][{lang}][{formulation}]")
                 print(f"     Prompt: \"{prompt}\"")
@@ -89,10 +92,7 @@ def run_model(model_key: str):
                     logit_data = extractor.extract(
                         prompt=prompt,
                         keyword=keyword,
-                        entity_sets={
-                            "local":     config.expected_entities[fact][lang],
-                            "competing": config.competing_entities[fact][lang],
-                        }
+                        entity_sets=config.entity_sets(fact, lang, spec.slot_case)
                     )
 
                     n_layers = logit_data["n_layers"]
