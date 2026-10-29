@@ -183,3 +183,13 @@ def test_dry_run_quick(tmp_path):
     w = rep["workload"]["tiny_instruct"]
     assert w["logit_lens"]["forwards_prompts"] > 0 and w["behavioral"]["answers"] > 0
     assert (out / "figures" / "fig2_delta_cs.pdf").exists()
+
+
+def test_training_lock(tmp_path):
+    with ttl.TrainingLock(tmp_path / "llama") as lock:
+        assert lock.path.exists() and "pid" in lock.path.read_text()
+        with pytest.raises(RuntimeError, match="outro processo"):
+            ttl.TrainingLock(tmp_path / "llama").__enter__()
+    assert not (tmp_path / "llama" / "TRAINING.lock").exists()
+    with ttl.TrainingLock(tmp_path / "llama"):                       # liberado: pode de novo
+        pass

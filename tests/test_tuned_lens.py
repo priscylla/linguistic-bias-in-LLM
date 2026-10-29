@@ -301,3 +301,17 @@ def test_tuned_lens_config_valid_and_checks():
     assert any("não é instruct" in e for e in errs)
     assert any("ru: revision" in e for e in errs)
     assert any("múltiplo" in e for e in errs)
+
+
+def test_bf16_translators_train_save_load(tmp_path):
+    # Opção para GPUs de 24 GB (RUNNING_1GPU.md): tradutores em bf16
+    model = _model()
+    lens  = TunedLens(model, translator_dtype="bfloat16")
+    res   = train(lens, model, LensTok(), _sources(), tiny_tl(num_steps=4), FACTS, tmp_path / "c",
+                  log=lambda *a: None)
+    assert res["done"] and all(p.dtype == torch.bfloat16 for p in lens.translators.parameters())
+    lens.save(tmp_path / "l")
+    back = TunedLens.load(model, tmp_path / "l")
+    assert back.translator_dtype == torch.bfloat16
+    out = _out(model)
+    assert torch.allclose(back.layer_logits(out.hidden_states, 6), lens.layer_logits(out.hidden_states, 6))

@@ -23,6 +23,8 @@ de lenses/{modelo}/checkpoint.pt. Ao terminar os num_steps:
 
 import argparse
 import hashlib
+import os
+import socket
 import sys
 import time
 from pathlib import Path
@@ -105,6 +107,32 @@ def skip_reason(key, tl_cfg, lens_root=None, report_dir=REPORT_DIR, force=False)
     return None
 
 
+class TrainingLock:
+    """
+    lenses/{modelo}/TRAINING.lock: impede dois processos treinando o
+    mesmo modelo ao mesmo tempo (ex.: duas filas). Um lock de um processo
+    que morreu tem de ser apagado à mão (a mensagem diz qual arquivo).
+    """
+
+    def __init__(self, lens_dir):
+        self.path = Path(lens_dir) / "TRAINING.lock"
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            raise RuntimeError(f"{self.path} existe: outro processo está treinando este modelo "
+                               f"({self.path.read_text().strip()}). Se não estiver, apague o arquivo.")
+        with os.fdopen(fd, "w") as f:
+            f.write(f"pid {os.getpid()} em {socket.gethostname()}")
+        return self
+
+    def __exit__(self, *exc):
+        self.path.unlink(missing_ok=True)
+        return False
+
+
 def main(argv=None):
     config = ExperimentConfig()
     tl_cfg = load_tuned_lens()
@@ -127,10 +155,18 @@ def main(argv=None):
     require_confirmed(config.fact_specs, [])
 
     from models.model_loader import load_model
-    model, tok = load_model(args.model, config.registry)
-    sources = hf_sources(tl_cfg, config.languages)
-    s = run(args.model, model, tok, config, tl_cfg, sources, tl_cfg["lens_dir"], REPORT_DIR,
-            max_steps=args.max_steps, eval_only=args.eval_only)
+    try:
+        lock = TrainingLock(Path(tl_cfg["lens_dir"]) / args.model).__enter__()
+    except RuntimeError as e:
+        print(f"  ❌ {e}")
+        return 3
+    try:
+        model, tok = load_model(args.model, config.registry)
+        sources = hf_sources(tl_cfg, config.languages)
+        s = run(args.model, model, tok, config, tl_cfg, sources, tl_cfg["lens_dir"], REPORT_DIR,
+                max_steps=args.max_steps, eval_only=args.eval_only)
+    finally:
+        lock.__exit__(None, None, None)
     if torch.cuda.is_available():
         print(f"  pico de VRAM: {torch.cuda.max_memory_allocated() / 2**30:.1f} GiB")
     return 0 if s.get("done") else 2

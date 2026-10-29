@@ -92,7 +92,7 @@ Workload per model, counted by the full dry run (`run_pipeline_dry.py`, all 12 f
 
 On the dry run (CPU, tiny models, 2 models) the whole pipeline took 139 s and 1.3 GB of RAM; behavioral generation dominated (107 s).
 
-GPU memory (weights; activations add little at these prompt lengths): Llama 3.1 8B ~16 GB, Mistral 7B ~14.5 GB, Qwen 2.5 7B ~15 GB, Gemma 2 9B ~18.5 GB, Gemma 2 27B NF4 ~16–17 GB (about 55 GB in bf16, i.e. two GPUs), LLaMA-1 / Sabiá 7B ~13.5 GB. Tuned Lens training adds ~4 GB (translators + optimizer) plus the per-chunk logits: Gemma 2 9B needs a 48 GB GPU, or `seq_len: 1024` in `config/tuned_lens.yaml` on 24 GB.
+GPU memory (weights; activations add little at these prompt lengths): Llama 3.1 8B ~16 GB, Mistral 7B ~14.5 GB, Qwen 2.5 7B ~15 GB, Gemma 2 9B ~18.5 GB, Gemma 2 27B NF4 ~16–17 GB (about 55 GB in bf16, i.e. two GPUs), LLaMA-1 / Sabiá 7B ~13.5 GB. Tuned Lens training adds the translators, their gradients and the SGD momentum (~6 GB in float32 for Llama and Gemma) plus per-chunk logits: estimated peak ~22 GB (Mistral), ~21 GB (Qwen), ~24 GB (Llama), ~27 GB (Gemma). On a 24 GB GPU set `translator_dtype: bfloat16` in `config/tuned_lens.yaml` (saves ~3 GB), and for Gemma also `seq_len: 1024`, `loss_chunk_tokens: 256`.
 
 ## Configuration
 
