@@ -341,3 +341,31 @@ def test_baseline_uses_russian_slot_case():
         neutral, {"telefone": fact})
     words = [d["word"] for d in res["token_sets"]["telefone"]["sets"]["bell"]["words"]]
     assert words == ["Белла"]
+
+
+def test_prefix_forcing_recurses_until_candidates_diverge():
+    # " M" + "x" compartilhados; divergem no terceiro token -> profundidade 2
+    model  = build_tiny_model("llama", vocab=512)
+    tok    = WordTokenizer(splits={" Meucci": [" M", "x", "a"], " Graham": [" M", "x", "b"]})
+    runner = LensRunner(model, tok)
+    res    = runner.measure(P_F1, _fact())
+    w = {x["candidate"]: x for x in res["prefix_cases"][0]["words"]}
+    v = tok.vocab
+    assert w["bell"]["path"] == [v[" M"], v["x"], v["b"]] and w["bell"]["depth"] == 2
+    assert w["meucci"]["path"] == [v[" M"], v["x"], v["a"]] and w["meucci"]["status"] == "combined"
+    p_ids = encode_ids(tok, P_F1.text)
+    probs, _ = _manual_probs(model, tok, P_F1.text)
+    f1 = runner.forward_ids(p_ids + [v[" M"]])["probs"]
+    f2 = runner.forward_ids(p_ids + [v[" M"], v["x"]])["probs"]
+    for k in range(model.config.num_hidden_layers):
+        r = next(x for x in res["probs"] if x["candidate"] == "bell" and x["layer"] == k + 1)
+        expect = probs[k][v[" M"]] * f1[k][v["x"]] * f2[k][v["b"]]
+        assert r["prob_prefix"] == pytest.approx(expect.item(), abs=1e-9)
+
+
+def test_prefix_still_shared_after_max_depth():
+    from logit_lens.entity_tokens import build_token_sets, resolve_shared_prefixes
+    tok  = WordTokenizer(splits={" Meucci": [" M", "x", "y", "z", "a"], " Graham": [" M", "x", "y", "z", "b"]})
+    sets = build_token_sets(tok, P_F1.text, {"bell": ["Graham"], "meucci": ["Meucci"]})
+    case = resolve_shared_prefixes(tok, P_F1.text, sets, max_depth=3)[0]
+    assert {w["status"] for w in case["words"]} == {"next_shared"} and case["by_candidate"] == {}

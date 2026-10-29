@@ -25,7 +25,7 @@ from config.experiment_config import ExperimentConfig
 from models.model_loader import get_hf_token, load_tokenizer
 from config.loader import require_valid
 from data.tokenization_check import (
-    check_tokenizer, dropped_words, indicator_cells, prefix_forced, write_summary,
+    check_tokenizer, dropped_words, elision_check, indicator_cells, prefix_forced, write_summary,
 )
 from models.chat_template import apply_template
 
@@ -130,6 +130,10 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
         forced = prefix_forced(res["rows"])
         pd.DataFrame(forced).to_csv(TOKENIZATION_DIR / f"{model_key}_prefix_forced.csv", index=False)
         res["summary"]["n_prefix_forced"] = len(forced)
+        elis = elision_check(model_key, tokenizer, config.fact_specs, config.prompt_specs,
+                             config.forcing_spec)
+        pd.DataFrame(elis).to_csv(TOKENIZATION_DIR / f"{model_key}_elision.csv", index=False)
+        res["summary"]["elision"] = elis
         pd.DataFrame(cells).to_csv(TOKENIZATION_DIR / f"{model_key}_indicator_cells.csv", index=False)
         res["summary"]["n_dropped"] = len(dropped)
         res["summary"]["skipped_indicator_cells"] = [

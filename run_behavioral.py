@@ -28,7 +28,9 @@ from datetime import datetime, timezone
 
 from behavior.generation import Generator, effective_config
 from config.experiment_config import ExperimentConfig
-from config.loader import load_behavioral, prompts_for, require_confirmed, require_valid
+from config.loader import (
+    load_behavioral, load_prompts_meta, prompts_for, require_confirmed, require_valid,
+)
 from logit_lens.store import ChunkStore, behavioral_dir, read_manifest, write_manifest
 from models.runtime import (
     add_model_args, apply_gpus, check_resume, precision_tag, registry_with_dtype,
@@ -107,7 +109,8 @@ def main(argv=None):
     require_valid()
     # Prompts QA e fatos confirmados; as formas de superfície só são
     # exigidas na extração (analyze.py)
-    require_confirmed(config.fact_specs, config.prompt_specs)
+    require_confirmed(config.fact_specs, config.prompt_specs,
+                      prompts_status=load_prompts_meta()["status"])
     check_resume(read_manifest(out), spec, out)
 
     from models.chat_template import apply_template

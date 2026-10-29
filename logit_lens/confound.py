@@ -11,9 +11,16 @@ mede os candidatos (tokens únicos) na posição seguinte:
                   idioma → anexa a palavra; se o novo top-1 é o
                   substantivo plural ("os" → "irmãos"), força também
                   (segundo passo). O veredito usa o último passo.
-    contraction   prompts article_blocked ("inventado por"): troca a
-                  preposição final por cada forma contraída ("pelos"),
-                  uma passada por forma, com o mesmo segundo passo.
+    contraction   prompts cuja última palavra é uma preposição listada
+                  ("inventado por", "erfunden von"): troca a preposição
+                  por cada forma contraída ("pelos", "vom"), uma passada
+                  por forma, com o mesmo segundo passo.
+
+Artigos elididos (l', un'): força-se o radical ("l") e cada candidato é
+medido como apóstrofo + nome sem espaço ("'Edison", "’Edison"), o que vale
+para os dois jeitos de tokenizar o apóstrofo (ver elided_words). "un" e
+"un'" começam pelo mesmo token: "un" é forçado e, se o top-1 seguinte
+começa com apóstrofo, a posição é medida de novo na forma elidida.
 
 Primeiro token compartilhado entre candidatos (" São" de São Paulo /
 São Petersburgo, "M" de Mendeleev / Meyer): resolvido dentro de toda
@@ -58,6 +65,27 @@ def match_trigger(tokenizer, text: str, sep: str, add_special: bool,
 
 def _top1(res: Dict) -> int:
     return res["layers"][-1]["top_ids"][0]
+
+
+APOSTROPHES = ("'", "’")
+
+
+def is_elided(word: str) -> bool:
+    """Artigo elidido (l', un'): o nome seguinte vem colado ao apóstrofo."""
+    return word.endswith(APOSTROPHES)
+
+
+def elided_words(words: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    """
+    Palavras dos candidatos depois de um artigo elidido: apóstrofo + nome
+    ("'Edison", "’Edison"), anexadas sem espaço ao radical forçado ("l").
+    Funciona com os dois jeitos de tokenizar: quando o apóstrofo cola nas
+    letras seguintes (Llama 3, Qwen 2.5: "'Ed"), o primeiro token já é do
+    nome; quando o apóstrofo é um token separado (Mistral, Gemma, LLaMA-1),
+    ele é o primeiro token de todos os candidatos e o prefixo forçado
+    resolve (P(') × P(nome | ')).
+    """
+    return {cid: [a + w for a in APOSTROPHES for w in ws] for cid, ws in words.items()}
 
 
 class ConfoundTester:
@@ -109,26 +137,66 @@ class ConfoundTester:
                                                 token_set_kind(prompt.type)),
         })
 
+    def _elision_step(self, prompt, fact, steps: List[Dict], add_special: bool) -> bool:
+        """
+        Artigo com forma elidida na lista (it "un" / "un'"): o primeiro
+        token é o mesmo. Depois de forçar "un", se o top-1 seguinte começa
+        com apóstrofo (token "'" sozinho ou colado às letras, conforme o
+        tokenizer), a mesma posição é medida de novo com os candidatos na
+        forma elidida ("'Edison"). Devolve True se o passo foi dado.
+        """
+        prev = steps[-1]
+        stem = prev["trigger_token"]
+        if not any(is_elided(a) and a[:-1].casefold() == stem.casefold()
+                   for a in self.forcing.articles.get(prompt.lang, [])):
+            return False
+        top = self.runner.tokenizer.decode([_top1(prev["result"])]).strip()
+        if not top.startswith(APOSTROPHES):
+            return False
+        steps.append({
+            "step": len(steps) + 1, "forced_text": prev["forced_text"],
+            "suffix": prev["suffix"] + "'", "trigger_token": stem + "'",
+            "result": self.runner.measure_words(prev["forced_text"], "", add_special,
+                                                elided_words(self._words_nom(fact, prompt)),
+                                                token_set_kind(prompt.type)),
+        })
+        return True
+
     def article_pass(self, prompt, fact, main, text, sep, add_special) -> Optional[Dict]:
         words = (self.forcing.articles.get(prompt.lang, [])
                  + self.forcing.plural_for(prompt.lang, prompt.slot_case))
         word  = match_trigger(self.runner.tokenizer, text, sep, add_special, _top1(main), words)
         if word is None:
             return None
+        kind = token_set_kind(prompt.type)
+        if is_elided(word):
+            # Artigo elidido (l'): força o radical ("l") e mede os candidatos
+            # como apóstrofo + nome, sem espaço
+            forced = text + sep + word[:-1]
+            steps = [{"step": 1, "forced_text": forced, "suffix": sep + word, "trigger_token": word,
+                      "result": self.runner.measure_words(
+                          forced, "", add_special, elided_words(self._words_nom(fact, prompt)), kind)}]
+            return {"kind": "article", "pass_id": f"article:{word}", "steps": steps}
         forced = text + sep + word
         steps = [{
             "step": 1, "forced_text": forced, "suffix": sep + word, "trigger_token": word,
             "result": self.runner.measure_words(forced, " ", add_special,
-                                                self._words_nom(fact, prompt),
-                                                token_set_kind(prompt.type)),
+                                                self._words_nom(fact, prompt), kind),
         }]
-        self._plural_step(prompt, fact, steps, add_special, already=word)
+        if not self._elision_step(prompt, fact, steps, add_special):
+            self._plural_step(prompt, fact, steps, add_special, already=word)
         return {"kind": "article", "pass_id": f"article:{word}", "steps": steps}
 
-    # ── Contrações (prompts article_blocked) ──
+    # ── Contrações (última palavra é uma preposição listada) ──
 
     def contraction_passes(self, prompt, fact, text, add_special) -> List[Dict]:
-        if not prompt.article_blocked or prompt.format != "completion":
+        """
+        Uma passada por forma contraída da preposição final do prompt
+        (forcing.yaml contractions). Em pt/it/fr esses prompts são os
+        article_blocked; em de ("von", "in") o artigo pode seguir e a
+        contração ("vom", "im") é uma sonda a mais.
+        """
+        if prompt.format != "completion":
             return []
         prep  = last_word(text)
         base  = text.rstrip()[: -len(prep)]

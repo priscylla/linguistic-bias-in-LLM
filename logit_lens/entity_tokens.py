@@ -207,23 +207,30 @@ def prob_mass(probs: torch.Tensor, ids: Sequence[int]) -> float:
     return probs[idx].sum().item()
 
 
+MAX_PREFIX_DEPTH = 3
+
+
 def resolve_shared_prefixes(tokenizer, prompt: str, token_sets: Dict, sep: str = " ",
-                            add_special_tokens: bool = True) -> List[Dict]:
+                            add_special_tokens: bool = True,
+                            max_depth: int = MAX_PREFIX_DEPTH) -> List[Dict]:
     """
     Primeiro token compartilhado entre candidatos (decisão da autora,
-    2026-10-29): em vez de não contar para ninguém, o token compartilhado
-    s é forçado e cada candidato é medido pelo token seguinte:
+    2026-10-29): em vez de não contar para ninguém, o prefixo é forçado
+    e cada candidato é medido pelo token seguinte,
 
-        P(e) += P(s) × P(próximo_e | prompt + s)
+        P(e) += P(s) × P(t | prompt + s)
+
+    aplicado de novo enquanto os candidatos ainda compartilham tokens
+    (até `max_depth` tokens forçados): P(s) × P(t1 | s) × P(t2 | s t1)…
+    Ex.: depois de um artigo elidido, "'Mendeleev" e "'Meyer" compartilham
+    "'" e depois "M"; o caminho segue até "end" / "ey".
 
     Para cada s em token_sets["shared_dropped"]:
-        by_candidate  {candidato: ids distintos do token seguinte}
-        words         [{candidate, word, next_id, next_token, status}]
-                      status: combined | no_next_token (a palavra é o
-                      próprio token s) | next_shared (o token seguinte
-                      também coincide com outro candidato; não conta)
-
-    Um nível só: colisões no segundo token não são resolvidas.
+        by_candidate  {candidato: [caminhos de token IDs, começando em s]}
+        words         [{candidate, word, path, next_id, next_token, depth,
+                        status}]; status: combined | no_next_token (a
+                      palavra acaba dentro do prefixo compartilhado) |
+                      next_shared (ainda compartilhado após max_depth)
     """
     p_ids = encode_ids(tokenizer, prompt, add_special_tokens)
     i = len(p_ids)
@@ -236,27 +243,38 @@ def resolve_shared_prefixes(tokenizer, prompt: str, token_sets: Dict, sep: str =
                 if d["token_id"] != sid:
                     continue
                 full = encode_ids(tokenizer, prompt + sep + d["word"], add_special_tokens)
-                ok = full[:i] == p_ids and len(full) > i + 1 and full[i] == sid
-                words.append({"candidate": cid, "word": d["word"],
-                              "next_id": full[i + 1] if ok else None})
-        owners = {}
-        for w in words:
-            if w["next_id"] is not None:
-                owners.setdefault(w["next_id"], set()).add(w["candidate"])
+                rest = full[i:] if full[:i] == p_ids and len(full) > i and full[i] == sid else []
+                words.append({"candidate": cid, "word": d["word"], "seq": rest})
+
+        def split(group, depth):
+            """Separa o grupo pelo token na posição `depth` (depth 1 = após s)."""
+            by_tok = {}
+            for w in group:
+                if len(w["seq"]) <= depth:
+                    w.update(status="no_next_token", path=w["seq"], depth=depth - 1)
+                    continue
+                by_tok.setdefault(w["seq"][depth], []).append(w)
+            for tok_id, ws in by_tok.items():
+                if len({w["candidate"] for w in ws}) == 1:
+                    for w in ws:
+                        w.update(status="combined", path=w["seq"][:depth + 1], depth=depth)
+                elif depth < max_depth:
+                    split(ws, depth + 1)
+                else:
+                    for w in ws:
+                        w.update(status="next_shared", path=w["seq"][:depth + 1], depth=depth)
+
+        split(words, 1)
         by_cand = {}
         for w in words:
-            nid = w["next_id"]
-            if nid is None:
-                w["status"], w["next_token"] = "no_next_token", None
-                continue
-            w["next_token"] = tokenizer.decode([nid])
-            if len(owners[nid]) > 1:
-                w["status"] = "next_shared"
-                continue
-            w["status"] = "combined"
-            ids = by_cand.setdefault(w["candidate"], [])
-            if nid not in ids:
-                ids.append(nid)
+            w.pop("seq")
+            path = w["path"] = list(w["path"])
+            w["next_id"] = path[-1] if w["status"] == "combined" else None
+            w["next_token"] = (tokenizer.decode(path[1:]) if len(path) > 1 else None)
+            if w["status"] == "combined":
+                paths = by_cand.setdefault(w["candidate"], [])
+                if w["path"] not in paths:
+                    paths.append(w["path"])
         cases.append({"token_id": sid, "token": tokenizer.decode([sid]),
                       "candidates": sorted({w["candidate"] for w in words}),
                       "by_candidate": by_cand, "words": words})

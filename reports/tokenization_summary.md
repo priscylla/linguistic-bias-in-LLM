@@ -37,6 +37,25 @@ When candidates of the same fact share a first token, that token is forced and e
 
 None.
 
+## Elided articles (article-confound test)
+
+The stem is forced ("l", "un") and each candidate is measured as apostrophe + name with no space ("'Edison", "’Edison"). Counts are candidate words over all completion prompts of the language: own first token; resolved by prefix forcing at depth n; still shared after the maximum depth; merged at the boundary (excluded).
+
+| Models | Lang | Article | Trigger token | prefix_depth1 | prefix_depth2 | own_token |
+| --- | --- | --- | --- | --- | --- | --- |
+| gemma_base, gemma, gemma27 | it | l' | `' l'` | 996 | 12 | 144 |
+| gemma_base, gemma, gemma27 | it | un' | `' un'` | 996 | 12 | 144 |
+| gemma_base, gemma, gemma27 | fr | l' | `' l'` | 1002 | 0 | 144 |
+| llama_base, llama, qwen_base, qwen | it | l' | `' l'` | 784 | 42 | 326 |
+| llama_base, llama, qwen_base, qwen | it | un' | `' un'` | 784 | 42 | 326 |
+| llama_base, llama, qwen_base, qwen | fr | l' | `' l'` | 797 | 18 | 331 |
+| mistral_base, mistral | it | l' | `'l'` | 960 | 48 | 144 |
+| mistral_base, mistral | it | un' | `'un'` | 960 | 48 | 144 |
+| mistral_base, mistral | fr | l' | `'l'` | 966 | 36 | 144 |
+| sabia_base, sabia | it | l' | `'l'` | 912 | 96 | 144 |
+| sabia_base, sabia | it | un' | `'un'` | 912 | 96 | 144 |
+| sabia_base, sabia | fr | l' | `'l'` | 918 | 84 | 144 |
+
 ## Prompt types per fact
 
 | Fact | Kind | Prompt types | Skipped for some tokenizers |

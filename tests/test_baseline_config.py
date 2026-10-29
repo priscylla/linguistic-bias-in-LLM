@@ -32,10 +32,14 @@ def test_real_baseline_is_valid_and_complete():
     assert all(p.fact is None for p in BASELINE.prompts)
 
 
-def test_baseline_starts_proposed_with_native_review():
-    assert BASELINE.status == "proposed"
-    review = {p.lang for p in BASELINE.prompts if p.needs_native_review}
-    assert review == set(EXP["native_review_languages"])
+def test_baseline_confirmed_fr_de_it_author_checked():
+    # PT/EN aprovados; FR/DE/IT checados pela autora (não nativos), 2026-10-29
+    assert BASELINE.status == "confirmed"
+    assert not any(p.needs_native_review for p in BASELINE.prompts)
+    raw = _raw()["baseline"]
+    for lang in ("fr", "de", "it"):
+        assert "not native-reviewed" in raw[lang]["review_note"]
+    assert all("review_note" not in raw[l] for l in ("pt", "en"))
 
 
 def test_mirrors_real_prompt_shapes():
@@ -79,14 +83,14 @@ def test_require_confirmed_blocks_on_baseline():
     facts   = reviewed_facts(load_facts())
     prompts = [dataclasses.replace(p, needs_native_review=False) for p in PROMPTS]
     require_confirmed(facts, prompts)                       # sem linha de base: ok
+    require_confirmed(facts, prompts, BASELINE)               # confirmada
+    proposed = dataclasses.replace(BASELINE, status="proposed")
     with pytest.raises(UnconfirmedError, match="linha de base"):
-        require_confirmed(facts, prompts, BASELINE)
-    reviewed = dataclasses.replace(
-        BASELINE, prompts=tuple(dataclasses.replace(p, needs_native_review=False)
-                                for p in BASELINE.prompts))
-    with pytest.raises(UnconfirmedError, match="status"):
-        require_confirmed(facts, prompts, reviewed)
-    require_confirmed(facts, prompts, dataclasses.replace(reviewed, status="confirmed"))
+        require_confirmed(facts, prompts, proposed)
+    pending = dataclasses.replace(BASELINE, prompts=tuple(
+        dataclasses.replace(p, needs_native_review=True) for p in BASELINE.prompts))
+    with pytest.raises(UnconfirmedError, match="revisão nativa"):
+        require_confirmed(facts, prompts, pending)
 
 
 def test_config_baseline_prompt():

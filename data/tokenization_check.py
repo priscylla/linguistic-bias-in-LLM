@@ -267,6 +267,23 @@ def write_summary(tok_dir, out_path, model_order, facts, prompt_specs) -> str:
                        f"{g['valid_candidates'].iloc[0]} |")
     else:
         out.append("None.")
+    E = _load("*_elision.csv")
+    out += ["", "## Elided articles (article-confound test)", "",
+            "The stem is forced (\"l\", \"un\") and each candidate is measured as apostrophe + name "
+            "with no space (\"'Edison\", \"’Edison\"). Counts are candidate words over all completion "
+            "prompts of the language: own first token; resolved by prefix forcing at depth n; still shared "
+            "after the maximum depth; merged at the boundary (excluded).", ""]
+    if len(E):
+        cols = [c for c in E.columns if c not in ("model", "lang", "article", "trigger_tokens")]
+        out += ["| Models | Lang | Article | Trigger token | " + " | ".join(cols) + " |",
+                "| --- | --- | --- | --- | " + " | ".join("---" for _ in cols) + " |"]
+        E = E.fillna(0)
+        key_cols = ["lang", "article", "trigger_tokens"] + cols
+        for k, g in E.groupby(key_cols, sort=False):
+            vals = " | ".join(str(int(v)) for v in k[3:])
+            out.append(f"| {sort_models(g['model'])} | {k[0]} | {k[1]} | `{k[2]}` | {vals} |")
+    else:
+        out.append("No elided articles in the forcing words.")
     out += ["", "## Prompt types per fact", "",
             "| Fact | Kind | Prompt types | Skipped for some tokenizers |", "| --- | --- | --- | --- |"]
     for f, spec in facts.items():
@@ -279,3 +296,46 @@ def write_summary(tok_dir, out_path, model_order, facts, prompt_specs) -> str:
     text = "\n".join(out) + "\n"
     Path(out_path).write_text(text, encoding="utf-8")
     return text
+
+
+def elision_check(model_key: str, tokenizer, facts: Dict, prompts, forcing) -> List[Dict]:
+    """
+    Artigos elididos (forcing.yaml, ex.: it l', un'; fr l'): como o teste do
+    artigo os mede neste tokenizer. Para cada prompt completion do idioma,
+    força-se o radical ("l") e mede-se cada candidato como apóstrofo + nome
+    sem espaço (logit_lens/confound.py, elided_words). Uma linha por
+    idioma × artigo: token de gatilho e quantas palavras ficam com token
+    próprio, resolvidas por prefixo forçado (por profundidade), ainda
+    compartilhadas, ou excluídas por fusão na fronteira.
+    """
+    from collections import Counter
+
+    from logit_lens.confound import elided_words, is_elided
+    from logit_lens.entity_tokens import first_token_after
+
+    out = []
+    for lang, arts in forcing.articles.items():
+        for art in [a for a in arts if is_elided(a)]:
+            c, trig = Counter(), set()
+            for p in prompts:
+                if p.lang != lang or p.format != "completion":
+                    continue
+                trig.add(first_token_after(tokenizer, p.text, art)["token"])
+                forced = p.text + " " + art[:-1]
+                ts = build_token_sets(tokenizer, forced, elided_words(word_sets(facts[p.fact], p)), sep="")
+                cases = resolve_shared_prefixes(tokenizer, forced, ts, sep="")
+                status = {(w["candidate"], w["word"]): w for cs in cases for w in cs["words"]}
+                shared = {s["token_id"] for s in ts["shared_dropped"]}
+                for cid, info in ts["sets"].items():
+                    for d in info["words"]:
+                        if d["boundary_merge"]:
+                            c["merged"] += 1
+                        elif d["token_id"] in shared:
+                            w = status.get((cid, d["word"]), {})
+                            st = w.get("status", "unresolved")
+                            c[f"prefix_depth{w.get('depth')}" if st == "combined" else st] += 1
+                        else:
+                            c["own_token"] += 1
+            out.append({"model": model_key, "lang": lang, "article": art,
+                        "trigger_tokens": " | ".join(sorted(repr(t) for t in trig)), **dict(c)})
+    return out

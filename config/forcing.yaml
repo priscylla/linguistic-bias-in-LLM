@@ -8,38 +8,52 @@
 #                irmãos Lumière). Também dispara o teste e, se for o top-1
 #                depois do artigo forçado, é forçado em seguida
 #                ("... os" -> "... os irmãos").
-# contractions:  prompts article_blocked (a lacuna termina em preposição
-#                que contrai com artigo): a preposição final é trocada por
-#                cada forma contraída, uma passada por forma
-#                ("inventado por" -> "inventado pelos")
+# contractions:  prompts cuja última palavra é uma destas preposições: a
+#                preposição é trocada por cada forma contraída, uma
+#                passada por forma ("inventado por" -> "inventado pelos";
+#                de "erfunden von" -> "erfunden vom"). Em pt/it/fr esses
+#                prompts são os article_blocked; em de o artigo pode seguir
+#                ("von den"), e a contração é uma sonda a mais.
+# Artigos elididos (l', un'): força-se o radical ("l") e cada candidato é
+#                medido como apóstrofo + nome, sem espaço ("'Edison",
+#                "’Edison"). Nos 11 tokenizers verificados, "l'"/"un'" são
+#                " l"/" un" + apóstrofo; em Llama 3 e Qwen 2.5 o apóstrofo
+#                cola nas letras seguintes ("'Ed"), nos outros é um token
+#                separado (resolvido por prefixo forçado). " un" coincide com
+#                o artigo "un": "un" é forçado e, se o top-1 seguinte começa
+#                com apóstrofo, mede-se de novo na forma elidida. Elididos
+#                vêm por último na lista.
 #
 # Comparação pelo token ID exato no contexto do prompt; maiúscula inicial
-# também conta (formato QA: "The"). Formas elididas (l') ficam de fora:
-# não são seguidas de espaço.
+# também conta (formato QA: "The").
 #
-# status: proposed até a confirmação da autora.
+# status: confirmed (autora, 2026-10-29), com os acréscimos de de, it e fr.
 
-status: proposed
+status: confirmed
 
 articles:
   pt: [o, a, os, as, um, uma]
   en: [the, a, an]
   de: [der, die, das, den, dem, des, ein, eine, einen, einem, einer]
-  it: [il, lo, la, i, gli, le, un, uno, una]
-  fr: [le, la, les, un, une, des]
+  it: [il, lo, la, i, gli, le, un, uno, una, "l'", "un'"]
+  fr: [le, la, les, un, une, des, "l'"]
 
 plural_nouns:
   pt: [irmãos]
   en: [brothers]
-  de: [Brüder, Brüdern]
+  de: [Brüder, Brüdern, Gebrüder]
   it: [fratelli]
   fr: [frères]
 contractions:
   pt:
     por: [pelo, pela, pelos, pelas]
     em:  ["no", na, nos, nas]   # "no" entre aspas: sem elas o YAML lê false
+  de:
+    von: [vom]
+    in:  [im]
   it:
     da: [dal, dallo, dalla, dai, dagli, dalle]
     a:  [al, allo, alla, ai, agli, alle]
+    in: [nel, nello, nella, nei, negli, nelle]
   fr:
     à:  [au, aux]

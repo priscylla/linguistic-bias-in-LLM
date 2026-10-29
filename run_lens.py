@@ -55,7 +55,9 @@ import torch
 import transformers
 
 from config.experiment_config import ExperimentConfig
-from config.loader import CONFIG_DIR, load_models, prompts_for, require_confirmed, require_valid
+from config.loader import (
+    CONFIG_DIR, load_models, load_prompts_meta, prompts_for, require_confirmed, require_valid,
+)
 from logit_lens.confound import ConfoundTester
 from logit_lens.entity_tokens import (
     INDICATOR_TYPES, build_token_sets, indicator_cell_ok, resolve_shared_prefixes,
@@ -113,7 +115,8 @@ def _prefix_rows(keys, cases, source, extra=None):
                          "shared_token_id": case["token_id"], "shared_token": case["token"],
                          "candidates": ",".join(case["candidates"]), "candidate": w["candidate"],
                          "word": w["word"], "next_token_id": w["next_id"],
-                         "next_token": w["next_token"], "status": w["status"]})
+                         "next_token": w["next_token"], "depth": w["depth"],
+                         "path_ids": ",".join(map(str, w["path"])), "status": w["status"]})
     return rows
 
 
@@ -396,7 +399,8 @@ def main(argv=None):
     if not args.sanity_only:
         # Nada roda com valores não confirmados (a sanidade não usa resultados)
         require_confirmed(config.fact_specs, config.prompt_specs,
-                          config.baseline_spec, config.forcing_spec)
+                          config.baseline_spec, config.forcing_spec,
+                          prompts_status=load_prompts_meta()["status"])
         check_resume(read_manifest(out_dir), spec, out_dir)
 
     from models.model_loader import load_model

@@ -1,5 +1,5 @@
 # config/prompts.yaml
-# Prompts por fato × idioma × tipo (3 paráfrases cada).
+# Prompts por fato × idioma × tipo (3 paráfrases cada, salvo removed_paraphrases).
 # Rascunho gerado por scripts/draft_prompts.py; edite aqui (não no script).
 #
 # needs_native_review: true até a revisão de um falante nativo;
@@ -9,6 +9,10 @@
 #   contrai com artigo (pt por/em, it da/a, fr à): um candidato com
 #   artigo ('os irmãos Wright') não pode seguir diretamente.
 # Paráfrase 1 de F1–F3 em aviao/telefone (pt, en, de, it) = prompts antigos.
+
+# status: confirmed (todos os prompts aprovados pela autora em 2026-10-29;
+#   FR, DE, IT revisados por falantes nativos; reports/verified_values.md)
+status: confirmed
 
 prompts:
   aviao:
@@ -528,6 +532,10 @@ prompts:
       - text: Le nom du premier appareil cinématographique était
       - text: Le premier appareil cinématographique était connu sous le nom de
   calculo:
+    # place.2 ('first published in') removido pela autora em 2026-10-29: favorece
+    # quem publicou primeiro e convida nomes de periódicos. A paráfrase 3
+    # mantém o número 3 (pareada com a linha de base place.3).
+    removed_paraphrases: {place: [2]}
     pt:
       needs_native_review: false
       F1:
@@ -550,9 +558,8 @@ prompts:
       place:
       - text: O cálculo infinitesimal foi desenvolvido em
         article_blocked: true
-      - text: O cálculo infinitesimal foi publicado pela primeira vez em
-        article_blocked: true
       - text: O lugar onde o cálculo infinitesimal foi desenvolvido é
+        paraphrase: 3
     en:
       needs_native_review: false
       F1:
@@ -573,8 +580,8 @@ prompts:
       - text: Who is credited with developing calculus?
       place:
       - text: Calculus was developed in
-      - text: Calculus was first published in
       - text: The place where calculus was developed is
+        paraphrase: 3
     de:
       needs_native_review: false
       F1:
@@ -595,8 +602,8 @@ prompts:
       - text: Wem wird die Entwicklung der Infinitesimalrechnung zugeschrieben?
       place:
       - text: Die Infinitesimalrechnung wurde entwickelt in
-      - text: Die Infinitesimalrechnung wurde zum ersten Mal veröffentlicht in
       - text: Der Ort, an dem die Infinitesimalrechnung entwickelt wurde, ist
+        paraphrase: 3
     it:
       needs_native_review: false
       F1:
@@ -619,9 +626,8 @@ prompts:
       place:
       - text: Il calcolo infinitesimale è stato sviluppato a
         article_blocked: true
-      - text: Il calcolo infinitesimale è stato pubblicato per la prima volta a
-        article_blocked: true
       - text: Il luogo in cui il calcolo infinitesimale è stato sviluppato è
+        paraphrase: 3
     fr:
       needs_native_review: false
       F1:
@@ -643,9 +649,8 @@ prompts:
       place:
       - text: Le calcul infinitésimal a été développé à
         article_blocked: true
-      - text: Le calcul infinitésimal a été publié pour la première fois à
-        article_blocked: true
       - text: Le lieu où le calcul infinitésimal a été développé est
+        paraphrase: 3
   fotografia:
     pt:
       needs_native_review: false
@@ -786,6 +791,10 @@ prompts:
       - text: Le nom du premier procédé photographique était
       - text: Le premier procédé photographique était connu sous le nom de
   tabela_periodica:
+    # place.2 ('first published in') removido pela autora em 2026-10-29: favorece
+    # quem publicou primeiro e convida nomes de periódicos. A paráfrase 3
+    # mantém o número 3 (pareada com a linha de base place.3).
+    removed_paraphrases: {place: [2]}
     pt:
       needs_native_review: false
       F1:
@@ -808,9 +817,8 @@ prompts:
       place:
       - text: A tabela periódica foi desenvolvida em
         article_blocked: true
-      - text: A tabela periódica foi publicada pela primeira vez em
-        article_blocked: true
       - text: O lugar onde a tabela periódica foi desenvolvida é
+        paraphrase: 3
     en:
       needs_native_review: false
       F1:
@@ -831,8 +839,8 @@ prompts:
       - text: Who is credited with developing the periodic table?
       place:
       - text: The periodic table was developed in
-      - text: The periodic table was first published in
       - text: The place where the periodic table was developed is
+        paraphrase: 3
     de:
       needs_native_review: false
       F1:
@@ -853,8 +861,8 @@ prompts:
       - text: Wem wird die Entwicklung des Periodensystems zugeschrieben?
       place:
       - text: Das Periodensystem wurde entwickelt in
-      - text: Das Periodensystem wurde zum ersten Mal veröffentlicht in
       - text: Der Ort, an dem das Periodensystem entwickelt wurde, ist
+        paraphrase: 3
     it:
       needs_native_review: false
       F1:
@@ -877,9 +885,8 @@ prompts:
       place:
       - text: La tavola periodica è stata sviluppata a
         article_blocked: true
-      - text: La tavola periodica è stata pubblicata per la prima volta a
-        article_blocked: true
       - text: Il luogo in cui la tavola periodica è stata sviluppata è
+        paraphrase: 3
     fr:
       needs_native_review: false
       F1:
@@ -901,9 +908,8 @@ prompts:
       place:
       - text: Le tableau périodique a été développé à
         article_blocked: true
-      - text: Le tableau périodique a été publié pour la première fois à
-        article_blocked: true
       - text: Le lieu où le tableau périodique a été développé est
+        paraphrase: 3
   penicilina:
     pt:
       needs_native_review: false

@@ -28,7 +28,20 @@ def _raw(name):
 # ── Estrutura e validação ──
 
 def test_real_config_is_valid():
-    assert validate(EXP, FACTS, PROMPTS) == []
+    from config.loader import load_prompts_meta
+    meta = load_prompts_meta()
+    assert validate(EXP, FACTS, PROMPTS, meta["removed"]) == []
+    assert meta["status"] == "confirmed"
+    assert meta["removed"] == {"calculo": {"place": [2]}, "tabela_periodica": {"place": [2]}}
+    # paráfrase 3 mantém o número (pareada com a linha de base place.3)
+    for f in ("calculo", "tabela_periodica"):
+        for lang in LANGS:
+            assert [p.paraphrase for p in prompts_for(PROMPTS, f, lang, "place")] == [1, 3]
+    # removida: "publicado pela primeira vez"
+    assert not any("primeira vez" in p.text or "first published" in p.text
+                   for p in PROMPTS if p.fact in ("calculo", "tabela_periodica"))
+    errs = validate(EXP, FACTS, PROMPTS)                # sem declarar a remoção: erro
+    assert any("calculo" in e and "place" in e for e in errs)
 
 
 def test_languages_and_facts():
@@ -251,15 +264,23 @@ def test_indicator_prompts_need_two_candidates():
     assert "place" in types("tabela_periodica")                   # Meyer agora tem Karlsruhe
     assert not FACTS["telefone"].indicator_prompt_ok("artifact", "it")   # só Meucci
     assert FACTS["telefone"].indicator_prompt_ok("place", "it")
-    assert len(PROMPTS) == 810           # 11 fatos × 5 idiomas
+    assert len(PROMPTS) == 800           # 11 fatos × 5 idiomas, menos place.2 de 2 fatos
 
 
 def test_run_lens_refuses_unconfirmed(monkeypatch):
+    import dataclasses
     import models.model_loader
     import run_lens
     monkeypatch.setattr(models.model_loader, "load_model",
                         lambda *a, **k: pytest.fail("não deveria carregar o modelo"))
-    with pytest.raises(UnconfirmedError):
+    base = ExperimentConfig()
+    monkeypatch.setattr(run_lens, "ExperimentConfig", lambda: dataclasses.replace(
+        base, forcing_spec=dataclasses.replace(base.forcing_spec, status="proposed")))
+    with pytest.raises(UnconfirmedError, match="forcing"):
+        run_lens.main(["--model", "llama"])
+    monkeypatch.setattr(run_lens, "ExperimentConfig", lambda: base)
+    monkeypatch.setattr(run_lens, "load_prompts_meta", lambda: {"status": "proposed"})
+    with pytest.raises(UnconfirmedError, match="prompts"):
         run_lens.main(["--model", "llama"])
 
 

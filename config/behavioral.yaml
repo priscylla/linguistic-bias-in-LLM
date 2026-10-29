@@ -5,10 +5,9 @@
 # empírico pelas respostas em inglês agregadas, amostra de validação
 # estratificada por modelo × idioma.
 #
-# status: proposed até a confirmação das formas de superfície.
-# A extração recusa rodar enquanto estiver pendente.
+# status: confirmed (autora, 2026-10-29).
 
-status: proposed
+status: confirmed
 
 generation:
   # Modelos instruct do registro (kind: instruct), formato QA
@@ -36,6 +35,8 @@ report:
 # diacríticos (data/text_matching.py), em toda resposta, em qualquer
 # idioma.
 #   latin:            formas (sobrenomes, variantes, nomes completos)
+#   case_sensitive:   formas que só contam com a caixa exata (acentos
+#                     continuam ignorados); ex.: "Bell", não "bell"
 #   exclude:          formas que sozinhas não contam naquele idioma da
 #                     resposta (palavras comuns); as formas mais longas
 #                     que as contêm continuam valendo
@@ -49,6 +50,7 @@ surface_forms:
   telefone:
     bell:
       latin: [Bell, Graham Bell]
+      case_sensitive: [Bell]      # só com B maiúsculo: "bell" (sino) não conta
     meucci:
       latin: [Meucci]
     reis:

@@ -5,32 +5,25 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 ## Status
 
 - **Code:** all phases are implemented and committed. The pre-revision code is tagged `pre-facct-revision`.
-- **Tests:** 296 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s).
+- **Tests:** 302 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s).
 - **Dry run:** `python run_pipeline_dry.py` runs the whole pipeline on tiny models (CPU, no network) and passes: sanity, Logit Lens, behavioral generation, Tuned Lens training and re-measurement, analysis and statistics, 40 figures, both LaTeX tables, integrity checks, validation agreement. About 105 s, about 1.1 GB RAM.
 - **No real-model runs**, no downloads of weights, and no Tuned Lens training were done. Everything that needs a GPU is a command in `RUNNING_1GPU.md` and `RUNNING_multiGPU.md`.
 - **Runs are blocked** until the values below are confirmed. The scripts refuse to start, with a message listing what is pending.
 
-## Blocking the runs (unconfirmed)
+## Blocking the runs
 
-Updated 2026-10-29, after the author's decisions: Russian left the study (five languages: PT, EN, DE, IT, FR); the lightbulb fact was removed (11 facts); the facts are confirmed; the FR, DE and IT prompts were reviewed by native speakers. Everything still proposed is listed, with an ID per item, in [`reports/review_pt_en_and_support.md`](review_pt_en_and_support.md).
+**Nothing.** As of 2026-10-29 every value the pipeline uses is confirmed and logged in [`reports/verified_values.md`](verified_values.md):
+- the facts;
+- the prompts (all PT/EN approved; FR, DE and IT reviewed by native speakers; `calculo` and `tabela_periodica` place.2 removed);
+- the neutral baseline prompts (FR, DE and IT checked by the author, not native-reviewed);
+- the forcing words, with the German, Italian and French additions;
+- the behavioral surface forms (*Bell* case-sensitive).
 
-| # | What | Where | Blocks |
-| --- | --- | --- | --- |
-| 1 | PT and EN prompts other than the 6 PT prompts confirmed in Phase 0 (318 prompts; the code doesn't gate on them, but they aren't confirmed) | `config/prompts.yaml`; section a of the review document | should be confirmed before the lens and behavioral runs |
-| 2 | Neutral baseline prompts: `status: proposed`; FR, DE and IT blocks still marked for native review (the native review covered `config/prompts.yaml`) | `config/baseline_prompts.yaml`; section b | lens runs |
-| 3 | Article-confound forcing words: `status: proposed` | `config/forcing.yaml`; section c | lens runs |
-| 4 | Behavioral surface forms: `status: proposed` | `config/behavioral.yaml`; section d | behavioral analysis (generation itself can run) |
-
-**Tuned Lens training can start now:** it needs only the confirmed facts. `python train_tuned_lens.py --model llama` (then `mistral`, `qwen`, `gemma`).
-
-**Figure width:** set to 5.95 in (430.00462pt, acmart v2.21 manuscript), measured by the author.
+[`reports/review_pt_en_and_support.md`](review_pt_en_and_support.md) confirms that nothing is still proposed. The sanity check, lens runs, behavioral generation and analysis, and Tuned Lens training can all start.
 
 **Tokenization check** (2026-10-29, 11 tokenizers; [`reports/tokenization_summary.md`](tokenization_summary.md)):
-- **Resolved by prefix forcing** (shared token forced, P(prefix) × P(next | prefix)):
-  - radio places in PT and IT (São/San Paulo vs Petersburgo/Pietroburgo), all models;
-  - cinema artifacts in PT and IT with the Mistral tokenizers (`cin` → `emat` / `et`);
-  - Mendeleev/Meyer in QA (`M` → `end` / `ey`) for Llama, Mistral and Qwen instruct.
-- **Still dropped:** no word. **Indicator cells skipped:** none.
+- Every name and indicator is measured: no word dropped, no place or artifact cell skipped. Shared first tokens are resolved by prefix forcing.
+- **Elided articles** (it *l'*, *un'*; fr *l'*): every candidate word after the elided article is measured, by its own token or through prefix forcing at depth ≤ 2. Forcing the whole *l'* would have excluded up to 37% of names in Llama 3 and Qwen 2.5, which glue the apostrophe to the next letters; forcing the stem avoids that.
 
 ## What changed, by phase
 
@@ -52,7 +45,9 @@ Updated 2026-10-29, after the author's decisions: Russian left the study (five l
 
 | Phase 1 answers | 7693874 | Facts confirmed and logged (33 entries); Russian forms pending review tracked per candidate; place/artifact prompts only with two candidates (54 artifact prompts removed: telephone, radio, calculus; skipped per tokenizer when needed, recorded); tokenization check on the 11 real tokenizers; figures sized for the single-column acmart manuscript (width pending measurement); behavioral report no longer fails when a candidate is never cited. |
 
-| Later decisions | this commit | Russian and the lightbulb fact removed (5 languages, 11 facts, 810 prompts); FR/DE/IT prompts reviewed; shared first tokens resolved by prefix forcing in every measurement, each case logged (`prefix_forcing` table); figure width 5.95 in; `reports/review_pt_en_and_support.md`. |
+| Later decisions | 848dd02 | Russian and the lightbulb fact removed (5 languages, 11 facts, 810 prompts); FR/DE/IT prompts reviewed; shared first tokens resolved by prefix forcing in every measurement, each case logged (`prefix_forcing` table); figure width 5.95 in; `reports/review_pt_en_and_support.md`. |
+
+| Final review | this commit | All PT/EN prompts, baseline prompts, forcing words and surface forms confirmed; place.2 of calculus and periodic table removed (800 prompts, paraphrase numbers kept); German/Italian/French forcing additions with stem-forcing for elided articles and contraction passes by last word; prefix forcing recursive to depth 3; *Bell* case-sensitive; elided-article audit in the tokenization check. |
 
 ## Decisions (asked and answered)
 
@@ -105,6 +100,10 @@ Updated 2026-10-29, after the author's decisions: Russian left the study (five l
 | Later | Native review | FR, DE, IT prompts confirmed by native speakers |
 | Later | Shared first tokens | Force the prefix and combine P(prefix) × P(next \| prefix), any pair, any format; log every case |
 | Later | Figure width | 5.95 in (430.00462pt) |
+| Final review | PT and EN prompts | All approved; calculus and periodic-table place.2 removed in all languages |
+| Final review | Baseline prompts | Approved; FR, DE, IT checked by the author, not native-reviewed |
+| Final review | Forcing words | Approved, plus de *Gebrüder*, *vom*, *im*; it *l'*, *un'*, *nel…*; fr *l'* |
+| Final review | Surface forms | Approved; *Bell* case-sensitive |
 
 ## Choices I made (implementation details worth knowing)
 

@@ -25,7 +25,13 @@ def _raw():
 
 def test_real_forcing_is_valid():
     assert validate_forcing(EXP, FORCING, PROMPTS) == []
-    assert FORCING.status == "proposed"
+    assert FORCING.status == "confirmed"
+    # acréscimos da autora (2026-10-29)
+    assert "Gebrüder" in FORCING.plural_for("de")
+    assert FORCING.contraction_forms("de", "von") == ["vom"]
+    assert FORCING.contraction_forms("de", "in") == ["im"]
+    assert FORCING.contraction_forms("it", "in") == ["nel", "nello", "nella", "nei", "negli", "nelle"]
+    assert FORCING.articles["it"][-2:] == ["l'", "un'"] and FORCING.articles["fr"][-1] == "l'"
 
 
 def test_values():
@@ -52,6 +58,6 @@ def test_require_confirmed_blocks_on_forcing():
     from conftest import reviewed_facts
     facts   = reviewed_facts(load_facts())
     prompts = [dataclasses.replace(p, needs_native_review=False) for p in load_prompts()]
+    require_confirmed(facts, prompts, forcing=FORCING)
     with pytest.raises(UnconfirmedError, match="forcing"):
-        require_confirmed(facts, prompts, forcing=FORCING)
-    require_confirmed(facts, prompts, forcing=dataclasses.replace(FORCING, status="confirmed"))
+        require_confirmed(facts, prompts, forcing=dataclasses.replace(FORCING, status="proposed"))

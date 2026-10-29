@@ -146,28 +146,30 @@ class LensRunner:
 
     def prefix_mass(self, fw: Dict, p_ids: List[int], cases: List[Dict], cache: Dict = None) -> Dict:
         """
-        Contribuição do prefixo forçado por candidato e camada:
-            Σ_s P_k(s) × P_k(próximo_e | prompt + s)
-        Um forward por token compartilhado s (com a mesma checagem da
-        última camada). `cache` reaproveita forwards de s entre fatos.
+        Contribuição dos prefixos forçados por candidato e camada:
+            Σ_caminhos  P_k(s) × P_k(t1 | prompt + s) × … × P_k(tn | prompt + s … t(n-1))
+        Um forward por prefixo distinto (com a mesma checagem da última
+        camada). `cache` reaproveita forwards entre fatos (linha de base).
 
         Returns:
             {candidato: tensor [n_layers]}
         """
         out = {}
         cache = {} if cache is None else cache
+
+        def probs_after(prefix):
+            key = tuple(prefix)
+            if key not in cache:
+                cache[key] = self.forward_ids(list(p_ids) + list(prefix))["probs"]
+            return cache[key]
+
         for case in cases:
-            if not any(case["by_candidate"].values()):
-                continue
-            sid = case["token_id"]
-            if sid not in cache:
-                cache[sid] = self.forward_ids(list(p_ids) + [sid])["probs"]
-            nxt = cache[sid]
-            p_s = fw["probs"][:, sid]
-            for cid, ids in case["by_candidate"].items():
-                if ids:
-                    add = p_s * nxt[:, sorted(set(ids))].sum(dim=-1)
-                    out[cid] = out.get(cid, 0) + add
+            for cid, paths in case["by_candidate"].items():
+                for path in paths:
+                    mass = fw["probs"][:, path[0]]
+                    for j in range(1, len(path)):
+                        mass = mass * probs_after(path[:j])[:, path[j]]
+                    out[cid] = out.get(cid, 0) + mass
         return out
 
     @staticmethod

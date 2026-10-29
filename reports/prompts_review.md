@@ -420,7 +420,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Quem foi o criador do cálculo infinitesimal?
 - QA.3: A quem se atribui o desenvolvimento do cálculo infinitesimal?
 - place.1: O cálculo infinitesimal foi desenvolvido em ⛔
-- place.2: O cálculo infinitesimal foi publicado pela primeira vez em ⛔
 - place.3: O lugar onde o cálculo infinitesimal foi desenvolvido é
 
 ### en
@@ -438,7 +437,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Who was the creator of calculus?
 - QA.3: Who is credited with developing calculus?
 - place.1: Calculus was developed in
-- place.2: Calculus was first published in
 - place.3: The place where calculus was developed is
 
 ### de
@@ -456,7 +454,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Wer war der Begründer der Infinitesimalrechnung?
 - QA.3: Wem wird die Entwicklung der Infinitesimalrechnung zugeschrieben?
 - place.1: Die Infinitesimalrechnung wurde entwickelt in
-- place.2: Die Infinitesimalrechnung wurde zum ersten Mal veröffentlicht in
 - place.3: Der Ort, an dem die Infinitesimalrechnung entwickelt wurde, ist
 
 ### it
@@ -474,7 +471,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Chi è stato il creatore del calcolo infinitesimale?
 - QA.3: A chi si attribuisce lo sviluppo del calcolo infinitesimale?
 - place.1: Il calcolo infinitesimale è stato sviluppato a ⛔
-- place.2: Il calcolo infinitesimale è stato pubblicato per la prima volta a ⛔
 - place.3: Il luogo in cui il calcolo infinitesimale è stato sviluppato è
 
 ### fr
@@ -492,7 +488,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Qui était le créateur du calcul infinitésimal ?
 - QA.3: À qui attribue-t-on le développement du calcul infinitésimal ?
 - place.1: Le calcul infinitésimal a été développé à ⛔
-- place.2: Le calcul infinitésimal a été publié pour la première fois à ⛔
 - place.3: Le lieu où le calcul infinitésimal a été développé est
 
 ## `fotografia`
@@ -619,7 +614,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Quem foi o criador da tabela periódica?
 - QA.3: A quem se atribui o desenvolvimento da tabela periódica?
 - place.1: A tabela periódica foi desenvolvida em ⛔
-- place.2: A tabela periódica foi publicada pela primeira vez em ⛔
 - place.3: O lugar onde a tabela periódica foi desenvolvida é
 
 ### en
@@ -637,7 +631,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Who was the creator of the periodic table?
 - QA.3: Who is credited with developing the periodic table?
 - place.1: The periodic table was developed in
-- place.2: The periodic table was first published in
 - place.3: The place where the periodic table was developed is
 
 ### de
@@ -655,7 +648,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Wer war der Begründer des Periodensystems?
 - QA.3: Wem wird die Entwicklung des Periodensystems zugeschrieben?
 - place.1: Das Periodensystem wurde entwickelt in
-- place.2: Das Periodensystem wurde zum ersten Mal veröffentlicht in
 - place.3: Der Ort, an dem das Periodensystem entwickelt wurde, ist
 
 ### it
@@ -673,7 +665,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Chi è stato il creatore della tavola periodica?
 - QA.3: A chi si attribuisce lo sviluppo della tavola periodica?
 - place.1: La tavola periodica è stata sviluppata a ⛔
-- place.2: La tavola periodica è stata pubblicata per la prima volta a ⛔
 - place.3: Il luogo in cui la tavola periodica è stata sviluppata è
 
 ### fr
@@ -691,7 +682,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Qui était le créateur du tableau périodique ?
 - QA.3: À qui attribue-t-on le développement du tableau périodique ?
 - place.1: Le tableau périodique a été développé à ⛔
-- place.2: Le tableau périodique a été publié pour la première fois à ⛔
 - place.3: Le lieu où le tableau périodique a été développé est
 
 ## `penicilina`
@@ -1004,7 +994,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 
 ## Neutral baseline (`config/baseline_prompts.yaml`)
 
-Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the real prompts in the same language (same slot ending, Russian case and ⛔ flag; the validator checks this). Topics: names = *the novel / its author*, place = *the bridge*, artifact = *the first ship*.
+Status: `confirmed`. Paraphrase *i* of each type mirrors paraphrase *i* of the real prompts in the same language (same slot ending, Russian case and ⛔ flag; the validator checks this). Topics: names = *the novel / its author*, place = *the bridge*, artifact = *the first ship*.
 
 ### pt
 
@@ -1048,7 +1038,7 @@ Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the re
 - artifact.2: The name of the first ship was
 - artifact.3: The first ship was known as the
 
-### de (native review pending)
+### de
 
 - F1.1: Der Roman wurde geschrieben von
 - F1.2: Der Roman wurde ursprünglich geschrieben von
@@ -1069,7 +1059,7 @@ Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the re
 - artifact.2: Der Name des ersten Schiffs war
 - artifact.3: Das erste Schiff war bekannt als
 
-### it (native review pending)
+### it
 
 - F1.1: Il romanzo è stato scritto da ⛔
 - F1.2: A scrivere il romanzo è stato
@@ -1090,7 +1080,7 @@ Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the re
 - artifact.2: Il nome della prima nave era
 - artifact.3: La prima nave era conosciuta come
 
-### fr (native review pending)
+### fr
 
 - F1.1: Le roman a été écrit par
 - F1.2: Le roman a été écrit à l'origine par
@@ -1113,12 +1103,12 @@ Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the re
 
 ## Article-confound forcing words (`config/forcing.yaml`)
 
-Status: `proposed`. **Articles** trigger the test when the final layer's top token is one of them; the word is appended and the candidates are measured at the next position. **Plural nouns** also trigger it, and are forced as a second step when they follow a forced article (*os → irmãos*). **Contractions** replace the final preposition of ⛔ prompts, one pass per form.
+Status: `confirmed`. **Articles** trigger the test when the final layer's top token is one of them; the word is appended and the candidates are measured at the next position. **Plural nouns** also trigger it, and are forced as a second step when they follow a forced article (*os → irmãos*). **Contractions** replace the final preposition of ⛔ prompts, one pass per form.
 
 | Language | Articles | Plural nouns | Contractions |
 | --- | --- | --- | --- |
 | pt | o, a, os, as, um, uma | irmãos | por → pelo, pela, pelos, pelas<br>em → no, na, nos, nas |
 | en | the, a, an | brothers | — |
-| de | der, die, das, den, dem, des, ein, eine, einen, einem, einer | Brüder, Brüdern | — |
-| it | il, lo, la, i, gli, le, un, uno, una | fratelli | da → dal, dallo, dalla, dai, dagli, dalle<br>a → al, allo, alla, ai, agli, alle |
-| fr | le, la, les, un, une, des | frères | à → au, aux |
+| de | der, die, das, den, dem, des, ein, eine, einen, einem, einer | Brüder, Brüdern, Gebrüder | von → vom<br>in → im |
+| it | il, lo, la, i, gli, le, un, uno, una, l', un' | fratelli | da → dal, dallo, dalla, dai, dagli, dalle<br>a → al, allo, alla, ai, agli, alle<br>in → nel, nello, nella, nei, negli, nelle |
+| fr | le, la, les, un, une, des, l' | frères | à → au, aux |

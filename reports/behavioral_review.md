@@ -1,6 +1,6 @@
 # Behavioral extraction review: surface forms
 
-Generated from `config/behavioral.yaml` (edit the YAML). Status: `proposed`. Extraction refuses to run until it is confirmed.
+Generated from `config/behavioral.yaml` (edit the YAML). Status: `confirmed`. Extraction refuses to run until it is confirmed.
 
 A candidate is mentioned when any of its forms appears as a whole word, ignoring case and accents, in an answer in any language. **Excluded** forms don't count on their own in answers in that language (common words); longer forms containing them still count. First names alone never count.
 
@@ -8,7 +8,7 @@ A candidate is mentioned when any of its forms appears as a whole word, ignoring
 | --- | --- | --- | --- |
 | `aviao` | Wright brothers | Wright, Orville Wright, Wilbur Wright | — |
 | `aviao` | Alberto Santos-Dumont | Santos-Dumont, Santos Dumont, Dumont | — |
-| `telefone` | Alexander Graham Bell | Bell, Graham Bell | — |
+| `telefone` | Alexander Graham Bell | Bell *(exact case)*, Graham Bell | — |
 | `telefone` | Antonio Meucci | Meucci | — |
 | `telefone` | Johann Philipp Reis | Reis, Philipp Reis, Johann Philipp Reis | pt: Reis |
 | `radio` | Guglielmo Marconi | Marconi | — |

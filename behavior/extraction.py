@@ -18,7 +18,7 @@ português que credita os Wright mas cita o 14-bis).
 
 from typing import Dict, List
 
-from data.text_matching import compile_terms, normalize_text
+from data.text_matching import compile_terms, normalize_text, strip_accents
 
 NONE = "none"
 
@@ -27,10 +27,19 @@ class Extractor:
 
     def __init__(self, facts: Dict, behavioral, languages: List[str]):
         self.facts = facts
-        # (fato, idioma) -> {candidato: padrão}
-        self.cand = {(k, l): {c.id: compile_terms(behavioral.forms_for(k, c.id, l))
-                              for c in f.candidates}
-                     for k, f in facts.items() for l in languages}
+        # (fato, idioma) -> {candidato: (padrão sem caixa, padrão com caixa)}
+        # Formas case_sensitive (ex.: "Bell") só contam com a caixa exata;
+        # acentos continuam ignorados nas duas
+        self.cand = {}
+        for k, f in facts.items():
+            for l in languages:
+                pats = {}
+                for c in f.candidates:
+                    exact = set(behavioral.case_sensitive_for(k, c.id))
+                    forms = behavioral.forms_for(k, c.id, l)
+                    pats[c.id] = (compile_terms([x for x in forms if x not in exact]),
+                                  compile_terms([x for x in forms if x in exact], casefold=False))
+                self.cand[(k, l)] = pats
         # fato -> [(candidato, tipo, palavra, padrão)]
         self.ind = {}
         for k, f in facts.items():
@@ -44,11 +53,19 @@ class Extractor:
 
     def candidates(self, text: str, fact: str, lang: str) -> Dict:
         norm  = normalize_text(text or "")
+        keep  = strip_accents(text or "")
         first = {}
-        for cid, pat in self.cand[(fact, lang)].items():
+        for cid, (pat, exact) in self.cand[(fact, lang)].items():
+            hits = []
             m = pat.search(norm) if pat is not None else None
             if m:
-                first[cid] = m.start()
+                hits.append(m.start())
+            m = exact.search(keep) if exact is not None else None
+            if m:
+                # posição no texto com casefold (que pode mudar o comprimento, ß -> ss)
+                hits.append(len(keep[:m.start()].casefold()))
+            if hits:
+                first[cid] = min(hits)
         order = sorted(first, key=lambda c: (first[c], c))
         return {"primary": order[0] if order else NONE, "order": order,
                 "also_cited": order[1:], "positions": first}

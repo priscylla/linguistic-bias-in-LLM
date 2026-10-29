@@ -47,13 +47,13 @@ def _raw():
 
 def test_config_valid_and_pending():
     assert validate_behavioral(EXP, FACTS, B) == []
-    assert B.status == "proposed"
+    assert B.status == "confirmed"
     g = B.generation
     assert (g["greedy"], g["samples"], g["temperature"], g["top_p"], g["top_k"],
             g["max_new_tokens"]) == (1, 10, 0.7, 1.0, 0, 200)
     with pytest.raises(UnconfirmedError, match="formas de superfície"):
-        require_confirmed({}, [], behavioral=B)
-    require_confirmed({}, [], behavioral=BC)
+        require_confirmed({}, [], behavioral=dataclasses.replace(B, status="proposed"))
+    require_confirmed({}, [], behavioral=B)
 
 
 @pytest.mark.parametrize("mutate,msg", [
@@ -228,7 +228,10 @@ def test_behavioral_metrics():
     assert set(ir["given_primary"]) >= {"any", "bell"}
 
 
-def test_analyze_skips_behavioral_when_unconfirmed(tmp_path, capsys):
+def test_analyze_skips_behavioral_when_unconfirmed(tmp_path, capsys, monkeypatch):
+    import config.loader
+    monkeypatch.setattr(config.loader, "load_behavioral",
+                        lambda *a, **k: dataclasses.replace(B, status="proposed"))
     out = behavioral_dir(str(tmp_path), "m1")
     out.mkdir(parents=True)
     _answers([("m1", "telefone", "en", "Bell")]).to_parquet(out / "answers.parquet")
@@ -302,3 +305,15 @@ def test_report_when_a_candidate_is_never_cited():
     pre = rep[(rep.question == "precedence:telefone:reis<meucci") & (rep.scope == "pooled")
               & (rep.lang == "de")].iloc[0]
     assert pre.n_citing_either == 2 and pre.value == 0.0 and pre.n_citing_both == 0
+
+
+def test_bell_is_case_sensitive():
+    # Decisão da autora: "Bell" só com B maiúsculo, em todo idioma
+    assert B.case_sensitive_for("telefone", "bell") == ["Bell"]
+    for lang in ("en", "pt", "de", "it", "fr"):
+        assert EX.candidates("the bell rang, then Meucci", "telefone", lang)["order"] == ["meucci"]
+        assert EX.candidates("Bell, then Meucci", "telefone", lang)["order"] == ["bell", "meucci"]
+    assert EX.candidates("graham bell", "telefone", "en")["order"] == ["bell"]   # forma completa
+    # posição exata mesmo com ß (casefold muda o comprimento)
+    assert EX.candidates("Straße, Meucci, dann Bell", "telefone", "de")["order"] == ["meucci", "bell"]
+    assert EX.candidates("Straßeß Bell, dann Meucci", "telefone", "de")["order"] == ["bell", "meucci"]

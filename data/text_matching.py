@@ -13,11 +13,15 @@ import unicodedata
 from typing import Dict, List, Optional, Sequence, Tuple
 
 
+def strip_accents(text: str) -> str:
+    """Remove diacríticos (NFKD sem marcas combinantes), mantendo a caixa."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 def normalize_text(text: str) -> str:
     """Remove diacríticos (NFKD sem marcas combinantes) e aplica casefold."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    stripped   = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return stripped.casefold()
+    return strip_accents(text).casefold()
 
 
 def _pattern(term: str) -> re.Pattern:
@@ -59,13 +63,15 @@ def groups_by_order(text: str, groups: Dict[str, Sequence[str]]) -> List[str]:
     return sorted(firsts, key=firsts.get)
 
 
-def compile_terms(terms: Sequence[str]) -> Optional[re.Pattern]:
+def compile_terms(terms: Sequence[str], casefold: bool = True) -> Optional[re.Pattern]:
     """
     Um único padrão (alternância, termos mais longos primeiro) com a
     mesma regra de find_terms; para varrer textos longos uma vez só.
-    Aplicar ao texto já normalizado (normalize_text). None se vazio.
+    Aplicar ao texto já normalizado: normalize_text, ou strip_accents
+    com casefold=False (termos que só contam com a caixa exata). None se vazio.
     """
-    norm = sorted({normalize_text(t) for t in terms if t.strip()}, key=len, reverse=True)
+    norm_fn = normalize_text if casefold else strip_accents
+    norm = sorted({norm_fn(t) for t in terms if t.strip()}, key=len, reverse=True)
     if not norm:
         return None
     return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(t) for t in norm) + r")(?!\w)")

@@ -220,6 +220,10 @@ class Behavioral:
         return [x for x in list(f.get("latin") or []) + list(f.get("cyrillic") or [])
                 if normalize(x) not in excl]
 
+    def case_sensitive_for(self, fact: str, cid: str) -> List[str]:
+        """Formas que só contam com a caixa exata (ex.: "Bell", não "bell")."""
+        return list(self.forms[fact][cid].get("case_sensitive") or [])
+
 
 def normalize(text: str) -> str:
     from data.text_matching import normalize_text
@@ -276,16 +280,24 @@ def load_facts(config_dir: str = str(CONFIG_DIR)) -> Dict[str, Fact]:
     return parse_facts(_read_yaml(Path(config_dir) / "facts.yaml"))
 
 
+BLOCK_META = {"needs_native_review", "review_note"}
+
+
 def _parse_block(fact: Optional[str], lang: str, block: dict) -> List[Prompt]:
-    """Bloco {needs_native_review, tipo: [paráfrases]} de um idioma."""
+    """
+    Bloco {needs_native_review, review_note, tipo: [paráfrases]} de um
+    idioma. A paráfrase é a posição na lista, salvo `paraphrase: n`
+    explícito (usado quando uma paráfrase foi removida: as outras mantêm
+    o número, que as pareia com a linha de base).
+    """
     out    = []
     review = bool(block.get("needs_native_review", False))
     for ptype, items in block.items():
-        if ptype == "needs_native_review":
+        if ptype in BLOCK_META:
             continue
         for i, item in enumerate(items, start=1):
             out.append(Prompt(
-                fact=fact, lang=lang, type=ptype, paraphrase=i,
+                fact=fact, lang=lang, type=ptype, paraphrase=int(item.get("paraphrase", i)),
                 text=item["text"],
                 slot_case=item.get("slot_case", BASE_CASE),
                 article_blocked=bool(item.get("article_blocked", False)),
@@ -297,8 +309,24 @@ def parse_prompts(raw: dict) -> List[Prompt]:
     out = []
     for fact, by_lang in (raw.get("prompts") or {}).items():
         for lang, block in by_lang.items():
+            if lang == "removed_paraphrases":
+                continue
             out += _parse_block(fact, lang, block)
     return out
+
+
+def parse_removed(raw: dict) -> Dict[str, Dict[str, List[int]]]:
+    """{fato: {tipo: [paráfrases removidas]}} (decisões registradas)."""
+    return {f: {t: list(v) for t, v in (by_lang.get("removed_paraphrases") or {}).items()}
+            for f, by_lang in (raw.get("prompts") or {}).items()
+            if by_lang.get("removed_paraphrases")}
+
+
+@lru_cache(maxsize=None)
+def load_prompts_meta(config_dir: str = str(CONFIG_DIR)) -> dict:
+    """status do arquivo de prompts e paráfrases removidas."""
+    raw = _read_yaml(Path(config_dir) / "prompts.yaml")
+    return {"status": raw.get("status"), "removed": parse_removed(raw)}
 
 
 def parse_baseline(raw: dict) -> Baseline:
@@ -377,8 +405,12 @@ def prompts_for(prompts, fact: str = None, lang: str = None, ptype: str = None) 
 # Validação
 # ══════════════════════════════════════════════════════════════
 
-def validate(exp: dict, facts: Dict[str, Fact], prompts) -> List[str]:
-    """Lista de problemas (vazia se tudo consistente)."""
+def validate(exp: dict, facts: Dict[str, Fact], prompts, removed=None) -> List[str]:
+    """
+    Lista de problemas (vazia se tudo consistente). `removed`:
+    {fato: {tipo: [paráfrases removidas]}} (prompts.yaml).
+    """
+    removed = removed or {}
     errs   = []
     langs  = list(exp["languages"])
     n_par  = exp["paraphrases"]
@@ -443,8 +475,12 @@ def validate(exp: dict, facts: Dict[str, Fact], prompts) -> List[str]:
                 types += [t for t in exp["indicator_types"] if f.indicator_prompt_ok(t, lang)]
             for t in types:
                 got = seen.get((key, lang, t), [])
-                if len(got) != n_par:
-                    errs.append(f"prompts.{key}.{lang}.{t}: {len(got)} paráfrases (esperado {n_par})")
+                drop = set(removed.get(key, {}).get(t, []))
+                want = [i for i in range(1, n_par + 1) if i not in drop]
+                nums = sorted(p.paraphrase for p in got)
+                if nums != want:
+                    errs.append(f"prompts.{key}.{lang}.{t}: {len(got)} paráfrases {nums} "
+                                f"(esperado {want})")
             extra = {t for (k, l, t) in seen if k == key and l == lang} - set(types)
             if extra:
                 errs.append(f"prompts.{key}.{lang}: tipos sem dois candidatos com indicadores "
@@ -622,6 +658,9 @@ def validate_behavioral(exp: dict, facts: Dict[str, Fact], b: Behavioral) -> Lis
                     errs.append(f"behavioral.surface_forms.{key}: '{x}' em {owner[n]} e {cid}")
                 owner[n] = cid
             norm = {normalize(x) for x in forms if isinstance(x, str)}
+            for x in spec.get("case_sensitive") or []:
+                if x not in forms:
+                    errs.append(f"behavioral.surface_forms.{key}.{cid}.case_sensitive: '{x}' não é forma")
             for lang, ex in (spec.get("exclude") or {}).items():
                 if lang not in langs:
                     errs.append(f"behavioral.surface_forms.{key}.{cid}.exclude: idioma '{lang}'")
@@ -657,7 +696,10 @@ def validate_behavioral(exp: dict, facts: Dict[str, Fact], b: Behavioral) -> Lis
 
 def require_valid(config_dir: str = str(CONFIG_DIR)):
     prompts = load_prompts(config_dir)
-    errs = validate(load_experiment(config_dir), load_facts(config_dir), prompts)
+    meta = load_prompts_meta(config_dir)
+    errs = validate(load_experiment(config_dir), load_facts(config_dir), prompts, meta["removed"])
+    if meta["status"] not in STATUSES:
+        errs.append(f"prompts: status '{meta['status']}' inválido")
     baseline = load_baseline(config_dir)
     errs += validate_baseline(load_experiment(config_dir), baseline, prompts)
     errs += validate_forcing(load_experiment(config_dir), load_forcing(config_dir),
@@ -674,7 +716,8 @@ def require_valid(config_dir: str = str(CONFIG_DIR)):
 def require_confirmed(facts: Dict[str, Fact], prompts,
                       baseline: Optional[Baseline] = None,
                       forcing: Optional[Forcing] = None,
-                      behavioral: Optional["Behavioral"] = None) -> None:
+                      behavioral: Optional["Behavioral"] = None,
+                      prompts_status: Optional[str] = None) -> None:
     """
     Falha se algum fato ainda não foi confirmado, algum prompt espera
     revisão nativa ou (se dada) a linha de base não foi confirmada.
@@ -690,16 +733,18 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
         if langs_b:
             pend_base.append(f"revisão nativa pendente {langs_b}")
     pend_force = forcing is not None and forcing.status != "confirmed"
+    pend_prompts = prompts_status is not None and prompts_status != "confirmed"
     pend_beh   = []
     if behavioral is not None:
         if behavioral.status != "confirmed":
             pend_beh.append("status != confirmed")
-    if pend_facts or pend_review or pend_base or pend_force or pend_beh:
+    if pend_facts or pend_review or pend_base or pend_force or pend_beh or pend_prompts:
         langs = sorted({l for _, l in pend_review})
         raise UnconfirmedError(
             "Valores não confirmados — runs bloqueados.\n"
             f"  fatos com status != confirmed: {pend_facts}\n"
-            f"  prompts com revisão nativa pendente: {len(pend_review)} blocos "
+            f"  prompts: {'status != confirmed; ' if pend_prompts else ''}"
+            f"revisão nativa pendente em {len(pend_review)} blocos "
             f"(idiomas {langs})\n"
             f"  linha de base: {'; '.join(pend_base) or 'ok'}\n"
             f"  forcing (artigos/contrações): {'status != confirmed' if pend_force else 'ok'}\n"

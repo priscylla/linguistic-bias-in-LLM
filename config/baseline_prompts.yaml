@@ -12,11 +12,11 @@
 #   place:             "a ponte"
 #   artifact:          "o primeiro navio"
 #
-# status: proposed até a confirmação da autora; needs_native_review como
-# em prompts.yaml. Runs recusam a linha de base enquanto qualquer um
-# estiver pendente.
+# status: confirmed (autora, 2026-10-29). PT e EN aprovados; FR, DE e IT
+# aprovados depois de uma checagem não nativa da autora (review_note), sem
+# revisão por falantes nativos.
 
-status: proposed
+status: confirmed
 
 baseline:
   pt:
@@ -75,7 +75,8 @@ baseline:
     - text: The name of the first ship was
     - text: The first ship was known as the
   de:
-    needs_native_review: true
+    needs_native_review: false
+    review_note: "checked by the author (non-native), no errors found, 2026-10-29; not native-reviewed"
     F1:
     - text: Der Roman wurde geschrieben von
     - text: Der Roman wurde ursprünglich geschrieben von
@@ -101,7 +102,8 @@ baseline:
     - text: Der Name des ersten Schiffs war
     - text: Das erste Schiff war bekannt als
   it:
-    needs_native_review: true
+    needs_native_review: false
+    review_note: "checked by the author (non-native), no errors found, 2026-10-29; not native-reviewed"
     F1:
     - text: Il romanzo è stato scritto da
       article_blocked: true
@@ -130,7 +132,8 @@ baseline:
     - text: Il nome della prima nave era
     - text: La prima nave era conosciuta come
   fr:
-    needs_native_review: true
+    needs_native_review: false
+    review_note: "checked by the author (non-native), no errors found, 2026-10-29; not native-reviewed"
     F1:
     - text: Le roman a été écrit par
     - text: Le roman a été écrit à l'origine par
