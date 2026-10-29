@@ -153,9 +153,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: O telefone foi inventado em ⛔
 - place.2: O telefone foi demonstrado pela primeira vez em ⛔
 - place.3: O lugar onde o telefone foi inventado é
-- artifact.1: O primeiro telefone se chamava
-- artifact.2: O nome do primeiro telefone era
-- artifact.3: O primeiro telefone era conhecido como
 
 ### en
 
@@ -174,9 +171,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: The telephone was invented in
 - place.2: The telephone was first demonstrated in
 - place.3: The place where the telephone was invented is
-- artifact.1: The first telephone was called the
-- artifact.2: The name of the first telephone was
-- artifact.3: The first telephone was known as the
 
 ### de (native review pending)
 
@@ -195,9 +189,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Das Telefon wurde erfunden in
 - place.2: Das Telefon wurde zum ersten Mal vorgeführt in
 - place.3: Der Ort, an dem das Telefon erfunden wurde, ist
-- artifact.1: Das erste Telefon hieß
-- artifact.2: Der Name des ersten Telefons war
-- artifact.3: Das erste Telefon war bekannt als
 
 ### it (native review pending)
 
@@ -216,9 +207,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Il telefono è stato inventato a ⛔
 - place.2: Il telefono è stato presentato per la prima volta a ⛔
 - place.3: Il luogo in cui il telefono è stato inventato è
-- artifact.1: Il primo telefono si chiamava
-- artifact.2: Il nome del primo telefono era
-- artifact.3: Il primo telefono era conosciuto come
 
 ### fr (native review pending)
 
@@ -237,9 +225,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Le téléphone a été inventé à ⛔
 - place.2: Le téléphone a été présenté pour la première fois à ⛔
 - place.3: Le lieu où le téléphone a été inventé est
-- artifact.1: Le premier téléphone s'appelait
-- artifact.2: Le nom du premier téléphone était
-- artifact.3: Le premier téléphone était connu sous le nom de
 
 ### ru (native review pending)
 
@@ -258,9 +243,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Место изобретения телефона —
 - place.2: Местом изобретения телефона считается
 - place.3: Место, где телефон был изобретён, —
-- artifact.1: Первый телефон назывался
-- artifact.2: Название первого телефона —
-- artifact.3: Первый телефон был известен как
 
 ## `radio`
 
@@ -281,9 +263,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: O rádio foi inventado em ⛔
 - place.2: O rádio foi demonstrado pela primeira vez em ⛔
 - place.3: O lugar onde o rádio foi inventado é
-- artifact.1: O primeiro receptor de rádio se chamava
-- artifact.2: O nome do primeiro receptor de rádio era
-- artifact.3: O primeiro receptor de rádio era conhecido como
 
 ### en
 
@@ -302,9 +281,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: The radio was invented in
 - place.2: The radio was first demonstrated in
 - place.3: The place where the radio was invented is
-- artifact.1: The first radio receiver was called the
-- artifact.2: The name of the first radio receiver was
-- artifact.3: The first radio receiver was known as the
 
 ### de (native review pending)
 
@@ -323,9 +299,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Das Radio wurde erfunden in
 - place.2: Das Radio wurde zum ersten Mal vorgeführt in
 - place.3: Der Ort, an dem das Radio erfunden wurde, ist
-- artifact.1: Der erste Radioempfänger hieß
-- artifact.2: Der Name des ersten Radioempfängers war
-- artifact.3: Der erste Radioempfänger war bekannt als
 
 ### it (native review pending)
 
@@ -344,9 +317,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: La radio è stata inventata a ⛔
 - place.2: La radio è stata presentata per la prima volta a ⛔
 - place.3: Il luogo in cui la radio è stata inventata è
-- artifact.1: Il primo ricevitore radio si chiamava
-- artifact.2: Il nome del primo ricevitore radio era
-- artifact.3: Il primo ricevitore radio era conosciuto come
 
 ### fr (native review pending)
 
@@ -365,9 +335,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: La radio a été inventée à ⛔
 - place.2: La radio a été présentée pour la première fois à ⛔
 - place.3: Le lieu où la radio a été inventée est
-- artifact.1: Le premier récepteur radio s'appelait
-- artifact.2: Le nom du premier récepteur radio était
-- artifact.3: Le premier récepteur radio était connu sous le nom de
 
 ### ru (native review pending)
 
@@ -386,9 +353,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Место изобретения радио —
 - place.2: Местом изобретения радио считается
 - place.3: Место, где радио было изобретено, —
-- artifact.1: Первый радиоприёмник назывался
-- artifact.2: Название первого радиоприёмника —
-- artifact.3: Первый радиоприёмник был известен как
 
 ## `lampada`
 
@@ -647,9 +611,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: O cálculo infinitesimal foi desenvolvido em ⛔
 - place.2: O cálculo infinitesimal foi publicado pela primeira vez em ⛔
 - place.3: O lugar onde o cálculo infinitesimal foi desenvolvido é
-- artifact.1: O cálculo infinitesimal foi originalmente chamado de
-- artifact.2: O nome original do cálculo infinitesimal era
-- artifact.3: O cálculo infinitesimal era conhecido inicialmente como
 
 ### en
 
@@ -668,9 +629,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Calculus was developed in
 - place.2: Calculus was first published in
 - place.3: The place where calculus was developed is
-- artifact.1: Calculus was originally called the
-- artifact.2: The original name of calculus was
-- artifact.3: Early calculus was known as the
 
 ### de (native review pending)
 
@@ -689,9 +647,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Die Infinitesimalrechnung wurde entwickelt in
 - place.2: Die Infinitesimalrechnung wurde zum ersten Mal veröffentlicht in
 - place.3: Der Ort, an dem die Infinitesimalrechnung entwickelt wurde, ist
-- artifact.1: Die Infinitesimalrechnung hieß ursprünglich
-- artifact.2: Der ursprüngliche Name der Infinitesimalrechnung war
-- artifact.3: Die Infinitesimalrechnung war anfangs bekannt als
 
 ### it (native review pending)
 
@@ -710,9 +665,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Il calcolo infinitesimale è stato sviluppato a ⛔
 - place.2: Il calcolo infinitesimale è stato pubblicato per la prima volta a ⛔
 - place.3: Il luogo in cui il calcolo infinitesimale è stato sviluppato è
-- artifact.1: Il calcolo infinitesimale era originariamente chiamato
-- artifact.2: Il nome originale del calcolo infinitesimale era
-- artifact.3: Il calcolo infinitesimale era inizialmente noto come
 
 ### fr (native review pending)
 
@@ -731,9 +683,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Le calcul infinitésimal a été développé à ⛔
 - place.2: Le calcul infinitésimal a été publié pour la première fois à ⛔
 - place.3: Le lieu où le calcul infinitésimal a été développé est
-- artifact.1: Le calcul infinitésimal s'appelait à l'origine
-- artifact.2: Le nom original du calcul infinitésimal était
-- artifact.3: Le calcul infinitésimal était d'abord connu sous le nom de
 
 ### ru (native review pending)
 
@@ -752,9 +701,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Место создания математического анализа —
 - place.2: Местом создания математического анализа считается
 - place.3: Место, где математический анализ был разработан, —
-- artifact.1: Первоначально математический анализ назывался
-- artifact.2: Первоначальное название математического анализа —
-- artifact.3: Математический анализ сначала был известен как
 
 ## `fotografia`
 

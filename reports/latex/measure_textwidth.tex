@@ -1,0 +1,18 @@
+% Mede a largura de texto do formato da FAccT 2027 (acmart, uma coluna).
+% Compile com pdflatex (ou no Overleaf) e copie o valor em polegadas para
+% config/experiment.yaml (figures.text_width_in). O valor também sai no log
+% (linhas TEXTWIDTH=..., COLUMNWIDTH=...).
+\documentclass[manuscript,screen,review,anonymous]{acmart}
+\makeatletter
+\newcommand\inches[1]{\strip@pt\dimexpr 0.01383700013837\dimexpr#1\relax\relax}
+\makeatother
+\begin{document}
+\title{Text width}
+\maketitle
+\typeout{TEXTWIDTH=\the\textwidth}
+\typeout{COLUMNWIDTH=\the\columnwidth}
+\noindent
+\textbackslash textwidth = \the\textwidth\ (\inches{\textwidth}~in)\\
+\textbackslash columnwidth = \the\columnwidth\ (\inches{\columnwidth}~in)\\
+font size = \makeatletter\f@size\makeatother~pt
+\end{document}

@@ -205,10 +205,6 @@ prompts:
       - text: O telefone foi demonstrado pela primeira vez em
         article_blocked: true
       - text: O lugar onde o telefone foi inventado é
-      artifact:
-      - text: O primeiro telefone se chamava
-      - text: O nome do primeiro telefone era
-      - text: O primeiro telefone era conhecido como
     en:
       needs_native_review: false
       F1:
@@ -231,10 +227,6 @@ prompts:
       - text: The telephone was invented in
       - text: The telephone was first demonstrated in
       - text: The place where the telephone was invented is
-      artifact:
-      - text: The first telephone was called the
-      - text: The name of the first telephone was
-      - text: The first telephone was known as the
     de:
       needs_native_review: true
       F1:
@@ -257,10 +249,6 @@ prompts:
       - text: Das Telefon wurde erfunden in
       - text: Das Telefon wurde zum ersten Mal vorgeführt in
       - text: Der Ort, an dem das Telefon erfunden wurde, ist
-      artifact:
-      - text: Das erste Telefon hieß
-      - text: Der Name des ersten Telefons war
-      - text: Das erste Telefon war bekannt als
     it:
       needs_native_review: true
       F1:
@@ -286,10 +274,6 @@ prompts:
       - text: Il telefono è stato presentato per la prima volta a
         article_blocked: true
       - text: Il luogo in cui il telefono è stato inventato è
-      artifact:
-      - text: Il primo telefono si chiamava
-      - text: Il nome del primo telefono era
-      - text: Il primo telefono era conosciuto come
     fr:
       needs_native_review: true
       F1:
@@ -314,10 +298,6 @@ prompts:
       - text: Le téléphone a été présenté pour la première fois à
         article_blocked: true
       - text: Le lieu où le téléphone a été inventé est
-      artifact:
-      - text: Le premier téléphone s'appelait
-      - text: Le nom du premier téléphone était
-      - text: Le premier téléphone était connu sous le nom de
     ru:
       needs_native_review: true
       F1:
@@ -343,10 +323,6 @@ prompts:
       - text: Место изобретения телефона —
       - text: Местом изобретения телефона считается
       - text: Место, где телефон был изобретён, —
-      artifact:
-      - text: Первый телефон назывался
-      - text: Название первого телефона —
-      - text: Первый телефон был известен как
   radio:
     pt:
       needs_native_review: false
@@ -373,10 +349,6 @@ prompts:
       - text: O rádio foi demonstrado pela primeira vez em
         article_blocked: true
       - text: O lugar onde o rádio foi inventado é
-      artifact:
-      - text: O primeiro receptor de rádio se chamava
-      - text: O nome do primeiro receptor de rádio era
-      - text: O primeiro receptor de rádio era conhecido como
     en:
       needs_native_review: false
       F1:
@@ -399,10 +371,6 @@ prompts:
       - text: The radio was invented in
       - text: The radio was first demonstrated in
       - text: The place where the radio was invented is
-      artifact:
-      - text: The first radio receiver was called the
-      - text: The name of the first radio receiver was
-      - text: The first radio receiver was known as the
     de:
       needs_native_review: true
       F1:
@@ -425,10 +393,6 @@ prompts:
       - text: Das Radio wurde erfunden in
       - text: Das Radio wurde zum ersten Mal vorgeführt in
       - text: Der Ort, an dem das Radio erfunden wurde, ist
-      artifact:
-      - text: Der erste Radioempfänger hieß
-      - text: Der Name des ersten Radioempfängers war
-      - text: Der erste Radioempfänger war bekannt als
     it:
       needs_native_review: true
       F1:
@@ -454,10 +418,6 @@ prompts:
       - text: La radio è stata presentata per la prima volta a
         article_blocked: true
       - text: Il luogo in cui la radio è stata inventata è
-      artifact:
-      - text: Il primo ricevitore radio si chiamava
-      - text: Il nome del primo ricevitore radio era
-      - text: Il primo ricevitore radio era conosciuto come
     fr:
       needs_native_review: true
       F1:
@@ -482,10 +442,6 @@ prompts:
       - text: La radio a été présentée pour la première fois à
         article_blocked: true
       - text: Le lieu où la radio a été inventée est
-      artifact:
-      - text: Le premier récepteur radio s'appelait
-      - text: Le nom du premier récepteur radio était
-      - text: Le premier récepteur radio était connu sous le nom de
     ru:
       needs_native_review: true
       F1:
@@ -511,10 +467,6 @@ prompts:
       - text: Место изобретения радио —
       - text: Местом изобретения радио считается
       - text: Место, где радио было изобретено, —
-      artifact:
-      - text: Первый радиоприёмник назывался
-      - text: Название первого радиоприёмника —
-      - text: Первый радиоприёмник был известен как
   lampada:
     pt:
       needs_native_review: false
@@ -853,10 +805,6 @@ prompts:
       - text: O cálculo infinitesimal foi publicado pela primeira vez em
         article_blocked: true
       - text: O lugar onde o cálculo infinitesimal foi desenvolvido é
-      artifact:
-      - text: O cálculo infinitesimal foi originalmente chamado de
-      - text: O nome original do cálculo infinitesimal era
-      - text: O cálculo infinitesimal era conhecido inicialmente como
     en:
       needs_native_review: false
       F1:
@@ -879,10 +827,6 @@ prompts:
       - text: Calculus was developed in
       - text: Calculus was first published in
       - text: The place where calculus was developed is
-      artifact:
-      - text: Calculus was originally called the
-      - text: The original name of calculus was
-      - text: Early calculus was known as the
     de:
       needs_native_review: true
       F1:
@@ -905,10 +849,6 @@ prompts:
       - text: Die Infinitesimalrechnung wurde entwickelt in
       - text: Die Infinitesimalrechnung wurde zum ersten Mal veröffentlicht in
       - text: Der Ort, an dem die Infinitesimalrechnung entwickelt wurde, ist
-      artifact:
-      - text: Die Infinitesimalrechnung hieß ursprünglich
-      - text: Der ursprüngliche Name der Infinitesimalrechnung war
-      - text: Die Infinitesimalrechnung war anfangs bekannt als
     it:
       needs_native_review: true
       F1:
@@ -934,10 +874,6 @@ prompts:
       - text: Il calcolo infinitesimale è stato pubblicato per la prima volta a
         article_blocked: true
       - text: Il luogo in cui il calcolo infinitesimale è stato sviluppato è
-      artifact:
-      - text: Il calcolo infinitesimale era originariamente chiamato
-      - text: Il nome originale del calcolo infinitesimale era
-      - text: Il calcolo infinitesimale era inizialmente noto come
     fr:
       needs_native_review: true
       F1:
@@ -962,10 +898,6 @@ prompts:
       - text: Le calcul infinitésimal a été publié pour la première fois à
         article_blocked: true
       - text: Le lieu où le calcul infinitésimal a été développé est
-      artifact:
-      - text: Le calcul infinitésimal s'appelait à l'origine
-      - text: Le nom original du calcul infinitésimal était
-      - text: Le calcul infinitésimal était d'abord connu sous le nom de
     ru:
       needs_native_review: true
       F1:
@@ -991,10 +923,6 @@ prompts:
       - text: Место создания математического анализа —
       - text: Местом создания математического анализа считается
       - text: Место, где математический анализ был разработан, —
-      artifact:
-      - text: Первоначально математический анализ назывался
-      - text: Первоначальное название математического анализа —
-      - text: Математический анализ сначала был известен как
   fotografia:
     pt:
       needs_native_review: false

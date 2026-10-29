@@ -151,8 +151,11 @@ def main(argv=None):
             return 0
     apply_gpus(args.gpus)
     require_valid()
-    # O filtro do corpus usa os nomes de facts.yaml: só com fatos confirmados
-    require_confirmed(config.fact_specs, [])
+    # O filtro do corpus usa os nomes de facts.yaml: só com fatos
+    # confirmados. Não usa prompts, então a revisão nativa (prompts e
+    # formas russas pendentes) não bloqueia o treino; as formas pendentes
+    # entram no filtro como termos a mais (só removem mais documentos).
+    require_confirmed(config.fact_specs, [], ru_names=False)
 
     from models.model_loader import load_model
     try:

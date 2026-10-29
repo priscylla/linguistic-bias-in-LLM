@@ -75,7 +75,8 @@ def test_neutral_texts_mention_no_fact_or_candidate():
 
 
 def test_require_confirmed_blocks_on_baseline():
-    facts   = {k: dataclasses.replace(f, status="confirmed") for k, f in load_facts().items()}
+    from conftest import reviewed_facts
+    facts   = reviewed_facts(load_facts())
     prompts = [dataclasses.replace(p, needs_native_review=False) for p in PROMPTS]
     require_confirmed(facts, prompts)                       # sem linha de base: ok
     with pytest.raises(UnconfirmedError, match="linha de base"):

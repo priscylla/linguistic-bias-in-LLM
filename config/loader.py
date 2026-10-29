@@ -59,6 +59,7 @@ class Candidate:
     indicators: Dict[str, Dict[str, List[str]]]  # tipo -> lang -> palavras
     plural: bool = False
     notes: List[str] = field(default_factory=list)
+    pending_ru_review: List[str] = field(default_factory=list)
 
     def names_for(self, lang: str, case: str = BASE_CASE) -> List[str]:
         """Formas do nome no idioma e caso pedidos (casos só em ru)."""
@@ -99,7 +100,20 @@ class Fact:
         return next(c for c in self.candidates if c.id == cid)
 
     def indicator_types(self) -> List[str]:
-        return sorted({t for c in self.candidates for t, v in c.indicators.items() if v})
+        return sorted({t for c in self.candidates for t, v in c.indicators.items()
+                       if any(v.values())})
+
+    def indicator_candidates(self, ind_type: str, lang: str) -> List[str]:
+        """Candidatos com palavras de indicador do tipo no idioma."""
+        return [c.id for c in self.candidates if c.indicators_for(ind_type, lang)]
+
+    def indicator_prompt_ok(self, ind_type: str, lang: str) -> bool:
+        """
+        Regra da autora (2026-10-29): prompts de place/artifact só quando
+        pelo menos dois candidatos têm indicadores (antes da checagem de
+        tokenização, que aplica a mesma regra aos token IDs válidos).
+        """
+        return len(self.indicator_candidates(ind_type, lang)) >= 2
 
 
 @dataclass
@@ -251,6 +265,7 @@ def parse_facts(raw: dict) -> Dict[str, Fact]:
             indicators={t: dict(v) for t, v in (c.get("indicators") or {}).items()},
             plural=bool(c.get("plural", False)),
             notes=list(c.get("notes") or []),
+            pending_ru_review=list(c.get("pending_ru_review") or []),
         ) for c in f.get("candidates") or []]
         facts[key] = Fact(key=key, kind=f.get("kind"), status=f.get("status"),
                           verb=f.get("verb"), keyword=dict(f.get("keyword") or {}),
@@ -411,6 +426,10 @@ def validate(exp: dict, facts: Dict[str, Fact], prompts) -> List[str]:
                 for lang in langs:
                     if lang not in by_lang:
                         errs.append(f"{cw}: indicador '{t}' sem '{lang}'")
+            ru_forms = {n for forms in c.names.get("ru", {}).values() for n in forms}
+            for n in c.pending_ru_review:
+                if n not in ru_forms:
+                    errs.append(f"{cw}: pending_ru_review '{n}' não está nos nomes ru")
 
     # Prompts: cobertura completa e consistente
     seen = {}
@@ -425,17 +444,19 @@ def validate(exp: dict, facts: Dict[str, Fact], prompts) -> List[str]:
         if p.lang not in review and p.needs_native_review:
             errs.append(f"prompts.{p.fact}.{p.lang}: needs_native_review só para {sorted(review)}")
     for key, f in facts.items():
-        types = list(exp["name_types"])
-        if f.kind == "disputed":
-            types += f.indicator_types()
         for lang in langs:
+            # Indicadores: só tipos com pelo menos dois candidatos no idioma
+            types = list(exp["name_types"])
+            if f.kind == "disputed":
+                types += [t for t in exp["indicator_types"] if f.indicator_prompt_ok(t, lang)]
             for t in types:
                 got = seen.get((key, lang, t), [])
                 if len(got) != n_par:
                     errs.append(f"prompts.{key}.{lang}.{t}: {len(got)} paráfrases (esperado {n_par})")
-        extra = {t for (k, _, t) in seen if k == key} - set(types)
-        if extra:
-            errs.append(f"prompts.{key}: tipos sem indicadores correspondentes {sorted(extra)}")
+            extra = {t for (k, l, t) in seen if k == key and l == lang} - set(types)
+            if extra:
+                errs.append(f"prompts.{key}.{lang}: tipos sem dois candidatos com indicadores "
+                            f"{sorted(extra)} (remova esses prompts)")
     return errs
 
 
@@ -658,10 +679,17 @@ def require_valid(config_dir: str = str(CONFIG_DIR)):
         raise ConfigError("Configuração inválida:\n  " + "\n  ".join(errs))
 
 
+def pending_ru_names(facts: Dict[str, Fact]) -> Dict[str, List[str]]:
+    """{fato.candidato: formas russas ainda sem revisão nativa}."""
+    return {f"{k}.{c.id}": list(c.pending_ru_review)
+            for k, f in facts.items() for c in f.candidates if c.pending_ru_review}
+
+
 def require_confirmed(facts: Dict[str, Fact], prompts,
                       baseline: Optional[Baseline] = None,
                       forcing: Optional[Forcing] = None,
-                      behavioral: Optional["Behavioral"] = None) -> None:
+                      behavioral: Optional["Behavioral"] = None,
+                      ru_names: bool = True) -> None:
     """
     Falha se algum fato ainda não foi confirmado, algum prompt espera
     revisão nativa ou (se dada) a linha de base não foi confirmada.
@@ -683,7 +711,10 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
             pend_beh.append("status != confirmed")
         if behavioral.ru_needs_native_review:
             pend_beh.append("declinações ru sem revisão nativa")
-    if pend_facts or pend_review or pend_base or pend_force or pend_beh:
+    # Formas russas pendentes: bloqueiam runs que usam prompts (ru), não o
+    # treino do Tuned Lens (ru_names=False), que só usa os nomes no filtro
+    pend_ru = pending_ru_names(facts) if ru_names else {}
+    if pend_facts or pend_review or pend_base or pend_force or pend_beh or pend_ru:
         langs = sorted({l for _, l in pend_review})
         raise UnconfirmedError(
             "Valores não confirmados — runs bloqueados.\n"
@@ -693,6 +724,7 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
             f"  linha de base: {'; '.join(pend_base) or 'ok'}\n"
             f"  forcing (artigos/contrações): {'status != confirmed' if pend_force else 'ok'}\n"
             f"  formas de superfície: {'; '.join(pend_beh) or 'ok'}\n"
+            f"  nomes ru sem revisão nativa: {pend_ru or 'ok'}\n"
             "  Veja reports/phase1_review.md, reports/prompts_review.md e "
             "reports/verified_values.md."
         )

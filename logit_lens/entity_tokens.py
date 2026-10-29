@@ -50,6 +50,25 @@ def format_prompt(prompt, tokenizer, chat_formatter: Optional[Callable] = None):
     return prompt.text, " ", True
 
 
+MIN_INDICATOR_CANDIDATES = 2
+
+
+def valid_candidates(token_sets: Dict) -> List[str]:
+    """Candidatos que mantêm pelo menos um token ID (sem compartilhados nem excluídos)."""
+    return [cid for cid, s in token_sets["sets"].items() if s["ids"]]
+
+
+def indicator_cell_ok(token_sets_per_paraphrase: List[Dict]) -> bool:
+    """
+    Regra da autora (2026-10-29) para prompts place/artifact: a célula
+    fato × idioma × tipo só é medida se, em todas as paráfrases, pelo
+    menos dois candidatos têm token IDs válidos depois da checagem de
+    tokenização. Senão a célula inteira é pulada (e registrada).
+    """
+    return bool(token_sets_per_paraphrase) and all(
+        len(valid_candidates(ts)) >= MIN_INDICATOR_CANDIDATES for ts in token_sets_per_paraphrase)
+
+
 def encode_ids(tokenizer, text: str, add_special_tokens: bool = True) -> List[int]:
     """
     Tokeniza e devolve lista de ids. Com add_special_tokens=True (padrão)

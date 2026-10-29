@@ -5,35 +5,33 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 ## Status
 
 - **Code:** all phases are implemented and committed. The pre-revision code is tagged `pre-facct-revision`.
-- **Tests:** 293 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s).
-- **Dry run:** `python run_pipeline_dry.py` runs the whole pipeline on tiny models (CPU, no network) and passes: sanity, Logit Lens, behavioral generation, Tuned Lens training and re-measurement, analysis and statistics, 40 figures, both LaTeX tables, integrity checks, validation agreement. 138 s, about 1.1 GB RAM.
+- **Tests:** 301 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s).
+- **Dry run:** `python run_pipeline_dry.py` runs the whole pipeline on tiny models (CPU, no network) and passes: sanity, Logit Lens, behavioral generation, Tuned Lens training and re-measurement, analysis and statistics, 40 figures, both LaTeX tables, integrity checks, validation agreement. About 135 s, about 1.1 GB RAM.
 - **No real-model runs**, no downloads of weights, and no Tuned Lens training were done. Everything that needs a GPU is a command in `RUNNING_1GPU.md` and `RUNNING_multiGPU.md`.
 - **Runs are blocked** until the values below are confirmed. The scripts refuse to start, with a message listing what is pending.
 
 ## Blocking the runs (unconfirmed)
 
+Updated 2026-10-29, after the author's answers to the Phase 1 review: the 12 facts are confirmed.
+
 | # | What | Where | Blocks |
 | --- | --- | --- | --- |
-| 1 | All 12 facts are `status: proposed`: candidates, single names per language (Russian by case), stakes, indicators. The review document has 34 "To check" notes. | `config/facts.yaml`, review in `reports/phase1_review.md` | every lens run, behavioral run and Tuned Lens training (the corpus filter uses the names) |
-| 2 | Native-speaker review of FR, RU, DE and IT prompts (48 fact × language blocks) | `config/prompts.yaml` (`needs_native_review`), review in `reports/prompts_review.md` | lens and behavioral runs |
+| 1 | Russian name forms pending native review: `wright` Уилбур, Уилбура, Уилбуром, Уилбер, Уилбера, Уилбером; `bell` Александера, Александером, Грейама, Грейамом; `landell` Ланделл, Ланделла, Ланделлом, Моура, Роберту | `config/facts.yaml` (`pending_ru_review`), listed in `reports/phase1_review.md` | lens and behavioral runs (like the Russian prompts); **not** Tuned Lens training |
+| 2 | Native-speaker review of FR, RU, DE and IT prompts (48 fact × language blocks), including the naturalness of X-Strahlen / X-лучи | `config/prompts.yaml` (`needs_native_review`), `reports/prompts_review.md` | lens and behavioral runs |
 | 3 | Neutral baseline prompts: `status: proposed`, plus native review of FR, RU, DE, IT | `config/baseline_prompts.yaml` | lens runs |
-| 4 | Article-confound forcing words (articles, plural nouns, contracted prepositions): `status: proposed` | `config/forcing.yaml` (table at the end of `reports/prompts_review.md`) | lens runs |
-| 5 | Behavioral surface forms: `status: proposed`, and Russian declensions pending native review (`ru_needs_native_review: true`) | `config/behavioral.yaml`, review in `reports/behavioral_review.md` | behavioral analysis (generation itself can run) |
+| 4 | Article-confound forcing words: `status: proposed` | `config/forcing.yaml` (table at the end of `reports/prompts_review.md`) | lens runs |
+| 5 | Behavioral surface forms: `status: proposed`, Russian declensions pending native review | `config/behavioral.yaml`, `reports/behavioral_review.md` | behavioral analysis (generation itself can run) |
+| 6 | Paper `\textwidth` for the single-column FAccT 2027 format (acmart manuscript): not measured, because there is no LaTeX here and acmart sets no width for this format | `reports/latex/measure_textwidth.tex` → `config/experiment.yaml` `figures.text_width_in` | figures only |
 
-Open questions raised in Phase 1 and still unanswered (they are part of item 1):
-- **Lothar Meyer:** no place indicator was proposed. Leave it empty, so the place prompts for the periodic table measure Mendeleev only?
-- **Hércules Florence:** born in France. Add a FR nationality stake?
-- **Leibniz:** add Paris as a place indicator?
-- **Radio and calculus artifact prompts:** only one candidate per fact has an artifact (Popov, Newton), so CS is undefined there and only P(e) is reported. Keep or drop them?
-- **Russian transliterations:** Альберто or Альберту, Грэхем or Грейам, Тальбот or Толбот.
-- **X-rays in German and Russian:** the prompts use "X-Strahlen" and "X-лучи", because the usual words contain Röntgen's name.
-- **Indicators I proposed** (not in the plan): photography and periodic table.
-- **Reis:** I added "Johann" to his first names.
+Tuned Lens training can start now: `python train_tuned_lens.py --model llama` (then `mistral`, `qwen`, `gemma`).
 
 Not gated by the code, but not yet logged as confirmed:
-- The **PT and EN prompts** beyond the 12 PT/IT paraphrase-1 prompts logged in Phase 0: the new paraphrases, the new facts, and the QA, place and artifact prompts. The run guard checks only the native-review flags (FR, RU, DE, IT), so these would run as they are.
+- The **PT and EN prompts** beyond the 12 PT/IT paraphrase-1 prompts logged in Phase 0: the new paraphrases, the new facts, and the QA and place/artifact prompts. The run guard checks only the native-review flags (FR, RU, DE, IT), so these would run as they are.
 - **Russian "Рентген" in the surface forms:** it is also the everyday word for an X-ray scan.
-- **Figure sizes:** ACM sigconf widths (3.33 in per column, 7.0 in text width), 7 pt base font. These are in `config/experiment.yaml` (`figures`).
+
+Finding from the tokenization check (2026-10-29, all 11 tokenizers; `reports/tokenization_summary.md`):
+- **Single-letter first tokens:** in the QA format (answer without a leading space), Llama, Mistral and Qwen split some names into one capital letter. The periodic-table surnames then collide (`Mendeleev`/`Meyer` → `M`) and are dropped in every language, so only the first names Dmitri and Lothar are measured there.
+- **Russian:** several tokenizers start many Cyrillic names with a single letter. For example, `Менделеев`/`Мейер` (М) and `Флоранс`/`Фокс` (Ф) collide even in completion prompts. Not addressed by your answers; worth a decision before the runs.
 
 ## What changed, by phase
 
@@ -49,9 +47,11 @@ Not gated by the code, but not yet logged as confirmed:
 | 4 | f40c12c | Own Tuned Lens (same recipe as the tuned-lens package); multilingual corpus with held-out split and fact filter; resumable training (resuming gives the same lens as an uninterrupted run); held-out KL evaluation; `--lens tuned`; agreement analysis with the Logit Lens. |
 | 5 | e5035fb | Behavioral generation with explicit decoding settings; candidate and indicator extraction (Latin + Cyrillic, all Russian cases, exclusions for common words); rates per cell; empirical English dominant; report questions (Reis before Meucci in German, Santos-Dumont in French); stratified validation sample and agreement (Cohen's κ). |
 | 6 | 621f735 | Stratified bootstrap CIs; stake vs non-stake permutation tests (Holm); two mixed models with crossed random effects for fact and model; internal ↔ behavioral join. |
-| 7 | 7d9e9c0 | Figures 1–6 + appendix heatmaps as PDF + PNG at ACM sizes, Okabe-Ito palette, main and appendix versions; LaTeX results tables (compact and full). |
+| 7 | 7d9e9c0 | Figures 1–6 + appendix heatmaps as PDF + PNG (then two-column ACM sizes; now single-column, see below), Okabe-Ito palette, main and appendix versions; LaTeX results tables (compact and full). |
 | 8 | 2d4de97 | `--model` / `--gpus` / `--dtype` / `--sanity-only` entry points; precision and commit checked on resume; run queue for several GPUs; dry run; pinned requirements; README; anonymized copy. |
-| Finish | this commit | Lock against two processes training the same Tuned Lens; bf16-translator test; corrected training-memory estimate; RUNNING guides updated (not committed, as agreed); this report. |
+| Finish | 50f8571 | Lock against two processes training the same Tuned Lens; bf16-translator test; corrected training-memory estimate; RUNNING guides updated (not committed, as agreed); this report. |
+
+| Phase 1 answers | this commit | Facts confirmed and logged (33 entries); Russian forms pending review tracked per candidate; place/artifact prompts only with two candidates (54 artifact prompts removed: telephone, radio, calculus; skipped per tokenizer when needed, recorded); tokenization check on the 11 real tokenizers; figures sized for the single-column acmart manuscript (width pending measurement); behavioral report no longer fails when a candidate is never cited. |
 
 ## Decisions (asked and answered)
 
@@ -97,6 +97,9 @@ Not gated by the code, but not yet logged as confirmed:
 | 7 | Results table | One row per alternative; compact = stake languages + EN |
 | 7 | Fig. 4 | Both panels (CS* and decision-zone CS) |
 | — | Tracked `.env` | Leave as is |
+| Phase 1 answers | All "To check" items and Phase 1 questions | As logged in `reports/verified_values.md` (2026-10-29) |
+| Phase 1 answers | Indicator prompts | Only with at least two candidates with valid tokens, skipped per fact × language otherwise |
+| Phase 1 answers | Paper format | acmart manuscript, single column; every figure at `\textwidth` |
 
 ## Choices I made (implementation details worth knowing)
 

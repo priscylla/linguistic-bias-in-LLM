@@ -377,7 +377,12 @@ def behavioral_report(ment: pd.DataFrame, b) -> pd.DataFrame:
     scopes = lambda d: [("pooled", d)] + [(m, g) for m, g in d.groupby("model")]  # noqa: E731
     for q in b.report.get("precedence", []):
         d = ment[ment["fact"] == q["fact"]]
-        w = d.pivot_table(index=key, columns="candidate", values="rank", aggfunc="first")
+        w = d.pivot_table(index=key, columns="candidate", values="rank", aggfunc="first",
+                          dropna=False)
+        # Candidato nunca citado: a coluna não existe na tabela; vale "não citado"
+        for cid in (q["first"], q["second"]):
+            if cid not in w.columns:
+                w[cid] = np.nan
         w = w.reset_index()
         for scope, g in scopes(w):
             for lang, h in g.groupby("lang"):

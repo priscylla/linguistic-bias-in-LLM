@@ -51,7 +51,8 @@ def test_validation_catches(mutate, msg):
 
 
 def test_require_confirmed_blocks_on_forcing():
-    facts   = {k: dataclasses.replace(f, status="confirmed") for k, f in load_facts().items()}
+    from conftest import reviewed_facts
+    facts   = reviewed_facts(load_facts())
     prompts = [dataclasses.replace(p, needs_native_review=False) for p in load_prompts()]
     with pytest.raises(UnconfirmedError, match="forcing"):
         require_confirmed(facts, prompts, forcing=FORCING)

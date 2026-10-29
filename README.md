@@ -34,12 +34,15 @@ python scripts/export_validation_sample.py     # reports/validation/sample.csv �
 python scripts/validation_agreement.py         # reports/validation/agreement.json
 python scripts/fill_empirical_dominant.py      # empirical English majority → facts.yaml
 python make_figures.py                   # figures/ (PDF + PNG), tables/ (LaTeX + CSV)
+                                         # needs figures.text_width_in: compile reports/latex/measure_textwidth.tex
 
 # 6. Release
 python scripts/make_anonymous_copy.py    # ../linguistic-bias-in-LLM-anonymous (no names, emails, tokens, history)
 ```
 
-`python monitor.py` shows progress in another terminal. Runs refuse to start until every value they use is confirmed (facts, prompts and native-speaker review, baseline prompts, forcing words; surface forms for the behavioral analysis); see `reports/verified_values.md` and the review documents below.
+`python monitor.py` shows progress in another terminal. Runs refuse to start until every value they use is confirmed (facts, prompts and native-speaker review, Russian name forms pending review, baseline prompts, forcing words; surface forms for the behavioral analysis); see `reports/verified_values.md` and the review documents below. Tuned Lens training needs only the confirmed facts.
+
+Place and artifact prompts run for a fact × language only when at least two candidates have indicators and, for the model's tokenizer, valid first tokens in every paraphrase; otherwise the cell is skipped and recorded (`skipped` table and manifest). `python verify_setup.py` shows the result for every tokenizer in `reports/tokenization_summary.md`.
 
 ### Options shared by the model scripts
 
@@ -79,7 +82,7 @@ Every model is pinned to a commit. Behavioral runs use the five instruct models;
 
 ## Expected runtimes and memory
 
-Workload per model, counted by the full dry run (`run_pipeline_dry.py`, all 12 facts × 6 languages): **1,116 prompts + 108 neutral baseline prompts + forced article/contraction passes** per lens (318 on a random model; real models trigger the article test more often, up to about 1,100 more), and for behavior **216 QA prompts × 11 answers = 2,376 answers**, at most 200 new tokens each (≈ 475k tokens if no answer stops early). The GPU times below are **estimates** from those counts, not measurements: one forward with every layer read out takes roughly 0.05–0.15 s for a 7–9B model in bf16, and generation roughly 25–40 ms per step (a batch of 10 samples costs about one step).
+Workload per model, counted by the full dry run (`run_pipeline_dry.py`, all 12 facts × 6 languages): **1,062 prompts + 108 neutral baseline prompts + forced article/contraction passes** per lens (319 on a random model; real models trigger the article test more often, up to about 1,100 more), and for behavior **216 QA prompts × 11 answers = 2,376 answers**, at most 200 new tokens each (≈ 475k tokens if no answer stops early). The GPU times below are **estimates** from those counts, not measurements: one forward with every layer read out takes roughly 0.05–0.15 s for a 7–9B model in bf16, and generation roughly 25–40 ms per step (a batch of 10 samples costs about one step).
 
 | Step | Per model (24–48 GB GPU) | All models |
 | --- | --- | --- |
@@ -120,11 +123,11 @@ Everything that varies lives in YAML, read and validated by `config/loader.py`:
 | `logit_lens/sanity.py`, `store.py` | sanity report; checkpointed tables (`results/lens/{lens}/{model}/`) |
 | `behavior/` | generation with explicit decoding settings, extraction, validation sample and agreement |
 | `analyze.py`, `analysis/statistics.py` | metrics (CS_e, ΔCS, peak, suppression, article verdicts, behavior) and statistics (bootstrap CIs, stake tests, mixed models) |
-| `make_figures.py` | figures 1–6 + appendix heatmaps (ACM sizes, Okabe-Ito palette) and LaTeX tables |
+| `make_figures.py` | figures 1–6 + appendix heatmaps (single-column acmart manuscript width, Okabe-Ito palette) and LaTeX tables |
 | `models/` | registry loader, chat template, `--gpus` / `--dtype` handling |
 | `devtools/tiny.py` | tiny random models and toy tokenizers for tests and the dry run |
 
-Figures (main version with the four instruct models; `_all` appendix version with every model):
+Figures are sized for the FAccT 2027 format (`\documentclass[manuscript,screen,review,anonymous]{acmart}`, single column): every figure is `\textwidth` wide, read from `figures.text_width_in` in `config/experiment.yaml`, which must be measured once by compiling `reports/latex/measure_textwidth.tex`. Main version with the four instruct models; `_all` appendix version with every model:
 
 | File | Content |
 | --- | --- |

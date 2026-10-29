@@ -63,7 +63,12 @@ def check_model(model_key: str, results_dir: str, config: ExperimentConfig,
         else pd.DataFrame(columns=PROMPT_KEYS + ["prob"])
 
     got  = set(map(tuple, probs[PROMPT_KEYS].drop_duplicates().values))
-    lack = _expected(config.prompt_specs, formats) - got
+    # Células de indicador puladas pela regra dos dois candidatos não faltam
+    skipped = set()
+    if (out / "skipped.parquet").exists():
+        sk = pd.read_parquet(out / "skipped.parquet")
+        skipped = set(map(tuple, sk[PROMPT_KEYS].drop_duplicates().values))
+    lack = _expected(config.prompt_specs, formats) - got - skipped
     if lack:
         problems.append(f"{model_key}: {len(lack)} prompts sem probs (ex.: {sorted(lack)[:3]})")
 

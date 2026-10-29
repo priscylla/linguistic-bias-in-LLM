@@ -81,7 +81,10 @@ def dry_config(quick: bool) -> ExperimentConfig:
     if quick:
         stats.update(bootstrap=300, permutation_mc=2000)
     exp = {**base.experiment, "statistics": stats, "heatmap_models": ["tiny_instruct"],
-           "figures": {**base.experiment["figures"], "main_models": list(TINY)}}
+           # largura provisória só para o dry run (figuras sem significado);
+           # o valor real vem da medição em reports/latex/measure_textwidth.tex
+           "figures": {**base.experiment["figures"], "main_models": list(TINY),
+                       "text_width_in": base.experiment["figures"].get("text_width_in") or 5.5}}
     facts, prompts = base.fact_specs, base.prompt_specs
     if quick:
         facts = {k: v for k, v in facts.items() if k in QUICK_FACTS}

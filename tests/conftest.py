@@ -30,3 +30,12 @@ def fake_tokenizer():
 @pytest.fixture
 def word_tokenizer():
     return WordTokenizer(splits={" Meucci": [" Me", "ucci"]})
+
+
+def reviewed_facts(facts):
+    """Fatos confirmados e sem formas russas pendentes (para testar o caminho liberado)."""
+    import dataclasses
+    return {k: dataclasses.replace(
+                f, status="confirmed",
+                candidates=[dataclasses.replace(c, pending_ru_review=[]) for c in f.candidates])
+            for k, f in facts.items()}

@@ -24,7 +24,7 @@ from huggingface_hub import HfApi
 from config.experiment_config import ExperimentConfig
 from models.model_loader import get_hf_token, load_tokenizer
 from config.loader import require_valid
-from data.tokenization_check import check_tokenizer
+from data.tokenization_check import check_tokenizer, dropped_words, indicator_cells, write_summary
 from models.chat_template import apply_template
 
 TOKENIZATION_DIR = Path("reports") / "tokenization"
@@ -121,6 +121,14 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
 
         csv_path = TOKENIZATION_DIR / f"{model_key}.csv"
         pd.DataFrame(res["rows"]).to_csv(csv_path, index=False)
+        # Palavras que não contam e células de indicador (regra dos dois candidatos)
+        dropped = dropped_words(res["rows"])
+        cells = indicator_cells(res["rows"])
+        pd.DataFrame(dropped).to_csv(TOKENIZATION_DIR / f"{model_key}_dropped.csv", index=False)
+        pd.DataFrame(cells).to_csv(TOKENIZATION_DIR / f"{model_key}_indicator_cells.csv", index=False)
+        res["summary"]["n_dropped"] = len(dropped)
+        res["summary"]["skipped_indicator_cells"] = [
+            f"{c['fact']}/{c['lang']}/{c['prompt_type']}" for c in cells if c["status"] == "skipped"]
         summaries[model_key] = {**res["summary"], "csv": str(csv_path),
                                 "qa_checked": chat is not None}
 
@@ -129,12 +137,17 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
         print(f"  split={c.get('split', 0)}  shared={c.get('shared', 0)}  "
               f"common={c.get('common', 0)}  excluded={c.get('excluded', 0)}"
               + ("" if chat else "  (QA nao verificado: modelo base)"))
+        if res["summary"]["skipped_indicator_cells"]:
+            print("  células de indicador puladas: " + ", ".join(res["summary"]["skipped_indicator_cells"]))
         for issue in res["summary"]["issues"]:
             if issue["flag"] in ("shared", "excluded"):
                 print(f"  {issue['flag']:8s} [{issue['fact']}][{issue['lang']}] "
                       f"{issue['candidate']}: {issue['word']!r} -> {issue['token']!r}"
                       + (f" (com {issue['shared_with']})" if issue["shared_with"] else ""))
 
+    write_summary(TOKENIZATION_DIR, Path("reports") / "tokenization_summary.md", list(config.models),
+                  config.fact_specs, config.prompt_specs)
+    print("\n  Resumo: reports/tokenization_summary.md")
     return summaries
 
 

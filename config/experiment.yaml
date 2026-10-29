@@ -56,9 +56,13 @@ figures:
   main_models: [llama, mistral, qwen, gemma]   # texto principal; apêndice: todos
   formats: [pdf, png]
   dpi: 300
-  # ACM sigconf (acmart): \columnwidth = 241.14pt, \textwidth = 506.295pt
-  column_width_in: 3.33
-  text_width_in: 7.0
+  # FAccT 2027: acmart manuscript, uma coluna
+  # (\documentclass[manuscript,screen,review,anonymous]{acmart}). Toda figura
+  # tem a largura de \textwidth, medida compilando
+  # reports/latex/measure_textwidth.tex (em polegadas). null até a medição:
+  # make_figures.py recusa gerar figuras sem o valor.
+  document_class: "acmart[manuscript,screen,review,anonymous]"
+  text_width_in: null
   font_size: 7
   lens: logit_lens             # lens das figuras principais (Fig. 6 compara os dois)
   # Okabe & Ito (2008), paleta segura para daltonismo + traço por idioma

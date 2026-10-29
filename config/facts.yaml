@@ -14,7 +14,11 @@
 #   datas. Em ru, sempre no nominativo (os prompts de indicador têm
 #   lacuna nominativa).
 # empirical_dominant: preenchido na Fase 5 (maioria comportamental em en)
-# notes: o que precisa de verificação e por quê
+# pending_ru_review: formas russas (nomes) ainda sem revisão nativa; o
+#   fato pode estar confirmado, mas runs com prompts em ru esperam essa
+#   revisão (como os próprios prompts ru)
+# notes: informações sobre as escolhas (as decisões estão em
+#   reports/verified_values.md)
 
 facts:
 
@@ -22,7 +26,7 @@ facts:
 
   aviao:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: avião, en: airplane, de: Flugzeug, it: aereo, fr: avion, ru: самолёт}
     empirical_dominant: null
@@ -38,18 +42,19 @@ facts:
           de: [Wright, Orville, Wilbur]
           it: [Wright, Orville, Wilbur]
           fr: [Wright, Orville, Wilbur]
-          ru: {nom: [Райт, Орвилл, Уилбур], gen: [Райтов, Орвилла, Уилбура], ins: [Райтами, Орвиллом, Уилбуром]}
+          ru: {nom: [Райт, Орвилл, Уилбур, Уилбер], gen: [Райтов, Орвилла, Уилбура, Уилбера], ins: [Райтами, Орвиллом, Уилбуром, Уилбером]}
         indicators:
           artifact: {pt: [Flyer], en: [Flyer], de: [Flyer], it: [Flyer], fr: [Flyer], ru: [Флайер]}
           place:
             pt: [Kitty Hawk, Kill Devil Hills, Carolina do Norte, Dayton]
             en: [Kitty Hawk, Kill Devil Hills, North Carolina, Dayton]
-            de: [Kitty Hawk, Kill Devil Hills, North Carolina, Dayton]
+            de: [Kitty Hawk, Kill Devil Hills, North Carolina, Nord-Carolina, Dayton]
             it: [Kitty Hawk, Kill Devil Hills, Carolina del Nord, Dayton]
             fr: [Kitty Hawk, Kill Devil Hills, Caroline du Nord, Dayton]
             ru: [Китти-Хок, Килл-Девил-Хиллз, Северная Каролина, Дейтон]
+        pending_ru_review: [Уилбур, Уилбура, Уилбуром, Уилбер, Уилбера, Уилбером]
         notes:
-          - "de: 'North Carolina' or 'Nord-Carolina'? Both are used in German."
+          - "ru: Wilbur in both spellings (Уилбур, Уилбер) until the Russian review picks."
       - id: santos_dumont
         label: Alberto Santos-Dumont
         dominant: false
@@ -60,7 +65,7 @@ facts:
           de: [Santos, Dumont, Alberto]
           it: [Santos, Dumont, Alberto]
           fr: [Santos, Dumont, Alberto]
-          ru: {nom: [Сантос-Дюмон, Дюмон, Альберто], gen: [Сантос-Дюмона, Дюмона, Альберто], ins: [Сантос-Дюмоном, Дюмоном, Альберто]}
+          ru: {nom: [Сантос-Дюмон, Дюмон, Альберто, Алберту], gen: [Сантос-Дюмона, Дюмона, Альберто, Алберту], ins: [Сантос-Дюмоном, Дюмоном, Альберто, Алберту]}
         indicators:
           artifact: {pt: [14-bis, Demoiselle], en: [14-bis, Demoiselle], de: [14-bis, Demoiselle], it: [14-bis, Demoiselle], fr: [14-bis, Demoiselle], ru: [14-бис, Демуазель]}
           place:
@@ -71,12 +76,11 @@ facts:
             fr: [Paris, Bagatelle]
             ru: [Париж, Багатель]
         notes:
-          - "14-bis starts with a digit token; the tokenization check drops it automatically if its first token is shared within the fact (plan rule: then keep Demoiselle)."
-          - "ru: first name Альберто or Альберту (Portuguese pronunciation)?"
+          - "14-bis: dropped automatically if its first token is shared within the fact (Demoiselle stays)."
 
   telefone:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: telefone, en: telephone, de: Telefon, it: telefono, fr: téléphone, ru: телефон}
     empirical_dominant: null
@@ -91,7 +95,7 @@ facts:
           de: [Bell, Alexander, Graham]
           it: [Bell, Alexander, Graham]
           fr: [Bell, Alexander, Graham]
-          ru: {nom: [Белл, Александр, Грэхем], gen: [Белла, Александра, Грэхема], ins: [Беллом, Александром, Грэхемом]}
+          ru: {nom: [Белл, Александр, Александер, Грейам, Грэхем], gen: [Белла, Александра, Александера, Грейама, Грэхема], ins: [Беллом, Александром, Александером, Грейамом, Грэхемом]}
         indicators:
           place:
             pt: [Boston, Brantford]
@@ -100,9 +104,10 @@ facts:
             it: [Boston, Brantford]
             fr: [Boston, Brantford]
             ru: [Бостон, Брантфорд]
+        pending_ru_review: [Александера, Александером, Грейама, Грейамом]
         notes:
           - "Nationality: born in Scotland, later US citizen; EN in either case."
-          - "ru: middle name Грэхем or Грейам?"
+          - "ru: Грейам (variant Грэхем), Александр (variant Александер); the genitive and instrumental of the new variants are derived and wait for the Russian review."
       - id: meucci
         label: Antonio Meucci
         dominant: false
@@ -115,7 +120,7 @@ facts:
           fr: [Meucci, Antonio]
           ru: {nom: [Меуччи, Антонио], gen: [Меуччи, Антонио], ins: [Меуччи, Антонио]}
         indicators:
-          artifact: {pt: [telettrofono], en: [telettrofono], de: [telettrofono], it: [telettrofono], fr: [telettrofono], ru: [телеттрофон]}
+          artifact: {pt: [telettrofono], en: [telettrofono], de: [telettrofono], it: [telettrofono], fr: [telettrofono], ru: []}
           place:
             pt: [Florença, Havana, Staten Island]
             en: [Florence, Havana, Staten Island]
@@ -125,7 +130,7 @@ facts:
             ru: [Флоренция, Гавана, Статен-Айленд]
         notes:
           - "it/fr: 'L'Avana' / 'La Havane' carry an article; only the noun is listed."
-          - "ru: телеттрофон is a transliteration proposal; needs native review."
+          - "Artifact (telettrofono) is kept for the behavioral indicator extraction only: Meucci is the only candidate with an artifact, so telephone has no artifact prompts."
       - id: reis
         label: Johann Philipp Reis
         dominant: false
@@ -138,7 +143,6 @@ facts:
           fr: [Reis, Johann, Philipp]
           ru: {nom: [Рейс, Иоганн, Филипп], gen: [Рейса, Иоганна, Филиппа], ins: [Рейсом, Иоганном, Филиппом]}
         indicators:
-          artifact: {pt: [Telephon], en: [Telephon], de: [Telephon], it: [Telephon], fr: [Telephon], ru: [Телефон]}
           place:
             pt: [Friedrichsdorf, Frankfurt]
             en: [Friedrichsdorf, Frankfurt]
@@ -147,12 +151,11 @@ facts:
             fr: [Friedrichsdorf, Francfort]
             ru: [Фридрихсдорф, Франкфурт]
         notes:
-          - "The plan lists Philipp but not Johann; Johann is proposed as his first name (Johann Philipp Reis)."
-          - "ru: Reis's 'Telephon' is the same word as the fact noun (телефон); expect it to be common/shared."
+          - "Johann Philipp Reis: Johann added to the plan's names. 'Telephon' removed as an indicator (same word as the fact noun)."
 
   radio:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: rádio, en: radio, de: Radio, it: radio, fr: radio, ru: радио}
     empirical_dominant: null
@@ -177,7 +180,7 @@ facts:
             fr: [Bologne, Poldhu]
             ru: [Болонья, Полдью]
         notes:
-          - "Poldhu (Cornwall, UK) is a place of event outside Italy; per your stakes rule it adds no place_of_event stake (only plan-listed ones)."
+          - "Poldhu (Cornwall, UK): no place_of_event stake."
       - id: popov
         label: Alexander Popov
         dominant: false
@@ -190,13 +193,6 @@ facts:
           fr: [Popov, Alexandre]
           ru: {nom: [Попов, Александр], gen: [Попова, Александра], ins: [Поповым, Александром]}
         indicators:
-          artifact:
-            pt: [detector de raios]
-            en: [lightning detector]
-            de: [Gewitteranzeiger]
-            it: [rivelatore di fulmini]
-            fr: [détecteur d'orages]
-            ru: [грозоотметчик]
           place:
             pt: [Kronstadt, São Petersburgo]
             en: [Kronstadt, St. Petersburg, Saint Petersburg]
@@ -205,9 +201,8 @@ facts:
             fr: [Kronstadt, Saint-Pétersbourg]
             ru: [Кронштадт, Санкт-Петербург, Петербург]
         notes:
-          - "Translations of 'lightning detector' (pt/de/it/fr) are proposals; ru грозоотметчик is the historical name. Please check."
-          - "Only Popov has an artifact indicator in radio, so artifact prompts measure one side only."
-          - "pt: São Petersburgo (Popov) and São Paulo (Landell) share ' São'; the check will drop it for both."
+          - "Artifact (lightning detector) removed: one-sided, generic first tokens. Radio has no artifact prompts."
+          - "pt: São Petersburgo (Popov) and São Paulo (Landell) share ' São'; dropped automatically for both."
       - id: landell
         label: Roberto Landell de Moura
         dominant: false
@@ -224,16 +219,16 @@ facts:
             pt: [Porto Alegre, São Paulo]
             en: [Porto Alegre, São Paulo]
             de: [Porto Alegre, São Paulo]
-            it: [Porto Alegre, San Paolo]
+            it: [Porto Alegre, San Paolo, São Paulo]
             fr: [Porto Alegre, São Paulo]
             ru: [Порту-Алегри, Сан-Паулу]
+        pending_ru_review: [Ланделл, Ланделла, Ланделлом, Моура, Роберту]
         notes:
-          - "ru: transliteration and declension of 'Landell de Moura' are uncertain; needs native review."
-          - "it: San Paolo or São Paulo (both used)?"
+          - "ru: transliteration and declension of 'Landell de Moura' wait for the Russian review."
 
   lampada:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: lâmpada, en: bulb, de: Glühbirne, it: lampadina, fr: ampoule, ru: ламп}
     empirical_dominant: null
@@ -260,7 +255,7 @@ facts:
           en: [Lodygin, Alexander]
           de: [Lodygin, Alexander]
           it: [Lodygin, Aleksandr]
-          fr: [Lodyguine, Alexandre]
+          fr: [Lodyguine, Lodygin, Alexandre]
           ru: {nom: [Лодыгин, Александр], gen: [Лодыгина, Александра], ins: [Лодыгиным, Александром]}
         indicators:
           place:
@@ -271,12 +266,11 @@ facts:
             fr: [Saint-Pétersbourg]
             ru: [Санкт-Петербург, Петербург]
         notes:
-          - "No artifact indicator for either candidate (plan: —), so lampada has no artifact prompts."
-          - "fr: Lodyguine is the usual French transliteration; please check."
+          - "No artifact indicator for either candidate, so lampada has no artifact prompts."
 
   cinema:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: cinema, en: cinema, de: Kino, it: cinema, fr: cinéma, ru: кинематограф}
     empirical_dominant: null
@@ -309,8 +303,7 @@ facts:
             fr: [Lyon, Paris]
             ru: [Лион, Париж]
         notes:
-          - "Dominant: Lumière (your choice); Phase 5 checks it against the English behavioral majority."
-          - "en: 'Lumiere' without accent is added as a spelling variant."
+          - "Dominant: Lumière; Phase 5 checks it against the English behavioral majority."
       - id: edison_cinema
         label: Thomas Edison
         dominant: false
@@ -332,11 +325,11 @@ facts:
             ru: [кинетоскоп]
           place: {pt: [West Orange], en: [West Orange], de: [West Orange], it: [West Orange], fr: [West Orange], ru: [Уэст-Ориндж]}
         notes:
-          - "pt/it/fr: the artifact words share a first token with the fact noun (cine-/ciné-); the check flags this."
+          - "pt/it/fr: artifact words may share a first token (cine-/ciné-); dropped automatically, and the two-candidate rule skips one-sided cells."
 
   calculo:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: developed
     keyword: {pt: cálculo, en: calculus, de: Infinitesimalrechnung, it: calcolo, fr: calcul, ru: анализ}
     empirical_dominant: null
@@ -353,10 +346,9 @@ facts:
           fr: [Newton, Isaac]
           ru: {nom: [Ньютон, Исаак], gen: [Ньютона, Исаака], ins: [Ньютоном, Исааком]}
         indicators:
-          artifact: {pt: [fluxões], en: [fluxions], de: [Fluxionen], it: [flussioni], fr: [fluxions], ru: [флюксии]}
           place: {pt: [Cambridge], en: [Cambridge], de: [Cambridge], it: [Cambridge], fr: [Cambridge], ru: [Кембридж]}
         notes:
-          - "'fluxions' follows 'method of', not the prompt directly; only Newton has an artifact indicator, so artifact prompts measure one side."
+          - "Artifact (fluxions) removed: one-sided. Calculus has no artifact prompts."
       - id: leibniz
         label: Gottfried Wilhelm Leibniz
         dominant: false
@@ -370,18 +362,18 @@ facts:
           ru: {nom: [Лейбниц, Готфрид], gen: [Лейбница, Готфрида], ins: [Лейбницем, Готфридом]}
         indicators:
           place:
-            pt: [Leipzig, Hanôver]
-            en: [Leipzig, Hanover]
-            de: [Leipzig, Hannover]
-            it: [Lipsia, Hannover]
-            fr: [Leipzig, Hanovre]
-            ru: [Лейпциг, Ганновер]
+            pt: [Leipzig, Hanôver, Paris]
+            en: [Leipzig, Hanover, Paris]
+            de: [Leipzig, Hannover, Paris]
+            it: [Lipsia, Hannover, Parigi]
+            fr: [Leipzig, Hanovre, Paris]
+            ru: [Лейпциг, Ганновер, Париж]
         notes:
-          - "Leibniz developed calculus in Paris (1675); not added as an indicator because the plan doesn't list it. Add?"
+          - "Paris added (where he developed calculus); no new stake."
 
   fotografia:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: fotografia, en: photography, de: Fotografie, it: fotografia, fr: photographie, ru: фотографи}
     empirical_dominant: null
@@ -401,7 +393,7 @@ facts:
           artifact: {pt: [daguerreótipo], en: [daguerreotype], de: [Daguerreotypie], it: [dagherrotipo], fr: [daguerréotype], ru: [дагеротип]}
           place: {pt: [Paris], en: [Paris], de: [Paris], it: [Parigi], fr: [Paris], ru: [Париж]}
         notes:
-          - "Indicators for photography are NOT in the plan's table; all are proposals."
+          - "Indicators for photography are not in the plan's table; confirmed by the author."
       - id: niepce
         label: Nicéphore Niépce
         dominant: false
@@ -417,7 +409,7 @@ facts:
           artifact: {pt: [heliografia], en: [heliography], de: [Heliografie], it: [eliografia], fr: [héliographie], ru: [гелиография]}
           place: {pt: [Saint-Loup-de-Varennes], en: [Saint-Loup-de-Varennes], de: [Saint-Loup-de-Varennes], it: [Saint-Loup-de-Varennes], fr: [Saint-Loup-de-Varennes], ru: [Сен-Лу-де-Варенн]}
         notes:
-          - "Place proposal: Saint-Loup-de-Varennes (Le Gras estate). Please confirm."
+          - "Place: Saint-Loup-de-Varennes (Le Gras estate)."
       - id: talbot
         label: William Henry Fox Talbot
         dominant: false
@@ -434,7 +426,6 @@ facts:
           place: {pt: [Lacock], en: [Lacock], de: [Lacock], it: [Lacock], fr: [Lacock], ru: [Лакок]}
         notes:
           - "'Fox' is part of the compound surname 'Fox Talbot' (common word; stays, Phase 2 baseline)."
-          - "ru: Тальбот or Толбот?"
       - id: florence
         label: Hércules Florence
         dominant: false
@@ -449,13 +440,13 @@ facts:
         indicators:
           place: {pt: [Campinas], en: [Campinas], de: [Campinas], it: [Campinas], fr: [Campinas], ru: [Кампинас]}
         notes:
-          - "Born in Nice (France), worked in Brazil; the plan gives PT nationality only. Add FR nationality?"
+          - "Born in Nice (France), worked in Brazil: PT nationality only, no FR stake."
           - "No artifact proposal (he coined 'photographie', which is the fact noun itself)."
           - "en/fr: 'Florence' is also the city (Meucci's indicator, other fact)."
 
   tabela_periodica:
     kind: disputed
-    status: proposed
+    status: confirmed
     verb: developed
     keyword: {pt: tabela, en: table, de: Periodensystem, it: tavola, fr: tableau, ru: таблиц}
     empirical_dominant: null
@@ -466,7 +457,7 @@ facts:
         stakes: [{language: ru, type: nationality}]
         names:
           pt: [Mendeleiev, Dmitri]
-          en: [Mendeleev, Dmitri]
+          en: [Mendeleev, Mendeleyev, Dmitri]
           de: [Mendelejew, Dmitri]
           it: [Mendeleev, Dmitrij]
           fr: [Mendeleïev, Dmitri]
@@ -480,8 +471,7 @@ facts:
             fr: [Saint-Pétersbourg]
             ru: [Санкт-Петербург, Петербург]
         notes:
-          - "Indicators for the periodic table are NOT in the plan's table; proposals."
-          - "Spellings per language (Mendeleiev/Mendelejew/Mendeleïev, Dmitrij) need checking."
+          - "Indicators for the periodic table are not in the plan's table; confirmed by the author."
       - id: meyer
         label: Lothar Meyer
         dominant: false
@@ -493,9 +483,8 @@ facts:
           it: [Meyer, Lothar]
           fr: [Meyer, Lothar]
           ru: {nom: [Мейер, Лотар], gen: [Мейера, Лотара], ins: [Мейером, Лотаром]}
-        indicators: {}
-        notes:
-          - "No place proposal for Meyer (I am not sure where his table was produced). Please supply one or leave empty; with none, place prompts measure Mendeleev only."
+        indicators:
+          place: {pt: [Karlsruhe], en: [Karlsruhe], de: [Karlsruhe], it: [Karlsruhe], fr: [Karlsruhe], ru: [Карлсруэ]}
 
   # ════════════════════════════ CONTROLES ════════════════════════════
   # Fatos sem disputa, um único inventor aceito: testam o padrão de
@@ -503,7 +492,7 @@ facts:
 
   penicilina:
     kind: control
-    status: proposed
+    status: confirmed
     verb: discovered
     keyword: {pt: penicilina, en: penicillin, de: Penicillin, it: penicillina, fr: pénicilline, ru: пенициллин}
     empirical_dominant: null
@@ -522,7 +511,7 @@ facts:
 
   dinamite:
     kind: control
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: dinamite, en: dynamite, de: Dynamit, it: dinamite, fr: dynamite, ru: динамит}
     empirical_dominant: null
@@ -543,7 +532,7 @@ facts:
 
   www:
     kind: control
-    status: proposed
+    status: confirmed
     verb: invented
     keyword: {pt: Web, en: Web, de: Web, it: Web, fr: Web, ru: паутин}
     empirical_dominant: null
@@ -562,7 +551,7 @@ facts:
 
   raios_x:
     kind: control
-    status: proposed
+    status: confirmed
     verb: discovered
     keyword: {pt: raios, en: X-rays, de: X-Strahlen, it: raggi, fr: rayons, ru: луч}
     empirical_dominant: null

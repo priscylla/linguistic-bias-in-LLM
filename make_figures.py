@@ -11,7 +11,9 @@ Fig. 6, reports/tuned_lens/{modelo}_eval.csv. Nada é modificado.
     python make_figures.py --scope main        # só as versões do texto principal
 
 Cada figura sai em PDF e PNG (config figures.formats), na largura de
-coluna ou de texto do ACM sigconf, em duas versões: principal (modelos
+texto do formato da FAccT 2027 (acmart manuscript, uma coluna;
+figures.text_width_in, medida com reports/latex/measure_textwidth.tex),
+em duas versões: principal (modelos
 de figures.main_models) e apêndice (sufixo _all, todos os modelos).
 Paleta Okabe-Ito + traço por idioma. Lens das figuras: figures.lens
 (Fig. 6 compara Logit e Tuned Lens). Figuras sem dados são puladas.
@@ -67,6 +69,21 @@ LANG_LABELS  = {}
 
 def fcfg():
     return CONFIG.experiment["figures"]
+
+
+class FigureWidthUnset(RuntimeError):
+    """figures.text_width_in ainda não foi medido."""
+
+
+def text_width():
+    """\\textwidth do documento (polegadas). Recusa enquanto não for medido."""
+    w = fcfg().get("text_width_in")
+    if not w:
+        raise FigureWidthUnset(
+            "figures.text_width_in não definido em config/experiment.yaml. Compile "
+            "reports/latex/measure_textwidth.tex (pdflatex ou Overleaf) e copie o valor em "
+            "polegadas; ele também vai para reports/verified_values.md.")
+    return float(w)
 
 
 def set_style():
@@ -196,7 +213,10 @@ def decision_start(n_layers):
                 if in_decision_zone(k, n_layers, CONFIG.decision_zone))
 
 
-def _grid(n, ncols):
+def _grid(n, ncols=None):
+    """Linhas × colunas de painéis: 4 colunas em página larga, 3 em página estreita."""
+    ncols = ncols or (4 if text_width() >= 6.0 else 3)
+    ncols = min(ncols, max(1, n))
     return int(np.ceil(n / ncols)), ncols
 
 
@@ -237,7 +257,7 @@ def fig1_divergence_map(metrics, out_base, models, window=3):
     if not models or not panels:
         return []
     set_style()
-    W = fcfg()["text_width_in"]
+    W = text_width()
     fig, axes = plt.subplots(len(panels), len(models), figsize=(W, 0.85 * len(panels) + 0.7),
                              sharey="row", squeeze=False)
     for r, (fact, cid) in enumerate(panels):
@@ -320,8 +340,8 @@ def fig2_delta_cs(metrics, out_base, models, fmt="completion", group="F1-F3"):
         return []
     langs = [l for l in CONFIG.languages if l != CONFIG.reference_language]
     set_style()
-    nr, nc = _grid(len(panels), 4)
-    fig, axes = plt.subplots(nr, nc, figsize=(fcfg()["text_width_in"], 1.55 * nr + 0.5),
+    nr, nc = _grid(len(panels))
+    fig, axes = plt.subplots(nr, nc, figsize=(text_width(), 1.55 * nr + 0.5),
                              sharey=True, squeeze=False)
     for ax in axes.flat[len(panels):]:
         ax.set_visible(False)
@@ -355,8 +375,8 @@ def fig3_peak_vs_final(metrics, out_base, models):
         return []
     langs = CONFIG.languages
     set_style()
-    nr, nc = _grid(len(panels), 4)
-    fig, axes = plt.subplots(nr, nc, figsize=(fcfg()["text_width_in"], 1.5 * nr + 0.5),
+    nr, nc = _grid(len(panels))
+    fig, axes = plt.subplots(nr, nc, figsize=(text_width(), 1.5 * nr + 0.5),
                              sharey=True, squeeze=False)
     for ax in axes.flat[len(panels):]:
         ax.set_visible(False)
@@ -406,7 +426,7 @@ def fig4_internal_behavioral(metrics, out_base, models):
         print("  –  fig4: sem internal_behavioral")
         return []
     set_style()
-    fig, axes = plt.subplots(1, 2, figsize=(fcfg()["column_width_in"], 1.75), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(text_width(), 0.42 * text_width()), sharey=True)
     for ax, col, name in zip(axes, ["cs_star", "cs_zone"], ["CS* (peak)", "CS (dec. zone)"]):
         d = J.dropna(subset=[col, "primary_rate"])
         for m in models:
@@ -425,8 +445,9 @@ def fig4_internal_behavioral(metrics, out_base, models):
     axes[0].set_ylabel("Primary rate of e")
     handles = [Line2D([0], [0], marker="o", color=lang_color(l), lw=0, ms=3, label=l.upper())
                for l in CONFIG.languages]
-    fig.legend(handles=handles + _model_legend(models), loc="lower center", ncol=5, frameon=False,
-               bbox_to_anchor=(0.5, -0.12), fontsize=fcfg()["font_size"] - 1.5)
+    fig.legend(handles=handles + _model_legend(models), loc="lower center",
+               ncol=len(handles) + len(models), frameon=False,
+               bbox_to_anchor=(0.5, -0.06), fontsize=fcfg()["font_size"] - 1)
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     return save(fig, out_base)
 
@@ -451,8 +472,8 @@ def fig5_names_vs_indicators(metrics, out_base, models):
         return []
     langs = [l for l in CONFIG.languages if l != CONFIG.reference_language]
     set_style()
-    nr, nc = _grid(len(panels), 4)
-    fig, axes = plt.subplots(nr, nc, figsize=(fcfg()["text_width_in"], 1.5 * nr + 0.45),
+    nr, nc = _grid(len(panels))
+    fig, axes = plt.subplots(nr, nc, figsize=(text_width(), 1.5 * nr + 0.45),
                              sharey=True, squeeze=False)
     for ax in axes.flat[len(panels):]:
         ax.set_visible(False)
@@ -507,7 +528,7 @@ def fig6_lens_comparison(metrics, out_base, models, report_dir="reports/tuned_le
     ev = _sel(ev, model=models) if len(ev) else ev
     ncols = 3 if len(ev) else 2
     set_style()
-    fig, axes = plt.subplots(1, ncols, figsize=(fcfg()["text_width_in"], 2.0))
+    fig, axes = plt.subplots(1, ncols, figsize=(text_width(), 2.0))
     ax = axes[0]
     lim = []
     for m in models:
@@ -869,10 +890,10 @@ def to_latex(T: pd.DataFrame, caption: str, label: str, longtable: bool) -> str:
                           r"\caption{%s}\label{%s}\\" % (caption, label), r"\toprule", head,
                           r"\midrule", r"\endfirsthead", r"\toprule", head, r"\midrule", r"\endhead",
                           *body, r"\bottomrule", note, r"\end{longtable}", r"\end{small}", ""])
-    return "\n".join([r"\begin{table*}[t]", r"\centering", r"\small",
+    return "\n".join([r"\begin{table}[t]", r"\centering", r"\small",
                       r"\caption{%s}\label{%s}" % (caption, label),
                       r"\begin{tabular}{%s}" % align, r"\toprule", head, r"\midrule", *body,
-                      r"\bottomrule", note, r"\end{tabular}", r"\end{table*}", ""])
+                      r"\bottomrule", note, r"\end{tabular}", r"\end{table}", ""])
 
 
 def write_tables(metrics, tables_dir) -> list:

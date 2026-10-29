@@ -25,7 +25,8 @@ CHAT  = lambda tok, text: f"<user>{text}<assistant>"  # noqa: E731
 
 def tiny_config():
     base = ExperimentConfig()
-    exp  = {**base.experiment, "languages": list(LANGS), "heatmap_models": ["llama"]}
+    exp  = {**base.experiment, "languages": list(LANGS), "heatmap_models": ["llama"],
+            "figures": {**base.experiment["figures"], "text_width_in": 5.5}}
     return ExperimentConfig(
         experiment=exp,
         fact_specs={k: base.fact_specs[k] for k in FACTS},

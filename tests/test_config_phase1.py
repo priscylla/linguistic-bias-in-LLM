@@ -210,11 +210,53 @@ def test_runs_blocked_until_confirmed():
 
 
 def test_require_confirmed_passes_when_all_confirmed():
-    raw = copy.deepcopy(_raw("facts.yaml"))
-    for f in raw["facts"].values():
-        f["status"] = "confirmed"
+    from conftest import reviewed_facts
     prompts = [p for p in PROMPTS if not p.needs_native_review]
-    require_confirmed(parse_facts(raw), prompts)
+    require_confirmed(reviewed_facts(FACTS), prompts)
+
+
+def test_facts_confirmed_and_pending_russian_forms():
+    # Respostas da autora (2026-10-29): fatos confirmados; formas ru pendentes
+    assert all(f.status == "confirmed" for f in FACTS.values())
+    from config.loader import pending_ru_names
+    assert pending_ru_names(FACTS) == {
+        "aviao.wright": ["Уилбур", "Уилбура", "Уилбуром", "Уилбер", "Уилбера", "Уилбером"],
+        "telefone.bell": ["Александера", "Александером", "Грейама", "Грейамом"],
+        "radio.landell": ["Ланделл", "Ланделла", "Ланделлом", "Моура", "Роберту"]}
+    prompts = [p for p in PROMPTS if not p.needs_native_review]
+    with pytest.raises(UnconfirmedError, match="nomes ru"):
+        require_confirmed(FACTS, prompts)            # runs com prompts esperam a revisão ru
+    require_confirmed(FACTS, [], ru_names=False)     # treino do Tuned Lens: só fatos e nomes
+
+
+def test_author_answers_applied():
+    F = FACTS
+    assert "Nord-Carolina" in F["aviao"].candidate("wright").indicators_for("place", "de")
+    assert "Алберту" in F["aviao"].candidate("santos_dumont").names_for("ru", "gen")
+    bell = F["telefone"].candidate("bell")
+    assert {"Грейам", "Грэхем", "Александр", "Александер"} <= set(bell.names_for("ru", "nom"))
+    assert F["telefone"].candidate("reis").indicators_for("artifact", "de") == []
+    assert F["telefone"].candidate("meucci").indicators_for("artifact", "ru") == []
+    assert F["radio"].candidate("popov").indicators_for("artifact", "en") == []
+    assert F["radio"].candidate("landell").indicators_for("place", "it") == \
+        ["Porto Alegre", "San Paolo", "São Paulo"]
+    assert F["lampada"].candidate("lodygin").names_for("fr") == ["Lodyguine", "Lodygin", "Alexandre"]
+    assert F["calculo"].candidate("newton").indicators_for("artifact", "en") == []
+    assert "Parigi" in F["calculo"].candidate("leibniz").indicators_for("place", "it")
+    assert {(s.language, s.type) for s in F["fotografia"].candidate("florence").stakes} == {("pt", "nationality")}
+    assert "Mendeleyev" in F["tabela_periodica"].candidate("mendeleev").names_for("en")
+    assert F["tabela_periodica"].candidate("meyer").indicators_for("place", "ru") == ["Карлсруэ"]
+    assert F["dinamite"].candidate("nobel").stakes == []
+
+
+def test_indicator_prompts_need_two_candidates():
+    types = lambda k: {p.type for p in PROMPTS if p.fact == k}   # noqa: E731
+    assert "artifact" not in types("telefone") | types("radio") | types("calculo") | types("lampada")
+    assert {"place", "artifact"} <= types("aviao") & types("cinema") & types("fotografia")
+    assert "place" in types("tabela_periodica")                   # Meyer agora tem Karlsruhe
+    assert not FACTS["telefone"].indicator_prompt_ok("artifact", "it")   # só Meucci
+    assert FACTS["telefone"].indicator_prompt_ok("place", "it")
+    assert len(PROMPTS) == 1062
 
 
 def test_run_lens_refuses_unconfirmed(monkeypatch):

@@ -46,6 +46,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict
 
 import torch
 import transformers
@@ -53,6 +54,9 @@ import transformers
 from config.experiment_config import ExperimentConfig
 from config.loader import CONFIG_DIR, load_models, prompts_for, require_confirmed, require_valid
 from logit_lens.confound import ConfoundTester
+from logit_lens.entity_tokens import (
+    INDICATOR_TYPES, build_token_sets, indicator_cell_ok, valid_candidates, word_sets,
+)
 from logit_lens.lens import LogitLens
 from logit_lens.measure import LensRunner
 from logit_lens.store import ChunkStore, lens_dir, read_manifest, write_manifest
@@ -137,12 +141,43 @@ def run_baseline_unit(runner, config, lang, model_key, formats):
     return tables
 
 
+def indicator_skips(runner, fact, prompts) -> Dict:
+    """
+    Células de indicador (tipo) a pular neste tokenizer: menos de dois
+    candidatos com token IDs válidos em alguma paráfrase.
+
+    Returns:
+        {tipo: [{paraphrase, valid_candidates}]} só dos tipos pulados
+    """
+    out = {}
+    for t in INDICATOR_TYPES:
+        ps = [p for p in prompts if p.type == t]
+        if not ps:
+            continue
+        sets = []
+        for p in ps:
+            text, sep, add_special = runner.prepare(p)
+            sets.append(build_token_sets(runner.tokenizer, text, word_sets(fact, p),
+                                         sep=sep, add_special_tokens=add_special))
+        if not indicator_cell_ok(sets):
+            out[t] = [{"paraphrase": p.paraphrase, "valid_candidates": ",".join(valid_candidates(ts))}
+                      for p, ts in zip(ps, sets)]
+    return out
+
+
 def run_fact_unit(runner, tester, config, fact_key, lang, model_key, formats):
     facts  = config.fact_specs
     fact   = facts[fact_key]
-    tables = {"probs": [], "forced": [], "layers": [], "token_sets": []}
-    for prompt in prompts_for(config.prompt_specs, fact_key, lang):
-        if prompt.format not in formats:
+    tables = {"probs": [], "forced": [], "layers": [], "token_sets": [], "skipped": []}
+    prompts = [p for p in prompts_for(config.prompt_specs, fact_key, lang) if p.format in formats]
+    skip = indicator_skips(runner, fact, prompts)
+    for t, rows in skip.items():
+        for r in rows:
+            tables["skipped"].append({"model": model_key, "lens": runner.lens.name, "fact": fact_key,
+                                      "lang": lang, "prompt_type": t, **r,
+                                      "reason": "menos de 2 candidatos com tokens válidos"})
+    for prompt in prompts:
+        if prompt.type in skip:
             continue
         res  = runner.measure(prompt, fact)
         keys = _keys(model_key, runner.lens.name, prompt, fact_key)
@@ -266,6 +301,11 @@ def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
     gpus = manifest["gpu"]["count"]
     manifest["gpu_hours"] = round(manifest["wall_time_s"] / 3600 * gpus, 3) if gpus else 0.0
     manifest["units_done"] = len(store.done_units())
+    sk = out_dir / "skipped.parquet"
+    if sk.exists():
+        import pandas as pd
+        d = pd.read_parquet(sk)[["fact", "lang", "prompt_type"]].drop_duplicates()
+        manifest["skipped_indicator_cells"] = d.to_dict("records")
     manifest["units_expected"] = len(units)
     manifest["rows"] = counts
     write_manifest(out_dir, manifest)

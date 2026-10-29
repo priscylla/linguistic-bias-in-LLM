@@ -21,7 +21,7 @@ from typing import Dict, Iterable, List
 
 import pandas as pd
 
-TABLES = ("probs", "baseline", "forced", "layers", "token_sets")
+TABLES = ("probs", "baseline", "forced", "layers", "token_sets", "skipped")
 
 
 LENSES = ("logit_lens", "tuned_lens")

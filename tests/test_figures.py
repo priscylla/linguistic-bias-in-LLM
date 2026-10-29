@@ -10,7 +10,7 @@ import pytest
 from matplotlib.colors import to_rgb
 
 import make_figures as mf
-from synthetic_results import build, eval_reports
+from synthetic_results import TEXT_WIDTH, build, eval_reports
 
 
 @pytest.fixture(scope="module")
@@ -54,9 +54,9 @@ def test_figure_sizes_fit_acm_page(synth, tmp_path, monkeypatch):
 
     monkeypatch.setattr(mf, "save", spy)
     mf.make_all(res, ["fig1", "fig2", "fig4"], tmp_path, ["main"])
-    assert sizes["fig2_delta_cs"][0] == pytest.approx(7.0)        # largura de texto
-    assert sizes["fig4_internal_vs_behavior"][0] == pytest.approx(3.33)   # largura de coluna
-    assert all(h < 9.5 for _, h in sizes.values())                # cabe na página
+    # uma coluna (acmart manuscript): toda figura na largura de texto do config
+    assert all(w == pytest.approx(TEXT_WIDTH) for w, _ in sizes.values())
+    assert all(h < 9.0 for _, h in sizes.values())                # cabe na página
 
 
 def test_palette_is_colorblind_safe_and_complete(synth, monkeypatch):
@@ -89,7 +89,8 @@ def test_results_tables(figs):
     cfg, res, tmp, _ = figs
     compact = (tmp / "tables" / "results_compact.tex").read_text()
     full = (tmp / "tables" / "results_full.tex").read_text()
-    assert r"\begin{table*}" in compact and r"\toprule" in compact and r"\bottomrule" in compact
+    assert r"\begin{table}[t]" in compact and r"\toprule" in compact and r"\bottomrule" in compact
+    assert "table*" not in compact                                # documento de uma coluna
     assert r"\begin{longtable}" in full
     T = mf.results_table(res, mf.figure_models("main"), compact=True)
     assert set(T.columns) == {"Model", "Fact", "Candidate", "Lang", "Peak $k^*/L$", "CS$^*$",
@@ -118,3 +119,18 @@ def test_tex_escape():
 def test_decision_start_and_layers():
     assert mf.decision_start(40) == 29
     assert matplotlib.get_backend().lower() == "agg"
+
+
+def test_figures_refuse_without_measured_width(synth, tmp_path, monkeypatch):
+    import dataclasses
+    cfg, res = synth
+    exp = {**cfg.experiment, "figures": {**cfg.experiment["figures"], "text_width_in": None}}
+    monkeypatch.setattr(mf, "CONFIG", dataclasses.replace(cfg, experiment=exp))
+    with pytest.raises(mf.FigureWidthUnset, match="measure_textwidth"):
+        mf.make_all(res, ["fig2"], tmp_path, ["main"])
+
+
+def test_real_config_width_unset_until_measured():
+    from config.experiment_config import ExperimentConfig
+    f = ExperimentConfig().experiment["figures"]
+    assert f["text_width_in"] is None and "manuscript" in f["document_class"]

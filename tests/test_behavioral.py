@@ -295,3 +295,13 @@ def test_check_behavioral(tmp_path):
     from test_run_pipeline import tiny_config
     cfg = tiny_config()
     assert "sem respostas" in check_results.check_behavioral("llama", str(tmp_path), cfg)[0]
+
+
+def test_report_when_a_candidate_is_never_cited():
+    # Ninguém cita Reis: a pergunta de precedência não pode quebrar
+    spec = [("m1", "telefone", "de", "Meucci")] * 2 + [("m1", "telefone", "en", "Bell")]
+    res = analyze.compute_behavioral(_answers(spec), ExperimentConfig(), BC)
+    rep = res["behavioral_report"]
+    pre = rep[(rep.question == "precedence:telefone:reis<meucci") & (rep.scope == "pooled")
+              & (rep.lang == "de")].iloc[0]
+    assert pre.n_citing_either == 2 and pre.value == 0.0 and pre.n_citing_both == 0

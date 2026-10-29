@@ -47,5 +47,38 @@ Every fact, translation, model ID or license used by the pipeline is logged here
 | Fig. 2 layout | `make_figures.py` fig2_delta_cs | one point per model with its bootstrap CI, stake languages shaded | Priscylla Silva | 2026-10-28 |
 | Results table | `make_figures.py` results_table | row = model × fact × language × alternative candidate (F1–F3 pooled); behavior = primary rate of e + majority answer; compact = main models, stake languages + EN | Priscylla Silva | 2026-10-28 |
 | Fig. 4 axes | `make_figures.py` fig4_internal_behavioral | two panels: CS* and decision-zone CS vs primary-attribution rate | Priscylla Silva | 2026-10-28 |
+| Facts status | `config/facts.yaml` status | all 12 facts `confirmed` (candidates, names, stakes, indicators as in `reports/phase1_review.md`); Russian forms listed under `pending_ru_review` still wait for the native review | Priscylla Silva | 2026-10-29 |
+| Indicator prompt rule | `config/loader.py` indicator_prompt_ok; `logit_lens/entity_tokens.py` indicator_cell_ok | place/artifact prompts for a fact × language only if at least two candidates have indicators and, per tokenizer, valid tokens in every paraphrase; otherwise the cell is skipped and logged (`skipped` table, manifest, `reports/tokenization_summary.md`) | Priscylla Silva | 2026-10-29 |
+| aviao/wright de place | `config/facts.yaml` aviao.wright.indicators.place.de | Kitty Hawk, Kill Devil Hills, North Carolina, Nord-Carolina, Dayton | Priscylla Silva | 2026-10-29 |
+| aviao/14-bis | `config/facts.yaml` aviao.santos_dumont.indicators.artifact | keep 14-bis with the automatic rule (dropped if its first token is shared; Demoiselle stays) | Priscylla Silva | 2026-10-29 |
+| aviao/santos_dumont ru first name | `config/facts.yaml` aviao.santos_dumont.names.ru | Альберто, variant Алберту (all cases) | Priscylla Silva | 2026-10-29 |
+| aviao/wright ru first names | `config/facts.yaml` aviao.wright.names.ru | Уилбур and Уилбер (+ gen/ins); pending Russian review | Priscylla Silva | 2026-10-29 |
+| telefone/bell stake | `config/facts.yaml` telefone.bell.stakes | en nationality | Priscylla Silva | 2026-10-29 |
+| telefone/bell ru names | `config/facts.yaml` telefone.bell.names.ru | middle name Грейам, variant Грэхем; first name Александр, variant Александер (gen/ins of the new variants pending Russian review) | Priscylla Silva | 2026-10-29 |
+| telefone/meucci places it/fr | `config/facts.yaml` telefone.meucci.indicators.place | Avana / Havane, noun only | Priscylla Silva | 2026-10-29 |
+| telefone/meucci ru artifact | `config/facts.yaml` telefone.meucci.indicators.artifact.ru | телеттрофон removed | Priscylla Silva | 2026-10-29 |
+| telefone/reis names | `config/facts.yaml` telefone.reis.names | Johann Philipp Reis (Johann added) | Priscylla Silva | 2026-10-29 |
+| telefone/reis artifact | `config/facts.yaml` telefone.reis.indicators | 'Telephon' removed in all languages; telephone has no artifact prompts | Priscylla Silva | 2026-10-29 |
+| radio/marconi Poldhu | `config/facts.yaml` radio.marconi.stakes | no extra stake | Priscylla Silva | 2026-10-29 |
+| radio artifact | `config/facts.yaml` radio.popov.indicators | all artifact indicators removed (lightning detector); radio has no artifact prompts | Priscylla Silva | 2026-10-29 |
+| radio shared ' São' | tokenization rule | automatic drop kept | Priscylla Silva | 2026-10-29 |
+| radio/landell it place | `config/facts.yaml` radio.landell.indicators.place.it | Porto Alegre, San Paolo, São Paulo | Priscylla Silva | 2026-10-29 |
+| radio/landell ru names | `config/facts.yaml` radio.landell.names.ru | as proposed; pending Russian review | Priscylla Silva | 2026-10-29 |
+| lampada/lodygin fr | `config/facts.yaml` lampada.lodygin.names.fr | Lodyguine, variant Lodygin | Priscylla Silva | 2026-10-29 |
+| lampada artifact | — | no artifact prompts | Priscylla Silva | 2026-10-29 |
+| cinema dominant | `config/facts.yaml` cinema.lumiere.dominant | Lumière (checked in Phase 5 against the English majority) | Priscylla Silva | 2026-10-29 |
+| cinema 'Lumiere' | `config/facts.yaml` cinema.lumiere.names.en | variant kept | Priscylla Silva | 2026-10-29 |
+| cinema cine-/ciné- tokens | tokenization rule | automatic drop kept; the two-candidate rule handles one-sided cells | Priscylla Silva | 2026-10-29 |
+| calculo artifact | `config/facts.yaml` calculo.newton.indicators | fluxions removed; calculus has no artifact prompts | Priscylla Silva | 2026-10-29 |
+| calculo/leibniz place | `config/facts.yaml` calculo.leibniz.indicators.place | Paris added (it Parigi, ru Париж); no new stake | Priscylla Silva | 2026-10-29 |
+| fotografia indicators | `config/facts.yaml` fotografia | all as proposed, including Saint-Loup-de-Varennes for Niépce | Priscylla Silva | 2026-10-29 |
+| fotografia/talbot ru | `config/facts.yaml` fotografia.talbot.names.ru | Тальбот | Priscylla Silva | 2026-10-29 |
+| fotografia/florence stakes | `config/facts.yaml` fotografia.florence.stakes | pt nationality only, no FR stake | Priscylla Silva | 2026-10-29 |
+| tabela_periodica/mendeleev spellings | `config/facts.yaml` tabela_periodica.mendeleev.names | as proposed + en variant Mendeleyev | Priscylla Silva | 2026-10-29 |
+| tabela_periodica/meyer place | `config/facts.yaml` tabela_periodica.meyer.indicators.place | Karlsruhe (ru Карлсруэ) | Priscylla Silva | 2026-10-29 |
+| dinamite/nobel stake | `config/facts.yaml` dinamite.nobel.stakes | none | Priscylla Silva | 2026-10-29 |
+| raios_x wording | `config/prompts.yaml` raios_x de/ru | keep X-Strahlen / X-лучи; DE and RU reviewers confirm naturalness | Priscylla Silva | 2026-10-29 |
+| Paper format | `config/experiment.yaml` figures.document_class | FAccT 2027: acmart manuscript, single column (`\documentclass[manuscript,screen,review,anonymous]{acmart}`); every figure at \textwidth | Priscylla Silva | 2026-10-29 |
+| Figure width (\textwidth) | `config/experiment.yaml` figures.text_width_in | **pending measurement**: compile `reports/latex/measure_textwidth.tex` (no LaTeX on this machine); acmart v2.20 sets no width for manuscript, so it comes from geometry's defaults | Priscylla Silva | 2026-10-29 |
 
 EN and DE prompts were unchanged in Phase 0 (already correct). The prompts above are paraphrase 1 of each formulation since Phase 1 (moved from `data/prompts.py`, now removed); the new paraphrases and the FR/RU prompts are added to this log as they are confirmed.

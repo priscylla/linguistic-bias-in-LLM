@@ -193,3 +193,45 @@ def test_training_lock(tmp_path):
     assert not (tmp_path / "llama" / "TRAINING.lock").exists()
     with ttl.TrainingLock(tmp_path / "llama"):                       # liberado: pode de novo
         pass
+
+
+def test_tuned_lens_training_not_blocked_by_native_review(monkeypatch):
+    # Fatos confirmados bastam: a revisão nativa pendente não bloqueia o treino
+    import models.model_loader
+    calls = []
+    monkeypatch.setattr(models.model_loader, "load_model",
+                        lambda *a, **k: calls.append(a) or (_ for _ in ()).throw(RuntimeError("parou aqui")))
+    monkeypatch.setattr(ttl, "skip_reason", lambda *a, **k: None)
+    monkeypatch.setattr(ttl.TrainingLock, "__enter__", lambda self: self)
+    monkeypatch.setattr(ttl.TrainingLock, "__exit__", lambda self, *a: False)
+    with pytest.raises(RuntimeError, match="parou aqui"):
+        ttl.main(["--model", "llama"])
+    assert calls                                     # passou pelos guardas e foi carregar o modelo
+
+
+def test_indicator_cell_skipped_when_fewer_than_two_valid_candidates(tmp_path):
+    import pandas as pd
+    from config.loader import Candidate, Fact, Prompt
+    from devtools.tiny import WordTokenizer, build_tiny_model
+    from logit_lens.confound import ConfoundTester
+    from logit_lens.measure import LensRunner
+    from config.loader import load_forcing
+
+    def cand(cid, dom, place):
+        return Candidate(id=cid, label=cid, dominant=dom, stakes=[], names={"pt": {"nom": [cid.title()]}},
+                         indicators={"place": {"pt": place}})
+    # São Paulo e São Tomé: primeiro token " São" compartilhado -> nenhum candidato válido
+    fact = Fact(key="radio", kind="disputed", status="confirmed", verb="invented",
+                keyword={"pt": "rádio"}, candidates=[cand("a", True, ["São Tomé"]), cand("b", False, ["São Paulo"])])
+    prompts = [Prompt("radio", "pt", "place", i, t) for i, t in
+               enumerate(["O rádio foi inventado em", "O rádio foi testado pela primeira vez em",
+                          "O lugar onde o rádio foi inventado é"], start=1)]
+    prompts += [Prompt("radio", "pt", "F1", 2, "Quem inventou o rádio foi")]
+    cfg = type("C", (), {"fact_specs": {"radio": fact}, "prompt_specs": tuple(prompts)})()
+    runner = LensRunner(build_tiny_model("llama", vocab=512), WordTokenizer())
+    t = run_lens.run_fact_unit(runner, ConfoundTester(runner, load_forcing()), cfg, "radio", "pt",
+                               "tiny", ("completion",))
+    assert {r["prompt_type"] for r in t["probs"]} == {"F1"}           # place pulado inteiro
+    sk = pd.DataFrame(t["skipped"])
+    assert set(sk["paraphrase"]) == {1, 2, 3} and set(sk["prompt_type"]) == {"place"}
+    assert (sk["valid_candidates"] == "").all()

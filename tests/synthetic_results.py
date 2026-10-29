@@ -15,6 +15,7 @@ from analysis.statistics import run_statistics
 from config.experiment_config import ExperimentConfig
 
 FACTS  = ("aviao", "telefone", "penicilina")
+TEXT_WIDTH = 5.5        # largura provisória dos testes
 MODELS = ("llama", "mistral", "qwen", "gemma", "llama_base")
 LAYERS = {"llama": 6, "mistral": 6, "qwen": 5, "gemma": 7, "llama_base": 6}
 
@@ -22,7 +23,8 @@ LAYERS = {"llama": 6, "mistral": 6, "qwen": 5, "gemma": 7, "llama_base": 6}
 def small_config():
     base = ExperimentConfig()
     stats = {**base.experiment["statistics"], "bootstrap": 200, "permutation_mc": 2000}
-    exp = {**base.experiment, "statistics": stats, "heatmap_models": ["llama", "gemma"]}
+    exp = {**base.experiment, "statistics": stats, "heatmap_models": ["llama", "gemma"],
+           "figures": {**base.experiment["figures"], "text_width_in": TEXT_WIDTH}}
     reg = dataclasses.replace(base.registry, models={k: base.registry[k] for k in MODELS})
     return ExperimentConfig(
         experiment=exp, fact_specs={k: base.fact_specs[k] for k in FACTS},
