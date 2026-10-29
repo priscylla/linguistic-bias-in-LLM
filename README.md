@@ -2,15 +2,32 @@
 
 Logit Lens and Tuned Lens study of cultural and linguistic bias in LLMs: for contested inventions (airplane, telephone, radio, …) and undisputed controls, it measures, layer by layer and in five prompt languages (PT, EN, DE, IT, FR), how strongly a model commits to each candidate inventor (the Commitment Score, CS_e = P(e) − P(dominant)), and compares that internal commitment with what the model actually answers.
 
+## Requirements
+
+- **Python ≥ 3.11** (the pinned numpy, pandas, scipy and pyarrow require it); tested on 3.12 and 3.13.
+- **A fresh virtual environment.** The pinned versions in `requirements.txt` (transformers 5.7, torch 2.11, …) differ from the ones the old code used, so don't reuse an old environment.
+- **GPU:** Linux and NVIDIA GPUs with bf16 (compute capability ≥ 8.0, e.g. A100). The PyPI wheel of torch 2.11.0 is built for CUDA 13.0 and needs NVIDIA driver ≥ 580; with an older driver, first run `pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128`.
+- **Disk:** about 230 GB for the model cache.
+- **Hugging Face:** a token with access to the gated models (Llama 3.1, Gemma 2).
+  - The token comes from `HF_TOKEN`, from `.env`, or from `hf auth login` (= `huggingface-cli login`).
+  - A placeholder `HF_TOKEN` in `.env` (not a real-looking `hf_…` token) is ignored with a warning, and the login token is used instead; `.env` itself is never modified.
+
+`python scripts/check_env.py` checks all of this, plus every model's pinned commit, without downloading anything. It is the first step of every run guide:
+- `RUNNING_server.md`: concrete schedule for a 4 × 96 GB GPU server;
+- `RUNNING_multiGPU.md`: any number of GPUs;
+- `RUNNING_1GPU.md`: a single GPU.
+
 ## Pipeline
 
 One entry point per stage. Every model writes to its own files, every run resumes from checkpoints, and nothing downstream modifies raw results.
 
 ```bash
-# 0. Setup (once)
+# 0. Setup (once), Python >= 3.11 in a fresh environment
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export HF_TOKEN="hf_..."                 # gated models: Llama 3.1, Gemma 2 (accept the licenses first)
-pytest                                   # 291 tests, CPU, tiny random models, no downloads
+hf auth login                            # or export HF_TOKEN="hf_..."; gated: Llama 3.1, Gemma 2 (accept the licenses first)
+python scripts/check_env.py              # Python, packages, GPUs (memory, bf16), disk, HF access; must show 0 FAIL
+pytest                                   # 339 tests, CPU, tiny random models, no downloads
 python run_pipeline_dry.py               # whole pipeline on tiny models (CPU, ~2–3 min)
 python verify_setup.py                   # tokenizers only: prompts, name tokenization
 
@@ -36,7 +53,9 @@ python scripts/fill_empirical_dominant.py      # empirical English majority → 
 python make_figures.py                   # figures/ (PDF + PNG), tables/ (LaTeX + CSV)
                                          # needs figures.text_width_in: compile reports/latex/measure_textwidth.tex
 
-# 6. Release
+# 6. Send the results back, release
+python scripts/pack_results.py --include-lenses   # packs/results-<date>-<commit>.tar.gz (+ .sha256): results,
+                                                  # manifests, sanity / Tuned Lens reports, logs, translators
 python scripts/make_anonymous_copy.py    # ../linguistic-bias-in-LLM-anonymous (no names, emails, tokens, history)
 ```
 
@@ -50,7 +69,7 @@ When candidates of the same fact share a first token, the shared token is forced
 | --- | --- | --- |
 | `--model KEY` | all | key from `config/models.yaml` (below) |
 | `--gpus "1 2"` | all | GPUs for this job; two or more split the model across them. Without it, `CUDA_VISIBLE_DEVICES` applies |
-| `--dtype bf16\|fp16\|fp32\|nf4` | `run_lens.py`, `run_behavioral.py` | override the registry precision (e.g. Gemma 2 27B in bf16 on two GPUs instead of NF4). Changes the method: recorded in the manifest, and a run never resumes over results made with another precision |
+| `--dtype bf16\|fp16\|fp32\|nf4` | `run_lens.py`, `run_behavioral.py` | override the registry precision (e.g. `nf4` reproduces the 4-bit Gemma 2 27B used before 2026-10-29). Changes the method: recorded in the manifest, and a run never resumes over results made with another precision |
 | `--lens logit\|tuned` | `run_lens.py` | Logit Lens or the trained Tuned Lens |
 | `--sanity-only` | `run_lens.py` | only the sanity check |
 | `--consolidate-only` | `run_lens.py`, `run_behavioral.py` | rebuild the tables from finished checkpoints |
@@ -60,7 +79,12 @@ When candidates of the same fact share a first token, the shared token is forced
 
 ### Several GPUs
 
-`scripts/run_queue.sh jobs.txt "0 1 2 3"` keeps a list of GPUs busy with a list of jobs (one command per line). Each entry of the GPU list is a worker; a comma joins GPUs into one worker for a model split across them (`"0 1,2 3"`). Each job gets its own log in `logs/queue/`, a failing job is recorded and the queue continues, and the script exits with 1 if any job failed. Don't pass `--gpus` inside queued jobs.
+`scripts/run_queue.sh jobs.txt "0 1 2 3"` keeps a list of GPUs busy with a list of jobs (one command per line). Each entry of the GPU list is a worker; a comma joins GPUs into one worker for a model split across them (`"0 1,2 3"`). Each job gets its own log in `logs/queue/`, a failing job is recorded and the queue continues, and the script exits with 1 if any job failed. Don't pass `--gpus` inside queued jobs. Optional tags at the start of a job line:
+- `[gpu=3]` pins the job to one worker;
+- `[after=FILE]` waits until FILE exists;
+- `[mem=60]` waits for 60 GB free on the worker's GPUs.
+
+A waiting job doesn't block the others. GPU numbers follow `nvidia-smi` (`CUDA_DEVICE_ORDER=PCI_BUS_ID`). `RUNNING_server.md` uses the tags to run Tuned Lens training and everything else at the same time on the same GPUs.
 
 ```bash
 for m in llama mistral qwen gemma; do echo "python run_lens.py --model $m --lens logit"; done > jobs.txt
@@ -75,7 +99,7 @@ scripts/run_queue.sh jobs.txt "0 1 2 3"
 | `mistral_base` / `mistral` | Mistral 7B v0.3 / Instruct | base / instruct | bf16 | completion / + QA |
 | `qwen_base` / `qwen` | Qwen 2.5 7B / Instruct | base / instruct | bf16 | completion / + QA |
 | `gemma_base` / `gemma` | Gemma 2 9B / it | base / instruct | bf16 | completion / + QA |
-| `gemma27` | Gemma 2 27B it | instruct | 4-bit NF4 | completion + QA |
+| `gemma27` | Gemma 2 27B it | instruct | bf16 (~55 GB: one ≥ 64 GB GPU, or two) | completion + QA |
 | `sabia_base` / `sabia` | LLaMA-1 7B (huggyllama) / Sabiá-7B | base / base (pt-adapted) | bf16 | completion |
 
 Every model is pinned to a commit. Behavioral runs use the five instruct models; Tuned Lens uses `llama`, `mistral`, `qwen`, `gemma`.
@@ -87,15 +111,15 @@ Workload per model, counted by the full dry run (`run_pipeline_dry.py`, all 11 f
 | Step | Per model (24–48 GB GPU) | All models |
 | --- | --- | --- |
 | Sanity check | 2–5 min (+ first download) | ~45 min (11 models) |
-| Logit Lens | 5–12 min; Gemma 2 27B NF4 ~25–35 min | 1–2.5 h (11 models) |
-| Behavioral | 25–45 min; Gemma 2 27B NF4 1.5–2.5 h | 3–5.5 h (5 instruct) |
+| Logit Lens | 5–12 min; Gemma 2 27B bf16 15–30 min | 1–2.5 h (11 models) |
+| Behavioral | 25–45 min; Gemma 2 27B bf16 1–2 h | 3–5 h (5 instruct) |
 | Tuned Lens training (16M tokens) | Mistral ~3 h, Qwen ~7 h, Llama ~8 h, Gemma ~16 h | ~34 h (4 models) |
 | Tuned Lens re-measurement | 5–15 min | ~1 h (4 models) |
 | Analysis, statistics, figures | CPU, minutes | < 30 min |
 
 On the dry run (CPU, tiny models, 2 models) the whole pipeline took about 105 s and 1.1 GB of RAM; behavioral generation dominated (80 s).
 
-GPU memory (weights; activations add little at these prompt lengths): Llama 3.1 8B ~16 GB, Mistral 7B ~14.5 GB, Qwen 2.5 7B ~15 GB, Gemma 2 9B ~18.5 GB, Gemma 2 27B NF4 ~16–17 GB (about 55 GB in bf16, i.e. two GPUs), LLaMA-1 / Sabiá 7B ~13.5 GB. Tuned Lens training adds the translators, their gradients and the SGD momentum (~6 GB in float32 for Llama and Gemma) plus per-chunk logits: estimated peak ~22 GB (Mistral), ~21 GB (Qwen), ~24 GB (Llama), ~27 GB (Gemma). On a 24 GB GPU set `translator_dtype: bfloat16` in `config/tuned_lens.yaml` (saves ~3 GB), and for Gemma also `seq_len: 1024`, `loss_chunk_tokens: 256`.
+GPU memory (weights; activations add little at these prompt lengths): Llama 3.1 8B ~16 GB, Mistral 7B ~14.5 GB, Qwen 2.5 7B ~15 GB, Gemma 2 9B ~18.5 GB, Gemma 2 27B bf16 ~55 GB (about 58 GB while generating; one GPU of ≥ 64 GB, or two smaller ones), LLaMA-1 / Sabiá 7B ~13.5 GB. Tuned Lens training adds the translators, their gradients and the SGD momentum (~6 GB in float32 for Llama and Gemma) plus per-chunk logits: estimated peak ~22 GB (Mistral), ~21 GB (Qwen), ~24 GB (Llama), ~27 GB (Gemma). Every model uses the registered settings (`translator_dtype: float32`, `seq_len: 2048`); there is no reduced-memory variant, so Gemma's training needs a GPU of at least 32 GB.
 
 ## Configuration
 
@@ -126,6 +150,9 @@ Everything that varies lives in YAML, read and validated by `config/loader.py`:
 | `make_figures.py` | figures 1–6 + appendix heatmaps (single-column acmart manuscript width, Okabe-Ito palette) and LaTeX tables |
 | `models/` | registry loader, chat template, `--gpus` / `--dtype` handling |
 | `devtools/tiny.py` | tiny random models and toy tokenizers for tests and the dry run |
+| `scripts/check_env.py` | first step on a new machine: Python, packages, GPUs (memory, bf16), disk, Hugging Face access at the pinned commits |
+| `scripts/run_queue.sh` | keeps GPUs busy with a job list; `[gpu=]`, `[after=]`, `[mem=]` conditions |
+| `scripts/pack_results.py` | last step: results, manifests, reports and logs (optionally lenses) in one tarball |
 
 Figures are sized for the FAccT 2027 format (`\documentclass[manuscript,screen,review,anonymous]{acmart}`, single column): every figure is `\textwidth` wide, read from `figures.text_width_in` in `config/experiment.yaml`, which must be measured once by compiling `reports/latex/measure_textwidth.tex`. Main version with the four instruct models; `_all` appendix version with every model:
 

@@ -9,8 +9,8 @@ run_behavioral.py, train_tuned_lens.py):
                        dividido entre elas (device_map="auto"). Sem --gpus,
                        vale o CUDA_VISIBLE_DEVICES do ambiente (run_queue.sh)
     --dtype D          sobrescreve a precisão do registro: bfloat16 | float16 |
-                       float32 (sem quantização) ou nf4 (4 bits). Ex.: Gemma 2
-                       27B em bf16 dividido em duas GPUs. Muda o método:
+                       float32 (sem quantização) ou nf4 (4 bits; Gemma 2 27B
+                       usava nf4 até 2026-10-29, hoje bf16). Muda o método:
                        registrado no manifest e verificado na retomada.
 
 Cada modelo grava nos próprios arquivos (results/lens/{lens}/{modelo},
@@ -44,6 +44,7 @@ def apply_gpus(gpus) -> str:
     import torch
     if torch.cuda.is_initialized():
         raise RuntimeError("CUDA já inicializado: --gpus precisa ser aplicado antes")
+    os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")   # mesma numeração do nvidia-smi
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(ids)
     return os.environ["CUDA_VISIBLE_DEVICES"]
 

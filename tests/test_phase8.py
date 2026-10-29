@@ -39,22 +39,24 @@ def test_apply_gpus(monkeypatch):
 
 
 def test_dtype_override():
-    r = runtime.registry_with_dtype(REG, "gemma27", "bf16")
-    assert r["gemma27"].precision == "bfloat16" and r["gemma27"].quantization is None
-    assert REG["gemma27"].quantization == "nf4"                    # original intacto
+    r = runtime.registry_with_dtype(REG, "gemma27", "nf4")
+    assert r["gemma27"].precision == "bfloat16" and r["gemma27"].quantization == "nf4"
+    assert REG["gemma27"].quantization is None                     # original intacto
+    r = runtime.registry_with_dtype(REG, "gemma27", "fp32")
+    assert r["gemma27"].precision == "float32" and r["gemma27"].quantization is None
     r = runtime.registry_with_dtype(REG, "llama", "nf4")
     assert r["llama"].quantization == "nf4"
     assert runtime.registry_with_dtype(REG, "llama", None) is REG
-    assert runtime.precision_tag(REG["gemma27"]) == "nf4"
+    assert runtime.precision_tag(REG["gemma27"]) == "bfloat16"
     assert runtime.precision_tag(REG["llama"]) == "bfloat16"
 
 
 def test_resume_refuses_other_precision_or_commit(tmp_path):
     spec = REG["gemma27"]
     runtime.check_resume({}, spec, tmp_path)
-    runtime.check_resume({"precision_tag": "nf4", "registry": {"revision": spec.revision}}, spec, tmp_path)
+    runtime.check_resume({"precision_tag": "bfloat16", "registry": {"revision": spec.revision}}, spec, tmp_path)
     with pytest.raises(RuntimeError, match="precisão"):
-        runtime.check_resume({"precision_tag": "bfloat16"}, spec, tmp_path)
+        runtime.check_resume({"precision_tag": "nf4"}, spec, tmp_path)   # resultados antigos em 4 bits
     with pytest.raises(RuntimeError, match="commit"):
         runtime.check_resume({"registry_revision": "a" * 40}, spec, tmp_path)
 
@@ -73,8 +75,8 @@ def test_sanity_report_file_name(tmp_path):
     spec = REG["gemma27"]
     p = run_lens.write_sanity({"passed": True}, "gemma27", spec, tmp_path)
     assert p.name == "gemma27.json"
-    bf = runtime.registry_with_dtype(REG, "gemma27", "bf16")["gemma27"]
-    assert run_lens.write_sanity({"passed": True}, "gemma27", bf, tmp_path).name == "gemma27_bfloat16.json"
+    q = runtime.registry_with_dtype(REG, "gemma27", "nf4")["gemma27"]
+    assert run_lens.write_sanity({"passed": True}, "gemma27", q, tmp_path).name == "gemma27_nf4.json"
 
 
 def test_train_skip_rules(tmp_path):

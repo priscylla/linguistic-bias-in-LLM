@@ -4,7 +4,7 @@ Estudo comportamental (Fase 5): respostas dos modelos instruct aos
 prompts QA, com chat template e sem system prompt.
 
     python run_behavioral.py --model llama
-    python run_behavioral.py --model gemma27 --gpus "1 2" --dtype bf16
+    python run_behavioral.py --model gemma27 --gpus "1 2"   # bf16 em duas GPUs menores
     python run_behavioral.py --model llama --consolidate-only
 
 Por prompt: 1 resposta greedy + 10 amostras a T=0.7 (temperatura pura,

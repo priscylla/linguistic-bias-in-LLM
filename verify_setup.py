@@ -19,10 +19,8 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from huggingface_hub import HfApi
-
 from config.experiment_config import ExperimentConfig
-from models.model_loader import get_hf_token, load_tokenizer
+from models.model_loader import check_repo_access, find_hf_token, load_tokenizer
 from config.loader import require_valid
 from data.tokenization_check import (
     check_tokenizer, dropped_words, elision_check, indicator_cells, prefix_forced, write_summary,
@@ -41,34 +39,27 @@ def check_token_access(config: ExperimentConfig):
     print("VERIFICACAO 0: TOKEN HUGGING FACE")
     print("=" * 60)
 
-    token = get_hf_token()
+    token, source = find_hf_token()
+    gated = [k for k, m in config.registry.models.items() if m.gated]
 
     if token is None:
         print("  Token nao encontrado")
-        gated = [k for k, m in config.registry.models.items() if m.gated]
         print(f"  Modelos restritos (precisam de token): {', '.join(gated)}")
         print("\n  Para configurar:")
-        print("  1. export HF_TOKEN='hf_seu_token'")
-        print("  2. huggingface-cli login")
-        print("  3. Criar .env com HF_TOKEN=hf_seu_token")
+        print("  1. hf auth login            (= huggingface-cli login)")
+        print("  2. export HF_TOKEN='hf_seu_token'")
         return False
 
-    print(f"  Token encontrado: {token[:8]}...")
-
-    api = HfApi(token=token)
+    print(f"  Token encontrado: {token[:8]}...  ({source})")
     all_ok = True
-
-    for model_key, model_name in config.models.items():
-        if config.model(model_key).gated:
-            try:
-                api.model_info(model_name)
-                print(f"  OK  {model_key}: acesso confirmado")
-            except Exception:
-                print(f"  ERR {model_key}: sem acesso")
-                print(f"      Aceitar licenca: https://huggingface.co/{model_name}")
-                all_ok = False
-        else:
+    # HEAD de config.json no commit fixo: acesso (licença aceita) e commit, sem download
+    for model_key, spec in config.registry.models.items():
+        if not spec.gated:
             print(f"  OK  {model_key}: publico (sem token necessario)")
+            continue
+        ok, detail = check_repo_access(spec.id, spec.revision, token)
+        print(f"  {'OK ' if ok else 'ERR'} {model_key}: {detail}")
+        all_ok &= ok
 
     return all_ok
 

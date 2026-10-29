@@ -40,6 +40,8 @@ tables/
 logs/
 reports/*.log
 dry_run/
+packs/
+reports/check_env.json
 
 # Pesos de modelos e checkpoints (nunca versionar)
 *.safetensors

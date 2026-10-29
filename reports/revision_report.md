@@ -5,10 +5,10 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 ## Status
 
 - **Code:** all phases are implemented and committed. The pre-revision code is tagged `pre-facct-revision`.
-- **Tests:** 302 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s).
+- **Tests:** 339 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s), on Python 3.13 and 3.12.
 - **Dry run:** `python run_pipeline_dry.py` runs the whole pipeline on tiny models (CPU, no network) and passes: sanity, Logit Lens, behavioral generation, Tuned Lens training and re-measurement, analysis and statistics, 40 figures, both LaTeX tables, integrity checks, validation agreement. About 105 s, about 1.1 GB RAM.
-- **No real-model runs**, no downloads of weights, and no Tuned Lens training were done. Everything that needs a GPU is a command in `RUNNING_1GPU.md` and `RUNNING_multiGPU.md`.
-- **Runs are blocked** until the values below are confirmed. The scripts refuse to start, with a message listing what is pending.
+- **No real-model runs**, no downloads of weights, and no Tuned Lens training were done. Everything that needs a GPU is a command in `RUNNING_server.md` (the co-author's 4-GPU server), `RUNNING_multiGPU.md` and `RUNNING_1GPU.md`; each starts with `scripts/check_env.py` and ends with `scripts/pack_results.py`.
+- **Runs are unblocked:** every value is confirmed (next section).
 
 ## Blocking the runs
 
@@ -47,7 +47,8 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 
 | Later decisions | 848dd02 | Russian and the lightbulb fact removed (5 languages, 11 facts, 810 prompts); FR/DE/IT prompts reviewed; shared first tokens resolved by prefix forcing in every measurement, each case logged (`prefix_forcing` table); figure width 5.95 in; `reports/review_pt_en_and_support.md`. |
 
-| Final review | this commit | All PT/EN prompts, baseline prompts, forcing words and surface forms confirmed; place.2 of calculus and periodic table removed (800 prompts, paraphrase numbers kept); German/Italian/French forcing additions with stem-forcing for elided articles and contraction passes by last word; prefix forcing recursive to depth 3; *Bell* case-sensitive; elided-article audit in the tokenization check. |
+| Final review | 47b7dc9 | All PT/EN prompts, baseline prompts, forcing words and surface forms confirmed; place.2 of calculus and periodic table removed (800 prompts, paraphrase numbers kept); German/Italian/French forcing additions with stem-forcing for elided articles and contraction passes by last word; prefix forcing recursive to depth 3; *Bell* case-sensitive; elided-article audit in the tokenization check. |
+| Server preparation | this commit | Gemma 2 27B in bf16 on one GPU (registry default; no quantization left); `scripts/check_env.py` (Python, packages, GPUs, disk, Hugging Face access at pinned commits, no download); placeholder `HF_TOKEN` in `.env` ignored in favour of the `hf auth login` token; `scripts/pack_results.py`; `run_queue.sh` conditions `[gpu=]`, `[after=]`, `[mem=]` (GPU numbers as in `nvidia-smi`); `RUNNING_server.md` with the 4-GPU schedule; Python 3.12 checked (requirements install, tests, dry run). |
 
 ## Decisions (asked and answered)
 
@@ -75,7 +76,7 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 | 3 | Model IDs, licenses, gating | Confirmed as shown |
 | 3 | Sabiá base model | huggyllama/llama-7b |
 | 3 | Revisions | Pin each model to a commit |
-| 3 | Gemma 2 27B quantization | NF4, bf16 compute, no double quantization |
+| 3 | Gemma 2 27B quantization | NF4, bf16 compute, no double quantization; **changed on 2026-10-29 to bf16 on one GPU, no quantization** (removes quantization as a limitation) |
 | 4 | Tuned Lens implementation | Own implementation for all four models |
 | 4 | Corpus | FineWeb-2 + FineWeb |
 | 4 | Fact documents in the corpus | Filter them out |
@@ -104,6 +105,8 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 | Final review | Baseline prompts | Approved; FR, DE, IT checked by the author, not native-reviewed |
 | Final review | Forcing words | Approved, plus de *Gebrüder*, *vom*, *im*; it *l'*, *un'*, *nel…*; fr *l'* |
 | Final review | Surface forms | Approved; *Bell* case-sensitive |
+| Server | Gemma 2 27B precision | bf16 on one GPU, quantization removed (method change, logged) |
+| Server | Tuned Lens memory settings | float32 translators and seq_len 2048 for every model; no 24 GB variant |
 
 ## Choices I made (implementation details worth knowing)
 

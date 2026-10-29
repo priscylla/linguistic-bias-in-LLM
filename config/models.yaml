@@ -22,7 +22,9 @@ architectures:
 
 quantization:
   # bitsandbytes 4-bit NF4; o lm_head (embeddings de saída) fica sem
-  # quantizar (transformers.quantizers.base.get_keys_to_not_convert)
+  # quantizar (transformers.quantizers.base.get_keys_to_not_convert).
+  # Nenhum modelo usa por padrão (gemma27 em bf16 desde 2026-10-29);
+  # fica para --dtype nf4 (precisão fora do registro, marcada no manifest)
   nf4:
     load_in_4bit: true
     bnb_4bit_quant_type: nf4
@@ -127,8 +129,10 @@ models:
     architecture: gemma2
     license: gemma
     gated: true
+    # bf16 numa GPU (~55 GB de pesos; 2026-10-29, servidor com GPUs de
+    # 96 GB): sem quantização. Antes nf4; --dtype nf4 ainda reproduz
     precision: bfloat16
-    quantization: nf4
+    quantization: null
   sabia_base:
     # LLaMA-1-7B não foi publicado pela Meta no Hugging Face; conversão
     # da comunidade, licença não comercial do LLaMA-1

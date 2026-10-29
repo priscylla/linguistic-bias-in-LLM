@@ -1,7 +1,7 @@
 """
 tests/test_models_registry.py
 Fase 3: registro de modelos, cabeça de saída pela arquitetura, carga
-com commit fixo / precisão / NF4, formatos por kind e sanidade por modelo.
+com commit fixo / precisão (NF4 só por --dtype), formatos por kind e sanidade por modelo.
 """
 
 import copy
@@ -56,7 +56,7 @@ def test_registry_matches_confirmed_table():
         "llama": "llama_base", "mistral": "mistral_base", "qwen": "qwen_base",
         "gemma": "gemma_base", "sabia": "sabia_base"}
     assert REG["sabia"].adaptation == "pt"
-    assert [k for k, m in REG.models.items() if m.quantization] == ["gemma27"]
+    assert [k for k, m in REG.models.items() if m.quantization] == []    # gemma27 em bf16 (2026-10-29)
     assert REG.quantization["nf4"]["bnb_4bit_use_double_quant"] is False
     assert all(m.precision == "bfloat16" for m in REG.models.values())
 
@@ -176,10 +176,14 @@ def test_load_model_pins_revision_and_precision(fake_hub, monkeypatch):
     assert tok.pad_token == "</s>"
 
 
-def test_load_gemma27_in_nf4(fake_hub, monkeypatch):
+def test_load_gemma27_bf16_and_nf4_override(fake_hub, monkeypatch):
+    from models import runtime
     monkeypatch.setattr(model_loader, "get_hf_token", lambda: "hf_test_token")
     fake_hub["use"]("gemma2")
-    model_loader.load_model("gemma27")
+    model_loader.load_model("gemma27")                                  # registro: bf16, sem quantização
+    assert fake_hub["model"]["dtype"] is torch.bfloat16
+    assert "quantization_config" not in fake_hub["model"]
+    model_loader.load_model("gemma27", runtime.registry_with_dtype(REG, "gemma27", "nf4"))
     q = fake_hub["model"]["quantization_config"]
     assert q.load_in_4bit and q.bnb_4bit_quant_type == "nf4"
     assert q.bnb_4bit_compute_dtype is torch.bfloat16 and not q.bnb_4bit_use_double_quant

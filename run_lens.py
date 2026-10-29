@@ -5,7 +5,7 @@ Medição da Fase 2 para um modelo (substitui run_single_model.py).
     python run_lens.py --model llama --sanity-only      # primeiro, em todo modelo
     python run_lens.py --model llama --lens logit
     python run_lens.py --model llama --lens tuned       # Tuned Lens (lenses/llama/)
-    python run_lens.py --model gemma27 --gpus "1 2" --dtype bf16
+    python run_lens.py --model gemma27 --gpus "1 2"     # bf16 (~55 GB) em duas GPUs menores
     python run_lens.py --model llama --consolidate-only
 
 --gpus, --dtype: ver models/runtime.py.

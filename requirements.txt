@@ -1,7 +1,13 @@
 # requirements.txt
 # Versões fixas: as do ambiente em que os testes e o dry run passaram
-# (Python 3.13, CPU). Exceção: bitsandbytes (só Linux/CUDA, não testado
-# aqui; versão atual compatível com torch>=2.4,<3).
+# (Python 3.13 e 3.12, CPU). Python >= 3.11 (numpy, pandas, scipy e
+# pyarrow fixados aqui exigem). Instale num ambiente novo: as versões
+# diferem das do código antigo. Em Linux x86_64 + Python 3.12 todas têm
+# wheel (conferido em 2026-10-29). O torch 2.11.0 do PyPI é CUDA 13.0
+# (driver NVIDIA >= 580); com driver mais antigo, instale antes
+# pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+# Exceção: bitsandbytes (só Linux/CUDA, não testado aqui; versão atual
+# compatível com torch>=2.4,<3).
 # O pacote tuned-lens não é usado (implementação própria, Fase 4).
 # Atenção: datasets 5.x puxa huggingface_hub 2.x, incompatível com
 # transformers 5.7 (exige huggingface_hub<2.0).
@@ -10,7 +16,7 @@
 torch==2.11.0
 transformers==5.7.0
 accelerate==1.13.0
-bitsandbytes==0.50.2; platform_system == "Linux"   # NF4 do gemma27 (CUDA)
+bitsandbytes==0.50.2; platform_system == "Linux"   # só para --dtype nf4 (CUDA)
 
 # ── Hugging Face ──
 huggingface_hub==1.12.2

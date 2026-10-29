@@ -5,42 +5,128 @@ ID, commit fixo, precisão, quantização e token só para modelos gated.
 """
 
 import os
+import re
+import sys
+from pathlib import Path
+
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from typing import Optional, Tuple
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 from config.loader import ModelSpec, Registry, load_models
 
 
+# Token real: "hf_" + letras e dígitos (hoje 34). Placeholders como
+# "hf_seu_token", "hf_tok…" ou "hf_xxxx…" não passam
+_TOKEN_RE = re.compile(r"hf_[A-Za-z0-9]{30,}")
+_PLACEHOLDER_WORDS = ("yourtoken", "tokenhere", "placeholder", "example")
+ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+_warned = set()
+
+
+def looks_like_token(token) -> bool:
+    """True se `token` tem a forma de um token real do Hugging Face."""
+    if not token:
+        return False
+    t = token.strip()
+    if not _TOKEN_RE.fullmatch(t):
+        return False
+    rest = t[3:].lower()
+    return len(set(rest)) >= 8 and not any(w in rest for w in _PLACEHOLDER_WORDS)
+
+
+def _warn_once(msg: str):
+    if msg not in _warned:
+        _warned.add(msg)
+        print(f"  ⚠️  {msg}", file=sys.stderr)
+
+
+def _token_files():
+    """Onde `hf auth login` (= huggingface-cli login) grava o token."""
+    paths = []
+    try:
+        from huggingface_hub import constants
+        paths.append(Path(constants.HF_TOKEN_PATH))          # $HF_TOKEN_PATH ou $HF_HOME/token
+    except Exception:
+        pass
+    if os.environ.get("HF_HOME"):
+        paths.append(Path(os.environ["HF_HOME"]) / "token")
+    paths.append(Path("~/.cache/huggingface/token").expanduser())
+    return list(dict.fromkeys(paths))
+
+
+def find_hf_token(env_file=None):
+    """
+    Token do Hugging Face e de onde veio: (token, origem), ou (None, None).
+
+    Ordem:
+        1. variável de ambiente HF_TOKEN (export HF_TOKEN=hf_...)
+        2. HF_TOKEN no arquivo .env da raiz do projeto
+        3. token do `hf auth login` / `huggingface-cli login`
+           ($HF_TOKEN_PATH, $HF_HOME/token, ~/.cache/huggingface/token)
+
+    Um HF_TOKEN de 1 ou 2 que não tem a forma de um token real
+    (placeholder) é ignorado com um aviso, e a busca segue. O .env nunca
+    é modificado; um placeholder na variável de ambiente é retirado só
+    deste processo, para o huggingface_hub não enviá-lo nas chamadas
+    sem token explícito.
+    """
+    env_file = Path(env_file) if env_file is not None else ENV_FILE
+    from_env = os.environ.get("HF_TOKEN")
+    if from_env:
+        if looks_like_token(from_env):
+            return from_env.strip(), "HF_TOKEN (ambiente)"
+        _warn_once("HF_TOKEN do ambiente não parece um token real (placeholder?): ignorado")
+        os.environ.pop("HF_TOKEN", None)
+
+    from_file = dotenv_values(env_file).get("HF_TOKEN") if env_file.exists() else None
+    if from_file:
+        if looks_like_token(from_file):
+            os.environ["HF_TOKEN"] = from_file.strip()      # como o load_dotenv fazia
+            return from_file.strip(), f"HF_TOKEN ({env_file.name})"
+        _warn_once(f"HF_TOKEN em {env_file} não parece um token real (placeholder?): "
+                   f"ignorado, usando o token do `hf auth login`")
+
+    for path in _token_files():
+        if path.is_file():
+            token = path.read_text().strip()
+            if token:
+                return token, f"hf auth login ({path})"
+    return None, None
+
+
 def get_hf_token() -> str | None:
+    """Token do Hugging Face (ver find_hf_token), ou None."""
+    return find_hf_token()[0]
+
+
+def check_repo_access(repo_id: str, revision: str, token=None, repo_type: str = "model",
+                      filename: str = None) -> Tuple[bool, str]:
     """
-    Recupera o token do Hugging Face de forma segura.
-
-    Prioridade:
-        1. Variável de ambiente HF_TOKEN (export HF_TOKEN=hf_...)
-        2. Arquivo .env na raiz do projeto (HF_TOKEN=hf_...)
-        3. Cache do huggingface-cli login (~/.cache/huggingface/token)
-
-    Returns:
-        Token como string, ou None se não encontrado.
+    Confere, sem baixar nada (só HEAD de um arquivo), que o repositório
+    existe, o commit fixo existe e o token tem acesso (licença aceita
+    nos modelos gated). Returns: (ok, detalhe).
     """
-    # Tenta carregar .env se existir — popula os.environ automaticamente
-    load_dotenv()
-
-    # Após load_dotenv, os.environ já inclui variáveis do .env
-    token = os.environ.get("HF_TOKEN")
-    if token:
-        return token
-
-    # Fallback: cache do huggingface-cli login
-    cache_path = os.path.expanduser("~/.cache/huggingface/token")
-    if os.path.exists(cache_path):
-        with open(cache_path) as f:
-            token = f.read().strip()
-            return token if token else None
-
-    return None
+    from huggingface_hub import get_hf_file_metadata, hf_hub_url
+    from huggingface_hub.errors import (
+        EntryNotFoundError, GatedRepoError, RepositoryNotFoundError, RevisionNotFoundError)
+    filename = filename or ("config.json" if repo_type == "model" else "README.md")
+    url = hf_hub_url(repo_id, filename, revision=revision, repo_type=repo_type)
+    try:
+        get_hf_file_metadata(url, token=token)
+    except GatedRepoError:
+        page = f"https://huggingface.co/{'datasets/' if repo_type == 'dataset' else ''}{repo_id}"
+        return False, f"no access (gated): accept the license at {page} with the token's account"
+    except RevisionNotFoundError:
+        return False, f"pinned commit {revision} not found"
+    except RepositoryNotFoundError:
+        return False, "repository not found (or private without access)"
+    except EntryNotFoundError:
+        return False, f"{filename} not found at commit {revision[:10]} (wrong commit?)"
+    except Exception as e:                                  # rede, 5xx
+        return False, f"{type(e).__name__}: {str(e).splitlines()[0][:120]}"
+    return True, f"access ok, commit {revision[:10]} found"
 
 
 # Precisões aceitas no config (string -> dtype do torch)
@@ -85,9 +171,10 @@ def _token_for(spec: ModelSpec):
         raise EnvironmentError(
             f"\n❌ Token do Hugging Face necessário para '{spec.id}' (gated)\n"
             f"   Opções:\n"
-            f"   1. export HF_TOKEN='hf_seu_token'\n"
-            f"   2. huggingface-cli login\n"
+            f"   1. hf auth login   (= huggingface-cli login)\n"
+            f"   2. export HF_TOKEN='hf_seu_token'\n"
             f"   3. Criar arquivo .env com HF_TOKEN=hf_seu_token\n"
+            f"   (um HF_TOKEN placeholder no .env é ignorado)\n"
             f"\n   Obter token:     https://huggingface.co/settings/tokens\n"
             f"   Aceitar licença: https://huggingface.co/{spec.id}"
         )
@@ -114,7 +201,8 @@ def load_model(
     Configurações aplicadas:
         - revision fixa (commit do registro), modelo e tokenizer
         - dtype da entrada (bfloat16 em todos: o Gemma 2 falha em fp16)
-        - quantização da entrada (gemma27: NF4, lm_head sem quantizar)
+        - quantização da entrada, se houver (nenhum modelo por padrão;
+          --dtype nf4: NF4 com lm_head sem quantizar)
         - device_map="auto": distribui entre GPUs disponíveis
         - output_hidden_states=True (obrigatório para o Logit Lens)
         - sem trust_remote_code: todas as arquiteturas são nativas do
