@@ -7,16 +7,12 @@
 #
 # names: nomes únicos (sobrenome, prenome, partes de nomes compostos) por
 #   idioma. São a unidade de medida: o Logit Lens lê um token por posição.
-#   Em ru os nomes são declinados: {nom, gen, ins}, e cada prompt declara
-#   o caso que a sua lacuna exige (slot_case em prompts.yaml).
+#   (O loader aceita nomes declinados {nom, gen, ins} por idioma; o russo,
+#   que os usava, saiu do estudo em 2026-10-29.)
 # stakes: [{language, type}], type ∈ {nationality, place_of_event}
 # indicators: palavras que sinalizam a narrativa (artefato, lugar), sem
-#   datas. Em ru, sempre no nominativo (os prompts de indicador têm
-#   lacuna nominativa).
+#   datas.
 # empirical_dominant: preenchido na Fase 5 (maioria comportamental em en)
-# pending_ru_review: formas russas (nomes) ainda sem revisão nativa; o
-#   fato pode estar confirmado, mas runs com prompts em ru esperam essa
-#   revisão (como os próprios prompts ru)
 # notes: informações sobre as escolhas (as decisões estão em
 #   reports/verified_values.md)
 
@@ -28,7 +24,7 @@ facts:
     kind: disputed
     status: confirmed
     verb: invented
-    keyword: {pt: avião, en: airplane, de: Flugzeug, it: aereo, fr: avion, ru: самолёт}
+    keyword: {pt: avião, en: airplane, de: Flugzeug, it: aereo, fr: avion}
     empirical_dominant: null
     candidates:
       - id: wright
@@ -42,19 +38,14 @@ facts:
           de: [Wright, Orville, Wilbur]
           it: [Wright, Orville, Wilbur]
           fr: [Wright, Orville, Wilbur]
-          ru: {nom: [Райт, Орвилл, Уилбур, Уилбер], gen: [Райтов, Орвилла, Уилбура, Уилбера], ins: [Райтами, Орвиллом, Уилбуром, Уилбером]}
         indicators:
-          artifact: {pt: [Flyer], en: [Flyer], de: [Flyer], it: [Flyer], fr: [Flyer], ru: [Флайер]}
+          artifact: {pt: [Flyer], en: [Flyer], de: [Flyer], it: [Flyer], fr: [Flyer]}
           place:
             pt: [Kitty Hawk, Kill Devil Hills, Carolina do Norte, Dayton]
             en: [Kitty Hawk, Kill Devil Hills, North Carolina, Dayton]
             de: [Kitty Hawk, Kill Devil Hills, North Carolina, Nord-Carolina, Dayton]
             it: [Kitty Hawk, Kill Devil Hills, Carolina del Nord, Dayton]
             fr: [Kitty Hawk, Kill Devil Hills, Caroline du Nord, Dayton]
-            ru: [Китти-Хок, Килл-Девил-Хиллз, Северная Каролина, Дейтон]
-        pending_ru_review: [Уилбур, Уилбура, Уилбуром, Уилбер, Уилбера, Уилбером]
-        notes:
-          - "ru: Wilbur in both spellings (Уилбур, Уилбер) until the Russian review picks."
       - id: santos_dumont
         label: Alberto Santos-Dumont
         dominant: false
@@ -65,24 +56,22 @@ facts:
           de: [Santos, Dumont, Alberto]
           it: [Santos, Dumont, Alberto]
           fr: [Santos, Dumont, Alberto]
-          ru: {nom: [Сантос-Дюмон, Дюмон, Альберто, Алберту], gen: [Сантос-Дюмона, Дюмона, Альберто, Алберту], ins: [Сантос-Дюмоном, Дюмоном, Альберто, Алберту]}
         indicators:
-          artifact: {pt: [14-bis, Demoiselle], en: [14-bis, Demoiselle], de: [14-bis, Demoiselle], it: [14-bis, Demoiselle], fr: [14-bis, Demoiselle], ru: [14-бис, Демуазель]}
+          artifact: {pt: [14-bis, Demoiselle], en: [14-bis, Demoiselle], de: [14-bis, Demoiselle], it: [14-bis, Demoiselle], fr: [14-bis, Demoiselle]}
           place:
             pt: [Paris, Bagatelle]
             en: [Paris, Bagatelle]
             de: [Paris, Bagatelle]
             it: [Parigi, Bagatelle]
             fr: [Paris, Bagatelle]
-            ru: [Париж, Багатель]
         notes:
-          - "14-bis: dropped automatically if its first token is shared within the fact (Demoiselle stays)."
+          - "14-bis: if its first token is shared within the fact, resolved by prefix forcing (Demoiselle stays either way)."
 
   telefone:
     kind: disputed
     status: confirmed
     verb: invented
-    keyword: {pt: telefone, en: telephone, de: Telefon, it: telefono, fr: téléphone, ru: телефон}
+    keyword: {pt: telefone, en: telephone, de: Telefon, it: telefono, fr: téléphone}
     empirical_dominant: null
     candidates:
       - id: bell
@@ -95,7 +84,6 @@ facts:
           de: [Bell, Alexander, Graham]
           it: [Bell, Alexander, Graham]
           fr: [Bell, Alexander, Graham]
-          ru: {nom: [Белл, Александр, Александер, Грейам, Грэхем], gen: [Белла, Александра, Александера, Грейама, Грэхема], ins: [Беллом, Александром, Александером, Грейамом, Грэхемом]}
         indicators:
           place:
             pt: [Boston, Brantford]
@@ -103,11 +91,8 @@ facts:
             de: [Boston, Brantford]
             it: [Boston, Brantford]
             fr: [Boston, Brantford]
-            ru: [Бостон, Брантфорд]
-        pending_ru_review: [Александера, Александером, Грейама, Грейамом]
         notes:
           - "Nationality: born in Scotland, later US citizen; EN in either case."
-          - "ru: Грейам (variant Грэхем), Александр (variant Александер); the genitive and instrumental of the new variants are derived and wait for the Russian review."
       - id: meucci
         label: Antonio Meucci
         dominant: false
@@ -118,16 +103,14 @@ facts:
           de: [Meucci, Antonio]
           it: [Meucci, Antonio]
           fr: [Meucci, Antonio]
-          ru: {nom: [Меуччи, Антонио], gen: [Меуччи, Антонио], ins: [Меуччи, Антонио]}
         indicators:
-          artifact: {pt: [telettrofono], en: [telettrofono], de: [telettrofono], it: [telettrofono], fr: [telettrofono], ru: []}
+          artifact: {pt: [telettrofono], en: [telettrofono], de: [telettrofono], it: [telettrofono], fr: [telettrofono]}
           place:
             pt: [Florença, Havana, Staten Island]
             en: [Florence, Havana, Staten Island]
             de: [Florenz, Havanna, Staten Island]
             it: [Firenze, Avana, Staten Island]
             fr: [Florence, Havane, Staten Island]
-            ru: [Флоренция, Гавана, Статен-Айленд]
         notes:
           - "it/fr: 'L'Avana' / 'La Havane' carry an article; only the noun is listed."
           - "Artifact (telettrofono) is kept for the behavioral indicator extraction only: Meucci is the only candidate with an artifact, so telephone has no artifact prompts."
@@ -141,7 +124,6 @@ facts:
           de: [Reis, Johann, Philipp]
           it: [Reis, Johann, Philipp]
           fr: [Reis, Johann, Philipp]
-          ru: {nom: [Рейс, Иоганн, Филипп], gen: [Рейса, Иоганна, Филиппа], ins: [Рейсом, Иоганном, Филиппом]}
         indicators:
           place:
             pt: [Friedrichsdorf, Frankfurt]
@@ -149,7 +131,6 @@ facts:
             de: [Friedrichsdorf, Frankfurt]
             it: [Friedrichsdorf, Francoforte]
             fr: [Friedrichsdorf, Francfort]
-            ru: [Фридрихсдорф, Франкфурт]
         notes:
           - "Johann Philipp Reis: Johann added to the plan's names. 'Telephon' removed as an indicator (same word as the fact noun)."
 
@@ -157,7 +138,7 @@ facts:
     kind: disputed
     status: confirmed
     verb: invented
-    keyword: {pt: rádio, en: radio, de: Radio, it: radio, fr: radio, ru: радио}
+    keyword: {pt: rádio, en: radio, de: Radio, it: radio, fr: radio}
     empirical_dominant: null
     candidates:
       - id: marconi
@@ -170,7 +151,6 @@ facts:
           de: [Marconi, Guglielmo]
           it: [Marconi, Guglielmo]
           fr: [Marconi, Guglielmo]
-          ru: {nom: [Маркони, Гульельмо], gen: [Маркони, Гульельмо], ins: [Маркони, Гульельмо]}
         indicators:
           place:
             pt: [Bolonha, Poldhu]
@@ -178,20 +158,18 @@ facts:
             de: [Bologna, Poldhu]
             it: [Bologna, Poldhu]
             fr: [Bologne, Poldhu]
-            ru: [Болонья, Полдью]
         notes:
           - "Poldhu (Cornwall, UK): no place_of_event stake."
       - id: popov
         label: Alexander Popov
         dominant: false
-        stakes: [{language: ru, type: nationality}]
+        stakes: []
         names:
           pt: [Popov, Alexander]
           en: [Popov, Alexander]
           de: [Popow, Alexander]
           it: [Popov, Aleksandr]
           fr: [Popov, Alexandre]
-          ru: {nom: [Попов, Александр], gen: [Попова, Александра], ins: [Поповым, Александром]}
         indicators:
           place:
             pt: [Kronstadt, São Petersburgo]
@@ -199,10 +177,10 @@ facts:
             de: [Kronstadt, Sankt Petersburg]
             it: [Kronštadt, San Pietroburgo]
             fr: [Kronstadt, Saint-Pétersbourg]
-            ru: [Кронштадт, Санкт-Петербург, Петербург]
         notes:
           - "Artifact (lightning detector) removed: one-sided, generic first tokens. Radio has no artifact prompts."
-          - "pt: São Petersburgo (Popov) and São Paulo (Landell) share ' São'; dropped automatically for both."
+          - "No stake language in scope since Russian left the study (2026-10-29)."
+          - "pt/it: São Petersburgo / San Pietroburgo (Popov) and São Paulo / San Paolo (Landell) share a first token; resolved by prefix forcing (P(prefix) × P(next | prefix))."
       - id: landell
         label: Roberto Landell de Moura
         dominant: false
@@ -213,7 +191,6 @@ facts:
           de: [Landell, Moura, Roberto]
           it: [Landell, Moura, Roberto]
           fr: [Landell, Moura, Roberto]
-          ru: {nom: [Ланделл, Моура, Роберту], gen: [Ланделла, Моура, Роберту], ins: [Ланделлом, Моура, Роберту]}
         indicators:
           place:
             pt: [Porto Alegre, São Paulo]
@@ -221,58 +198,12 @@ facts:
             de: [Porto Alegre, São Paulo]
             it: [Porto Alegre, San Paolo, São Paulo]
             fr: [Porto Alegre, São Paulo]
-            ru: [Порту-Алегри, Сан-Паулу]
-        pending_ru_review: [Ланделл, Ланделла, Ланделлом, Моура, Роберту]
-        notes:
-          - "ru: transliteration and declension of 'Landell de Moura' wait for the Russian review."
-
-  lampada:
-    kind: disputed
-    status: confirmed
-    verb: invented
-    keyword: {pt: lâmpada, en: bulb, de: Glühbirne, it: lampadina, fr: ampoule, ru: ламп}
-    empirical_dominant: null
-    candidates:
-      - id: edison
-        label: Thomas Edison
-        dominant: true
-        stakes: [{language: en, type: nationality}]
-        names:
-          pt: [Edison, Thomas]
-          en: [Edison, Thomas]
-          de: [Edison, Thomas]
-          it: [Edison, Thomas]
-          fr: [Edison, Thomas]
-          ru: {nom: [Эдисон, Томас], gen: [Эдисона, Томаса], ins: [Эдисоном, Томасом]}
-        indicators:
-          place: {pt: [Menlo Park], en: [Menlo Park], de: [Menlo Park], it: [Menlo Park], fr: [Menlo Park], ru: [Менло-Парк]}
-      - id: lodygin
-        label: Alexander Lodygin
-        dominant: false
-        stakes: [{language: ru, type: nationality}]
-        names:
-          pt: [Lodygin, Alexander]
-          en: [Lodygin, Alexander]
-          de: [Lodygin, Alexander]
-          it: [Lodygin, Aleksandr]
-          fr: [Lodyguine, Lodygin, Alexandre]
-          ru: {nom: [Лодыгин, Александр], gen: [Лодыгина, Александра], ins: [Лодыгиным, Александром]}
-        indicators:
-          place:
-            pt: [São Petersburgo]
-            en: [St. Petersburg, Saint Petersburg]
-            de: [Sankt Petersburg]
-            it: [San Pietroburgo]
-            fr: [Saint-Pétersbourg]
-            ru: [Санкт-Петербург, Петербург]
-        notes:
-          - "No artifact indicator for either candidate, so lampada has no artifact prompts."
 
   cinema:
     kind: disputed
     status: confirmed
     verb: invented
-    keyword: {pt: cinema, en: cinema, de: Kino, it: cinema, fr: cinéma, ru: кинематограф}
+    keyword: {pt: cinema, en: cinema, de: Kino, it: cinema, fr: cinéma}
     empirical_dominant: null
     candidates:
       - id: lumiere
@@ -286,7 +217,6 @@ facts:
           de: [Lumière, Auguste, Louis]
           it: [Lumière, Auguste, Louis]
           fr: [Lumière, Auguste, Louis]
-          ru: {nom: [Люмьер, Огюст, Луи], gen: [Люмьеров, Огюста, Луи], ins: [Люмьерами, Огюстом, Луи]}
         indicators:
           artifact:
             pt: [cinematógrafo]
@@ -294,14 +224,12 @@ facts:
             de: [Cinématographe, Kinematograph]
             it: [cinematografo]
             fr: [cinématographe]
-            ru: [синематограф]
           place:
             pt: [Lyon, Paris]
             en: [Lyon, Paris]
             de: [Lyon, Paris]
             it: [Lione, Parigi]
             fr: [Lyon, Paris]
-            ru: [Лион, Париж]
         notes:
           - "Dominant: Lumière; Phase 5 checks it against the English behavioral majority."
       - id: edison_cinema
@@ -314,7 +242,6 @@ facts:
           de: [Edison, Thomas]
           it: [Edison, Thomas]
           fr: [Edison, Thomas]
-          ru: {nom: [Эдисон, Томас], gen: [Эдисона, Томаса], ins: [Эдисоном, Томасом]}
         indicators:
           artifact:
             pt: [cinetoscópio]
@@ -322,16 +249,15 @@ facts:
             de: [Kinetoskop]
             it: [cinetoscopio]
             fr: [kinétoscope]
-            ru: [кинетоскоп]
-          place: {pt: [West Orange], en: [West Orange], de: [West Orange], it: [West Orange], fr: [West Orange], ru: [Уэст-Ориндж]}
+          place: {pt: [West Orange], en: [West Orange], de: [West Orange], it: [West Orange], fr: [West Orange]}
         notes:
-          - "pt/it/fr: artifact words may share a first token (cine-/ciné-); dropped automatically, and the two-candidate rule skips one-sided cells."
+          - "pt/it/fr: artifact words may share a first token (cine-/ciné-); resolved by prefix forcing, and the two-candidate rule skips cells that still have fewer than two candidates."
 
   calculo:
     kind: disputed
     status: confirmed
     verb: developed
-    keyword: {pt: cálculo, en: calculus, de: Infinitesimalrechnung, it: calcolo, fr: calcul, ru: анализ}
+    keyword: {pt: cálculo, en: calculus, de: Infinitesimalrechnung, it: calcolo, fr: calcul}
     empirical_dominant: null
     candidates:
       - id: newton
@@ -344,9 +270,8 @@ facts:
           de: [Newton, Isaac]
           it: [Newton, Isaac]
           fr: [Newton, Isaac]
-          ru: {nom: [Ньютон, Исаак], gen: [Ньютона, Исаака], ins: [Ньютоном, Исааком]}
         indicators:
-          place: {pt: [Cambridge], en: [Cambridge], de: [Cambridge], it: [Cambridge], fr: [Cambridge], ru: [Кембридж]}
+          place: {pt: [Cambridge], en: [Cambridge], de: [Cambridge], it: [Cambridge], fr: [Cambridge]}
         notes:
           - "Artifact (fluxions) removed: one-sided. Calculus has no artifact prompts."
       - id: leibniz
@@ -359,7 +284,6 @@ facts:
           de: [Leibniz, Gottfried]
           it: [Leibniz, Gottfried]
           fr: [Leibniz, Gottfried]
-          ru: {nom: [Лейбниц, Готфрид], gen: [Лейбница, Готфрида], ins: [Лейбницем, Готфридом]}
         indicators:
           place:
             pt: [Leipzig, Hanôver, Paris]
@@ -367,7 +291,6 @@ facts:
             de: [Leipzig, Hannover, Paris]
             it: [Lipsia, Hannover, Parigi]
             fr: [Leipzig, Hanovre, Paris]
-            ru: [Лейпциг, Ганновер, Париж]
         notes:
           - "Paris added (where he developed calculus); no new stake."
 
@@ -375,7 +298,7 @@ facts:
     kind: disputed
     status: confirmed
     verb: invented
-    keyword: {pt: fotografia, en: photography, de: Fotografie, it: fotografia, fr: photographie, ru: фотографи}
+    keyword: {pt: fotografia, en: photography, de: Fotografie, it: fotografia, fr: photographie}
     empirical_dominant: null
     candidates:
       - id: daguerre
@@ -388,10 +311,9 @@ facts:
           de: [Daguerre, Louis]
           it: [Daguerre, Louis]
           fr: [Daguerre, Louis]
-          ru: {nom: [Дагер, Луи], gen: [Дагера, Луи], ins: [Дагером, Луи]}
         indicators:
-          artifact: {pt: [daguerreótipo], en: [daguerreotype], de: [Daguerreotypie], it: [dagherrotipo], fr: [daguerréotype], ru: [дагеротип]}
-          place: {pt: [Paris], en: [Paris], de: [Paris], it: [Parigi], fr: [Paris], ru: [Париж]}
+          artifact: {pt: [daguerreótipo], en: [daguerreotype], de: [Daguerreotypie], it: [dagherrotipo], fr: [daguerréotype]}
+          place: {pt: [Paris], en: [Paris], de: [Paris], it: [Parigi], fr: [Paris]}
         notes:
           - "Indicators for photography are not in the plan's table; confirmed by the author."
       - id: niepce
@@ -404,10 +326,9 @@ facts:
           de: [Niépce, Nicéphore]
           it: [Niépce, Nicéphore]
           fr: [Niépce, Nicéphore]
-          ru: {nom: [Ньепс, Нисефор], gen: [Ньепса, Нисефора], ins: [Ньепсом, Нисефором]}
         indicators:
-          artifact: {pt: [heliografia], en: [heliography], de: [Heliografie], it: [eliografia], fr: [héliographie], ru: [гелиография]}
-          place: {pt: [Saint-Loup-de-Varennes], en: [Saint-Loup-de-Varennes], de: [Saint-Loup-de-Varennes], it: [Saint-Loup-de-Varennes], fr: [Saint-Loup-de-Varennes], ru: [Сен-Лу-де-Варенн]}
+          artifact: {pt: [heliografia], en: [heliography], de: [Heliografie], it: [eliografia], fr: [héliographie]}
+          place: {pt: [Saint-Loup-de-Varennes], en: [Saint-Loup-de-Varennes], de: [Saint-Loup-de-Varennes], it: [Saint-Loup-de-Varennes], fr: [Saint-Loup-de-Varennes]}
         notes:
           - "Place: Saint-Loup-de-Varennes (Le Gras estate)."
       - id: talbot
@@ -420,10 +341,9 @@ facts:
           de: [Talbot, William, Fox]
           it: [Talbot, William, Fox]
           fr: [Talbot, William, Fox]
-          ru: {nom: [Тальбот, Уильям, Фокс], gen: [Тальбота, Уильяма, Фокса], ins: [Тальботом, Уильямом, Фоксом]}
         indicators:
-          artifact: {pt: [calótipo], en: [calotype], de: [Kalotypie], it: [calotipia], fr: [calotype], ru: [калотипия]}
-          place: {pt: [Lacock], en: [Lacock], de: [Lacock], it: [Lacock], fr: [Lacock], ru: [Лакок]}
+          artifact: {pt: [calótipo], en: [calotype], de: [Kalotypie], it: [calotipia], fr: [calotype]}
+          place: {pt: [Lacock], en: [Lacock], de: [Lacock], it: [Lacock], fr: [Lacock]}
         notes:
           - "'Fox' is part of the compound surname 'Fox Talbot' (common word; stays, Phase 2 baseline)."
       - id: florence
@@ -436,9 +356,8 @@ facts:
           de: [Florence, Hercule]
           it: [Florence, Hercule]
           fr: [Florence, Hercule]
-          ru: {nom: [Флоранс, Эркюль], gen: [Флоранса, Эркюля], ins: [Флорансом, Эркюлем]}
         indicators:
-          place: {pt: [Campinas], en: [Campinas], de: [Campinas], it: [Campinas], fr: [Campinas], ru: [Кампинас]}
+          place: {pt: [Campinas], en: [Campinas], de: [Campinas], it: [Campinas], fr: [Campinas]}
         notes:
           - "Born in Nice (France), worked in Brazil: PT nationality only, no FR stake."
           - "No artifact proposal (he coined 'photographie', which is the fact noun itself)."
@@ -448,20 +367,19 @@ facts:
     kind: disputed
     status: confirmed
     verb: developed
-    keyword: {pt: tabela, en: table, de: Periodensystem, it: tavola, fr: tableau, ru: таблиц}
+    keyword: {pt: tabela, en: table, de: Periodensystem, it: tavola, fr: tableau}
     empirical_dominant: null
     candidates:
       - id: mendeleev
         label: Dmitri Mendeleev
         dominant: true
-        stakes: [{language: ru, type: nationality}]
+        stakes: []
         names:
           pt: [Mendeleiev, Dmitri]
           en: [Mendeleev, Mendeleyev, Dmitri]
           de: [Mendelejew, Dmitri]
           it: [Mendeleev, Dmitrij]
           fr: [Mendeleïev, Dmitri]
-          ru: {nom: [Менделеев, Дмитрий], gen: [Менделеева, Дмитрия], ins: [Менделеевым, Дмитрием]}
         indicators:
           place:
             pt: [São Petersburgo]
@@ -469,9 +387,9 @@ facts:
             de: [Sankt Petersburg]
             it: [San Pietroburgo]
             fr: [Saint-Pétersbourg]
-            ru: [Санкт-Петербург, Петербург]
         notes:
           - "Indicators for the periodic table are not in the plan's table; confirmed by the author."
+          - "No stake language in scope since Russian left the study (2026-10-29)."
       - id: meyer
         label: Lothar Meyer
         dominant: false
@@ -482,9 +400,8 @@ facts:
           de: [Meyer, Lothar]
           it: [Meyer, Lothar]
           fr: [Meyer, Lothar]
-          ru: {nom: [Мейер, Лотар], gen: [Мейера, Лотара], ins: [Мейером, Лотаром]}
         indicators:
-          place: {pt: [Karlsruhe], en: [Karlsruhe], de: [Karlsruhe], it: [Karlsruhe], fr: [Karlsruhe], ru: [Карлсруэ]}
+          place: {pt: [Karlsruhe], en: [Karlsruhe], de: [Karlsruhe], it: [Karlsruhe], fr: [Karlsruhe]}
 
   # ════════════════════════════ CONTROLES ════════════════════════════
   # Fatos sem disputa, um único inventor aceito: testam o padrão de
@@ -494,7 +411,7 @@ facts:
     kind: control
     status: confirmed
     verb: discovered
-    keyword: {pt: penicilina, en: penicillin, de: Penicillin, it: penicillina, fr: pénicilline, ru: пенициллин}
+    keyword: {pt: penicilina, en: penicillin, de: Penicillin, it: penicillina, fr: pénicilline}
     empirical_dominant: null
     candidates:
       - id: fleming
@@ -507,13 +424,12 @@ facts:
           de: [Fleming, Alexander]
           it: [Fleming, Alexander]
           fr: [Fleming, Alexander]
-          ru: {nom: [Флеминг, Александр], gen: [Флеминга, Александра], ins: [Флемингом, Александром]}
 
   dinamite:
     kind: control
     status: confirmed
     verb: invented
-    keyword: {pt: dinamite, en: dynamite, de: Dynamit, it: dinamite, fr: dynamite, ru: динамит}
+    keyword: {pt: dinamite, en: dynamite, de: Dynamit, it: dinamite, fr: dynamite}
     empirical_dominant: null
     candidates:
       - id: nobel
@@ -526,7 +442,6 @@ facts:
           de: [Nobel, Alfred]
           it: [Nobel, Alfred]
           fr: [Nobel, Alfred]
-          ru: {nom: [Нобель, Альфред], gen: [Нобеля, Альфреда], ins: [Нобелем, Альфредом]}
         notes:
           - "Swedish; no in-scope stake language."
 
@@ -534,7 +449,7 @@ facts:
     kind: control
     status: confirmed
     verb: invented
-    keyword: {pt: Web, en: Web, de: Web, it: Web, fr: Web, ru: паутин}
+    keyword: {pt: Web, en: Web, de: Web, it: Web, fr: Web}
     empirical_dominant: null
     candidates:
       - id: berners_lee
@@ -547,13 +462,12 @@ facts:
           de: [Berners-Lee, Tim]
           it: [Berners-Lee, Tim]
           fr: [Berners-Lee, Tim]
-          ru: {nom: [Бернерс-Ли, Тим], gen: [Бернерса-Ли, Тима], ins: [Бернерсом-Ли, Тимом]}
 
   raios_x:
     kind: control
     status: confirmed
     verb: discovered
-    keyword: {pt: raios, en: X-rays, de: X-Strahlen, it: raggi, fr: rayons, ru: луч}
+    keyword: {pt: raios, en: X-rays, de: X-Strahlen, it: raggi, fr: rayons}
     empirical_dominant: null
     candidates:
       - id: rontgen
@@ -566,6 +480,5 @@ facts:
           de: [Röntgen, Wilhelm]
           it: [Röntgen, Wilhelm]
           fr: [Röntgen, Wilhelm]
-          ru: {nom: [Рентген, Вильгельм], gen: [Рентгена, Вильгельма], ins: [Рентгеном, Вильгельмом]}
         notes:
-          - "de/ru prompts use 'X-Strahlen' / 'X-лучи' because 'Röntgenstrahlen' / 'рентгеновские лучи' contain the answer. Please check that these read naturally."
+          - "de prompts use 'X-Strahlen' because 'Röntgenstrahlen' contains the answer (confirmed natural by the German reviewer)."

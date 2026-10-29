@@ -30,7 +30,10 @@ Saída em results/lens/{lens}/{modelo}/ (ver logit_lens/store.py):
                         × camada × candidato × conjunto (names/indicators)
     baseline.parquet    o mesmo para os prompts neutros (coluna fact = fato
                         dos candidatos medidos)
-    forced.parquet      passadas forçadas (artigo, contração, prefixo)
+    forced.parquet      passadas forçadas (artigo, contração)
+    prefix_forcing.parquet  cada primeiro token compartilhado resolvido por
+                        prefixo forçado (ou não resolvido), por palavra
+    skipped.parquet     células de indicador puladas (regra dos dois candidatos)
     layers.parquet      KL até a final e top-20 por camada
     token_sets.parquet  auditoria dos token IDs de cada conjunto
     manifest.json       modelo, revisão, dtype, quantização, versões, GPU,
@@ -55,7 +58,8 @@ from config.experiment_config import ExperimentConfig
 from config.loader import CONFIG_DIR, load_models, prompts_for, require_confirmed, require_valid
 from logit_lens.confound import ConfoundTester
 from logit_lens.entity_tokens import (
-    INDICATOR_TYPES, build_token_sets, indicator_cell_ok, valid_candidates, word_sets,
+    INDICATOR_TYPES, build_token_sets, indicator_cell_ok, resolve_shared_prefixes,
+    valid_candidates, word_sets,
 )
 from logit_lens.lens import LogitLens
 from logit_lens.measure import LensRunner
@@ -100,6 +104,19 @@ def _layer_rows(keys, res, source):
              "n_input_tokens": res["n_input_tokens"], **r} for r in res["layers"]]
 
 
+def _prefix_rows(keys, cases, source, extra=None):
+    """Registro de cada prefixo forçado: uma linha por palavra que o usou."""
+    rows = []
+    for case in cases or []:
+        for w in case["words"]:
+            rows.append({**keys, **(extra or {}), "source": source,
+                         "shared_token_id": case["token_id"], "shared_token": case["token"],
+                         "candidates": ",".join(case["candidates"]), "candidate": w["candidate"],
+                         "word": w["word"], "next_token_id": w["next_id"],
+                         "next_token": w["next_token"], "status": w["status"]})
+    return rows
+
+
 def _token_rows(keys, token_sets, source):
     shared = {d["token_id"] for d in token_sets["shared_dropped"]}
     rows = []
@@ -128,7 +145,7 @@ def lens_units(config: ExperimentConfig, formats=("completion", "qa")):
 
 def run_baseline_unit(runner, config, lang, model_key, formats):
     facts  = config.fact_specs
-    tables = {"baseline": [], "layers": [], "token_sets": []}
+    tables = {"baseline": [], "layers": [], "token_sets": [], "prefix_forcing": []}
     for neutral in prompts_for(config.baseline_spec.prompts, None, lang):
         if neutral.format not in formats:
             continue
@@ -138,6 +155,8 @@ def run_baseline_unit(runner, config, lang, model_key, formats):
         tables["layers"]     += _layer_rows(keys, res, "baseline")
         for fk, ts in res["token_sets"].items():
             tables["token_sets"] += _token_rows({**keys, "fact": fk}, ts, "baseline")
+        for fk, cases in res["prefix_cases"].items():
+            tables["prefix_forcing"] += _prefix_rows({**keys, "fact": fk}, cases, "baseline")
     return tables
 
 
@@ -154,21 +173,25 @@ def indicator_skips(runner, fact, prompts) -> Dict:
         ps = [p for p in prompts if p.type == t]
         if not ps:
             continue
-        sets = []
+        per = []
         for p in ps:
             text, sep, add_special = runner.prepare(p)
-            sets.append(build_token_sets(runner.tokenizer, text, word_sets(fact, p),
-                                         sep=sep, add_special_tokens=add_special))
-        if not indicator_cell_ok(sets):
-            out[t] = [{"paraphrase": p.paraphrase, "valid_candidates": ",".join(valid_candidates(ts))}
-                      for p, ts in zip(ps, sets)]
+            ts = build_token_sets(runner.tokenizer, text, word_sets(fact, p),
+                                  sep=sep, add_special_tokens=add_special)
+            per.append((ts, resolve_shared_prefixes(runner.tokenizer, text, ts, sep=sep,
+                                                    add_special_tokens=add_special)))
+        if not indicator_cell_ok(per):
+            out[t] = [{"paraphrase": p.paraphrase,
+                       "valid_candidates": ",".join(valid_candidates(ts, cases))}
+                      for p, (ts, cases) in zip(ps, per)]
     return out
 
 
 def run_fact_unit(runner, tester, config, fact_key, lang, model_key, formats):
     facts  = config.fact_specs
     fact   = facts[fact_key]
-    tables = {"probs": [], "forced": [], "layers": [], "token_sets": [], "skipped": []}
+    tables = {"probs": [], "forced": [], "layers": [], "token_sets": [], "skipped": [],
+              "prefix_forcing": []}
     prompts = [p for p in prompts_for(config.prompt_specs, fact_key, lang) if p.format in formats]
     skip = indicator_skips(runner, fact, prompts)
     for t, rows in skip.items():
@@ -184,9 +207,13 @@ def run_fact_unit(runner, tester, config, fact_key, lang, model_key, formats):
         tables["probs"]      += _prob_rows(keys, res, facts)
         tables["layers"]     += _layer_rows(keys, res, "prompt")
         tables["token_sets"] += _token_rows(keys, res["token_sets"], "prompt")
+        tables["prefix_forcing"] += _prefix_rows(keys, res["prefix_cases"], "prompt")
         for ps in tester.run(prompt, fact, res):
             n_steps = len(ps["steps"])
             for st in ps["steps"]:
+                tables["prefix_forcing"] += _prefix_rows(
+                    keys, st["result"]["prefix_cases"], "forced",
+                    extra={"pass_id": ps["pass_id"], "force_step": st["step"]})
                 tables["forced"] += _prob_rows(keys, st["result"], facts, extra={
                     "forced_kind": ps["kind"], "pass_id": ps["pass_id"],
                     "force_step": st["step"], "n_steps": n_steps,
@@ -301,6 +328,11 @@ def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
     gpus = manifest["gpu"]["count"]
     manifest["gpu_hours"] = round(manifest["wall_time_s"] / 3600 * gpus, 3) if gpus else 0.0
     manifest["units_done"] = len(store.done_units())
+    pf = out_dir / "prefix_forcing.parquet"
+    if pf.exists():
+        import pandas as pd
+        d = pd.read_parquet(pf)
+        manifest["prefix_forcing"] = {k: int(v) for k, v in d["status"].value_counts().items()}
     sk = out_dir / "skipped.parquet"
     if sk.exists():
         import pandas as pd

@@ -130,7 +130,7 @@ def test_figures_refuse_without_measured_width(synth, tmp_path, monkeypatch):
         mf.make_all(res, ["fig2"], tmp_path, ["main"])
 
 
-def test_real_config_width_unset_until_measured():
+def test_real_config_width_measured():
     from config.experiment_config import ExperimentConfig
     f = ExperimentConfig().experiment["figures"]
-    assert f["text_width_in"] is None and "manuscript" in f["document_class"]
+    assert f["text_width_in"] == 5.95 and "manuscript" in f["document_class"]   # 430.00462pt

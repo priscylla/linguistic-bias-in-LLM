@@ -7,7 +7,10 @@ na Fase 4), devolve por camada:
 
     1. probabilidade exata de cada candidato: massa sobre o conjunto
        de token IDs distintos dos seus nomes (prompts F1–F3, QA) ou dos
-       seus indicadores (place, artifact), na distribuição completa;
+       seus indicadores (place, artifact), na distribuição completa.
+       Primeiro token compartilhado entre candidatos: forçado, e cada
+       candidato soma P(prefixo) × P(próximo | prefixo) (decisão da
+       autora, 2026-10-29; casos registrados em prefix_cases);
     2. KL(lens_k ‖ distribuição final do modelo), diagnóstico de
        qualidade do lens;
     3. top-k tokens (top-20), só para inspeção qualitativa.
@@ -35,7 +38,8 @@ import torch
 import torch.nn.functional as F
 
 from logit_lens.entity_tokens import (
-    build_token_sets, encode_ids, format_prompt, prob_mass, token_set_kind, word_sets,
+    build_token_sets, encode_ids, format_prompt, prob_mass, resolve_shared_prefixes,
+    token_set_kind, word_sets,
 )
 from logit_lens.lens import Lens, LogitLens
 
@@ -140,20 +144,54 @@ class LensRunner:
             })
         return rows
 
+    def prefix_mass(self, fw: Dict, p_ids: List[int], cases: List[Dict], cache: Dict = None) -> Dict:
+        """
+        Contribuição do prefixo forçado por candidato e camada:
+            Σ_s P_k(s) × P_k(próximo_e | prompt + s)
+        Um forward por token compartilhado s (com a mesma checagem da
+        última camada). `cache` reaproveita forwards de s entre fatos.
+
+        Returns:
+            {candidato: tensor [n_layers]}
+        """
+        out = {}
+        cache = {} if cache is None else cache
+        for case in cases:
+            if not any(case["by_candidate"].values()):
+                continue
+            sid = case["token_id"]
+            if sid not in cache:
+                cache[sid] = self.forward_ids(list(p_ids) + [sid])["probs"]
+            nxt = cache[sid]
+            p_s = fw["probs"][:, sid]
+            for cid, ids in case["by_candidate"].items():
+                if ids:
+                    add = p_s * nxt[:, sorted(set(ids))].sum(dim=-1)
+                    out[cid] = out.get(cid, 0) + add
+        return out
+
     @staticmethod
-    def set_rows(fw: Dict, token_sets: Dict, kind: str, extra: Optional[Dict] = None) -> List[Dict]:
+    def set_rows(fw: Dict, token_sets: Dict, kind: str, extra: Optional[Dict] = None,
+                 prefix: Optional[Dict] = None, prefix_ids: Optional[Dict] = None) -> List[Dict]:
         """
         Uma linha por camada × candidato: P exata do conjunto de ids
-        distintos (0 se o conjunto ficou vazio; n_ids mostra isso).
+        distintos (prob_direct) + contribuição dos prefixos forçados
+        (prob_prefix). prob = soma. n_ids conta ids próprios e tokens
+        seguintes resolvidos (0: candidato não medido).
         """
         n, extra = fw["n_layers"], extra or {}
+        prefix, prefix_ids = prefix or {}, prefix_ids or {}
         rows = []
         for cid, info in token_sets["sets"].items():
+            px = prefix.get(cid)
             for i in range(n):
+                direct = prob_mass(fw["probs"][i], info["ids"])
+                pre = float(px[i]) if px is not None else 0.0
                 rows.append({**extra, "candidate": cid, "token_set": kind,
                              "layer": i + 1, "depth": (i + 1) / n,
-                             "prob": prob_mass(fw["probs"][i], info["ids"]),
-                             "n_ids": len(info["ids"])})
+                             "prob": direct + pre, "prob_direct": direct, "prob_prefix": pre,
+                             "n_ids": len(info["ids"]) + prefix_ids.get(cid, 0),
+                             "n_prefix_ids": prefix_ids.get(cid, 0)})
         return rows
 
     # ── Prompts do experimento ──
@@ -164,17 +202,22 @@ class LensRunner:
         Um forward de `text` e P por camada de cada conjunto de palavras
         (token sets montados no contexto de `text`).
         """
-        fw   = self.forward(text, add_special)
-        sets = build_token_sets(self.tokenizer, text, words,
-                                sep=sep, add_special_tokens=add_special)
+        fw    = self.forward(text, add_special)
+        sets  = build_token_sets(self.tokenizer, text, words,
+                                 sep=sep, add_special_tokens=add_special)
+        cases = resolve_shared_prefixes(self.tokenizer, text, sets, sep=sep,
+                                        add_special_tokens=add_special)
+        pre   = self.prefix_mass(fw, fw["input_ids"], cases)
         return {
             "n_layers":       fw["n_layers"],
             "decision_pos":   fw["decision_pos"],
             "n_input_tokens": len(fw["input_ids"]),
             "input_ids":      fw["input_ids"],
             "layers":         self.layer_rows(fw),
-            "probs":          self.set_rows(fw, sets, kind),
+            "probs":          self.set_rows(fw, sets, kind, prefix=pre,
+                                            prefix_ids=_prefix_counts(cases)),
             "token_sets":     sets,
+            "prefix_cases":   cases,
         }
 
     def measure(self, prompt, fact) -> Dict:
@@ -198,8 +241,9 @@ class LensRunner:
         """
         Um prompt neutro, um forward: P por camada dos tokens de todos
         os candidatos de todos os fatos, montados como no prompt real
-        do mesmo tipo (mesmo caso gramatical em ru, mesma convenção de
-        lacuna, compartilhados dentro do fato descartados).
+        do mesmo tipo (mesma convenção de lacuna; primeiro token
+        compartilhado dentro do fato resolvido por prefixo forçado, como
+        no prompt real).
 
         Fatos sem palavras para o tipo (ex.: sem indicador 'artifact')
         ficam de fora.
@@ -211,15 +255,21 @@ class LensRunner:
         text, sep, add_special = self.prepare(neutral)
         fw   = self.forward(text, add_special)
         kind = token_set_kind(neutral.type)
-        rows, audit = [], {}
+        rows, audit, prefix_cases, cache = [], {}, {}, {}
         for key, fact in facts.items():
             words = word_sets(fact, neutral)
             if not words:
                 continue
             sets = build_token_sets(self.tokenizer, text, words,
                                     sep=sep, add_special_tokens=add_special)
+            cases = resolve_shared_prefixes(self.tokenizer, text, sets, sep=sep,
+                                            add_special_tokens=add_special)
+            pre = self.prefix_mass(fw, fw["input_ids"], cases, cache)
             audit[key] = sets
-            rows += self.set_rows(fw, sets, kind, extra={"fact": key})
+            if cases:
+                prefix_cases[key] = cases
+            rows += self.set_rows(fw, sets, kind, extra={"fact": key}, prefix=pre,
+                                  prefix_ids=_prefix_counts(cases))
         return {
             "meta":           _meta(neutral, fact=None, lens=self.lens.name),
             "n_layers":       fw["n_layers"],
@@ -228,7 +278,16 @@ class LensRunner:
             "layers":         self.layer_rows(fw),
             "probs":          rows,
             "token_sets":     audit,
+            "prefix_cases":   prefix_cases,
         }
+
+
+def _prefix_counts(cases: List[Dict]) -> Dict[str, int]:
+    out = {}
+    for case in cases:
+        for cid, ids in case["by_candidate"].items():
+            out[cid] = out.get(cid, 0) + len(ids)
+    return out
 
 
 def _meta(prompt, fact, lens: str) -> Dict:

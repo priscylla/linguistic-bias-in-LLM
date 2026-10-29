@@ -24,7 +24,9 @@ from huggingface_hub import HfApi
 from config.experiment_config import ExperimentConfig
 from models.model_loader import get_hf_token, load_tokenizer
 from config.loader import require_valid
-from data.tokenization_check import check_tokenizer, dropped_words, indicator_cells, write_summary
+from data.tokenization_check import (
+    check_tokenizer, dropped_words, indicator_cells, prefix_forced, write_summary,
+)
 from models.chat_template import apply_template
 
 TOKENIZATION_DIR = Path("reports") / "tokenization"
@@ -125,6 +127,9 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
         dropped = dropped_words(res["rows"])
         cells = indicator_cells(res["rows"])
         pd.DataFrame(dropped).to_csv(TOKENIZATION_DIR / f"{model_key}_dropped.csv", index=False)
+        forced = prefix_forced(res["rows"])
+        pd.DataFrame(forced).to_csv(TOKENIZATION_DIR / f"{model_key}_prefix_forced.csv", index=False)
+        res["summary"]["n_prefix_forced"] = len(forced)
         pd.DataFrame(cells).to_csv(TOKENIZATION_DIR / f"{model_key}_indicator_cells.csv", index=False)
         res["summary"]["n_dropped"] = len(dropped)
         res["summary"]["skipped_indicator_cells"] = [

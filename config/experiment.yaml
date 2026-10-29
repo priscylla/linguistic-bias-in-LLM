@@ -2,7 +2,7 @@
 # Parâmetros gerais do experimento. Fatos e candidatos ficam em
 # facts.yaml; prompts em prompts.yaml.
 
-languages: [pt, en, de, it, fr, ru]
+languages: [pt, en, de, it, fr]          # ru removido em 2026-10-29
 
 # Idioma de referência: ΔCS_e(l) = CS_e(l) − CS_e(en) (Fase 2)
 reference_language: en
@@ -17,7 +17,7 @@ indicator_types: [place, artifact]
 paraphrases: 3
 
 # Idiomas que precisam de revisão nativa dos prompts (needs_native_review)
-native_review_languages: [fr, ru, de, it]
+native_review_languages: [fr, de, it]
 
 # Zona de decisão: fração final da profundidade (0.30 = últimos 30%)
 decision_zone: 0.30
@@ -62,14 +62,14 @@ figures:
   # reports/latex/measure_textwidth.tex (em polegadas). null até a medição:
   # make_figures.py recusa gerar figuras sem o valor.
   document_class: "acmart[manuscript,screen,review,anonymous]"
-  text_width_in: null
+  text_width_in: 5.95          # 430.00462pt (acmart v2.21), medido pela autora em 2026-10-29
   font_size: 7
   lens: logit_lens             # lens das figuras principais (Fig. 6 compara os dois)
   # Okabe & Ito (2008), paleta segura para daltonismo + traço por idioma
   language_colors: {pt: "#0072B2", en: "#D55E00", de: "#009E73", it: "#CC79A7",
-                    fr: "#E69F00", ru: "#56B4E9"}
+                    fr: "#E69F00"}
   language_dashes: {pt: [], en: [4, 1.5], de: [1, 1.2], it: [5, 1.5, 1, 1.5],
-                    fr: [2.5, 1.2], ru: [6, 1, 1, 1, 1, 1]}
+                    fr: [2.5, 1.2]}
   model_colors: ["#000000", "#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00",
                  "#56B4E9", "#F0E442", "#666666", "#999999", "#332288"]
   model_markers: [o, s, "^", D, v, P, X, "<", ">", h, "*"]

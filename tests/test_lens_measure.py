@@ -181,12 +181,40 @@ def test_exact_probs_over_full_distribution(arch):
     assert len(res["probs"]) == 2 * n
 
 
-def test_shared_first_token_counts_for_neither():
-    model = build_tiny_model("llama")
-    tok   = WordTokenizer(splits={" Meucci": [" Gra", "ucci"], " Graham": [" Gra", "ham"]})
-    res   = LensRunner(model, tok).measure(P_F1, _fact())
+def test_shared_first_token_resolved_by_prefix_forcing():
+    # Decisão da autora (2026-10-29): token compartilhado forçado,
+    # P(e) += P(prefixo) × P(próximo | prefixo), camada a camada
+    model  = build_tiny_model("llama")
+    tok    = WordTokenizer(splits={" Meucci": [" Gra", "ucci"], " Graham": [" Gra", "ham"]})
+    runner = LensRunner(model, tok)
+    res    = runner.measure(P_F1, _fact())
     assert [d["token"] for d in res["token_sets"]["shared_dropped"]] == [" Gra"]
-    assert {(r["candidate"], r["n_ids"]) for r in res["probs"]} == {("bell", 1), ("meucci", 1)}
+    case = res["prefix_cases"][0]
+    assert case["token"] == " Gra" and case["candidates"] == ["bell", "meucci"]
+    assert {w["candidate"]: (w["next_token"], w["status"]) for w in case["words"]} == {
+        "bell": ("ham", "combined"), "meucci": ("ucci", "combined")}
+    assert {(r["candidate"], r["n_ids"], r["n_prefix_ids"]) for r in res["probs"]} == {
+        ("bell", 2, 1), ("meucci", 2, 1)}                     # Bell + Graham; Antonio + Meucci
+
+    p_ids = encode_ids(tok, P_F1.text)
+    probs, _ = _manual_probs(model, tok, P_F1.text)
+    fw2 = runner.forward_ids(p_ids + [tok.vocab[" Gra"]])["probs"]
+    for k in range(model.config.num_hidden_layers):
+        r = {x["candidate"]: x for x in res["probs"] if x["layer"] == k + 1}
+        direct = probs[k][tok.vocab[" Bell"]].item()
+        prefix = probs[k][tok.vocab[" Gra"]].item() * fw2[k][tok.vocab["ham"]].item()
+        assert r["bell"]["prob_direct"] == pytest.approx(direct, abs=1e-7)
+        assert r["bell"]["prob_prefix"] == pytest.approx(prefix, abs=1e-7)
+        assert r["bell"]["prob"] == pytest.approx(direct + prefix, abs=1e-7)
+
+
+def test_prefix_not_resolved_when_word_is_the_shared_token():
+    model = build_tiny_model("llama")
+    tok   = WordTokenizer()
+    res   = LensRunner(model, tok).measure(P_F1, _fact(meucci_names=("Bell",)))
+    w = res["prefix_cases"][0]["words"]
+    assert {x["status"] for x in w} == {"no_next_token"}
+    assert {r["prob_prefix"] for r in res["probs"]} == {0.0}
 
 
 def test_empty_set_gives_zero():

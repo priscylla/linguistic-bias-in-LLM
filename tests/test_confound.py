@@ -23,15 +23,13 @@ def _cand(cid, dominant, names, place=None):
 
 def _fact():
     return Fact(key="aviao", kind="disputed", status="confirmed", verb="invented",
-                keyword={"pt": "avião", "en": "airplane", "ru": "самолёт"},
+                keyword={"pt": "avião", "en": "airplane"},
                 candidates=[
                     _cand("wright", True,
-                          {"pt": {"nom": ["Wright", "Orville"]}, "en": {"nom": ["Wright"]},
-                           "ru": {"nom": ["Райт"], "gen": ["Райтов"], "ins": ["Райтами"]}},
+                          {"pt": {"nom": ["Wright", "Orville"]}, "en": {"nom": ["Wright"]}},
                           {"pt": ["Dayton", "São Tomé"]}),
                     _cand("santos_dumont", False,
-                          {"pt": {"nom": ["Santos", "Dumont"]}, "en": {"nom": ["Santos"]},
-                           "ru": {"nom": ["Сантос"], "gen": ["Сантоса"], "ins": ["Сантосом"]}},
+                          {"pt": {"nom": ["Santos", "Dumont"]}, "en": {"nom": ["Santos"]}},
                           {"pt": ["São Paulo", "Paris"]}),
                 ])
 
@@ -55,7 +53,6 @@ def _main_with_top(runner, prompt, word, sep=" ", add_special=True):
 P_PT2   = Prompt("aviao", "pt", "F1", 2, "Quem inventou o avião foi")
 P_PT1   = Prompt("aviao", "pt", "F1", 1, "O avião foi inventado por", article_blocked=True)
 P_QA    = Prompt("aviao", "en", "QA", 1, "Who invented the airplane?")
-P_RU    = Prompt("aviao", "ru", "F1", 1, "Самолёт был изобретён", slot_case="ins")
 P_PLACE = Prompt("aviao", "pt", "place", 3, "O lugar onde o avião foi inventado é")
 
 
@@ -129,26 +126,14 @@ def test_contraction_passes_for_blocked_prompts():
     assert tester.contraction_passes(P_PT2, _fact(), P_PT2.text, True) == []
 
 
-def test_russian_plural_noun_triggers_and_names_in_nominative():
-    runner, tester = _setup()
-    main = _main_with_top(runner, P_RU, "братьями")
-    ps   = tester.run(P_RU, _fact(), main)
-    st   = ps[0]["steps"][0]
-    assert ps[0]["pass_id"] == "article:братьями"
-    assert [d["word"] for d in st["result"]["token_sets"]["sets"]["wright"]["words"]] == ["Райт"]
-
-
-def test_shared_prefix_measures_second_token():
+def test_shared_prefix_combined_in_main_measure_no_separate_pass():
+    # " São" (São Tomé / São Paulo): resolvido na própria medição; a
+    # passada separada "shared_prefix" não existe mais
     runner, tester = _setup()
     main = runner.measure(P_PLACE, _fact())
-    assert [d["token"] for d in main["token_sets"]["shared_dropped"]] == [" São"]
-    ps = tester.shared_prefix_passes(P_PLACE, main, P_PLACE.text, " ", True)
-    assert [p["pass_id"] for p in ps] == ["shared_prefix: São"]
-    res  = ps[0]["steps"][0]["result"]
-    tok  = runner.tokenizer
-    ids  = {c: s["ids"] for c, s in res["token_sets"]["sets"].items()}
-    assert ids == {"wright": [tok.vocab[" Tomé"]], "santos_dumont": [tok.vocab[" Paulo"]]}
-    fw = runner.forward_ids(encode_ids(tok, P_PLACE.text) + [tok.vocab[" São"]])
-    last = [r for r in res["probs"] if r["layer"] == res["n_layers"]]
-    for r in last:
-        assert r["prob"] == pytest.approx(fw["probs"][-1][ids[r["candidate"]][0]].item(), abs=1e-7)
+    case = main["prefix_cases"][0]
+    assert case["token"] == " São"
+    assert case["by_candidate"] == {"wright": [runner.tokenizer.vocab[" Tomé"]],
+                                    "santos_dumont": [runner.tokenizer.vocab[" Paulo"]]}
+    assert all(r["prob_prefix"] > 0 for r in main["probs"])
+    assert all(p["kind"] != "shared_prefix" for p in tester.run(P_PLACE, _fact(), main))

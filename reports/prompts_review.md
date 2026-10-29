@@ -3,8 +3,7 @@
 Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type. Paraphrase 1 of F1–F3 for `aviao`/`telefone` in pt/en/de/it is the old prompt.
 
 - **⛔ article_blocked**: the slot ends in a preposition that contracts with an article (pt *por/em*, it *da/a*, fr *à*), so a candidate with an article (*os irmãos Wright*) cannot follow directly.
-- **[gen]/[ins]** (ru): grammatical case the slot requires; default nominative.
-- Native review pending for: fr, ru, de, it. Set `needs_native_review: false` in the YAML once a native speaker has reviewed a block.
+- Native review: fr, de, it reviewed by native speakers (2026-10-29); a block still under review shows *(native review pending)*.
 
 ## `aviao`
 
@@ -50,7 +49,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: The name of the first airplane was
 - artifact.3: The first airplane was known as the
 
-### de (native review pending)
+### de
 
 - F1.1: Das Flugzeug wurde erfunden von
 - F1.2: Das Flugzeug wurde ursprünglich erfunden von
@@ -71,7 +70,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: Der Name des ersten Flugzeugs war
 - artifact.3: Das erste Flugzeug war bekannt als
 
-### it (native review pending)
+### it
 
 - F1.1: L'aereo è stato inventato da ⛔
 - F1.2: A inventare l'aereo è stato
@@ -92,7 +91,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: Il nome del primo aereo era
 - artifact.3: Il primo aereo era conosciuto come
 
-### fr (native review pending)
+### fr
 
 - F1.1: L'avion a été inventé par
 - F1.2: L'avion a été inventé à l'origine par
@@ -112,27 +111,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.1: Le premier avion s'appelait
 - artifact.2: Le nom du premier avion était
 - artifact.3: Le premier avion était connu sous le nom de
-
-### ru (native review pending)
-
-- F1.1: Самолёт был изобретён [ins]
-- F1.2: Самолёт — изобретение [gen]
-- F1.3: Исторически самолёт был изобретён [ins]
-- F2.1: Изобретателем самолёта считается
-- F2.2: Изобретатель самолёта —
-- F2.3: Изобретателем самолёта обычно считается
-- F3.1: Настоящий изобретатель самолёта —
-- F3.2: Настоящим изобретателем самолёта является
-- F3.3: Подлинный изобретатель самолёта —
-- QA.1: Кто изобрёл самолёт?
-- QA.2: Кто был изобретателем самолёта?
-- QA.3: Кто считается изобретателем самолёта?
-- place.1: Место изобретения самолёта —
-- place.2: Местом изобретения самолёта считается
-- place.3: Место, где самолёт был изобретён, —
-- artifact.1: Первый самолёт назывался
-- artifact.2: Название первого самолёта —
-- artifact.3: Первый самолёт был известен как
 
 ## `telefone`
 
@@ -172,7 +150,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: The telephone was first demonstrated in
 - place.3: The place where the telephone was invented is
 
-### de (native review pending)
+### de
 
 - F1.1: Das Telefon wurde erfunden von
 - F1.2: Das Telefon wurde ursprünglich erfunden von
@@ -190,7 +168,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Das Telefon wurde zum ersten Mal vorgeführt in
 - place.3: Der Ort, an dem das Telefon erfunden wurde, ist
 
-### it (native review pending)
+### it
 
 - F1.1: Il telefono è stato inventato da ⛔
 - F1.2: A inventare il telefono è stato
@@ -208,7 +186,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Il telefono è stato presentato per la prima volta a ⛔
 - place.3: Il luogo in cui il telefono è stato inventato è
 
-### fr (native review pending)
+### fr
 
 - F1.1: Le téléphone a été inventé par
 - F1.2: Le téléphone a été inventé à l'origine par
@@ -225,24 +203,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Le téléphone a été inventé à ⛔
 - place.2: Le téléphone a été présenté pour la première fois à ⛔
 - place.3: Le lieu où le téléphone a été inventé est
-
-### ru (native review pending)
-
-- F1.1: Телефон был изобретён [ins]
-- F1.2: Телефон — изобретение [gen]
-- F1.3: Исторически телефон был изобретён [ins]
-- F2.1: Изобретателем телефона считается
-- F2.2: Изобретатель телефона —
-- F2.3: Изобретателем телефона обычно считается
-- F3.1: Настоящий изобретатель телефона —
-- F3.2: Настоящим изобретателем телефона является
-- F3.3: Подлинный изобретатель телефона —
-- QA.1: Кто изобрёл телефон?
-- QA.2: Кто был изобретателем телефона?
-- QA.3: Кто считается изобретателем телефона?
-- place.1: Место изобретения телефона —
-- place.2: Местом изобретения телефона считается
-- place.3: Место, где телефон был изобретён, —
 
 ## `radio`
 
@@ -282,7 +242,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: The radio was first demonstrated in
 - place.3: The place where the radio was invented is
 
-### de (native review pending)
+### de
 
 - F1.1: Das Radio wurde erfunden von
 - F1.2: Das Radio wurde ursprünglich erfunden von
@@ -300,7 +260,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Das Radio wurde zum ersten Mal vorgeführt in
 - place.3: Der Ort, an dem das Radio erfunden wurde, ist
 
-### it (native review pending)
+### it
 
 - F1.1: La radio è stata inventata da ⛔
 - F1.2: A inventare la radio è stato
@@ -318,7 +278,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: La radio è stata presentata per la prima volta a ⛔
 - place.3: Il luogo in cui la radio è stata inventata è
 
-### fr (native review pending)
+### fr
 
 - F1.1: La radio a été inventée par
 - F1.2: La radio a été inventée à l'origine par
@@ -335,134 +295,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: La radio a été inventée à ⛔
 - place.2: La radio a été présentée pour la première fois à ⛔
 - place.3: Le lieu où la radio a été inventée est
-
-### ru (native review pending)
-
-- F1.1: Радио было изобретено [ins]
-- F1.2: Радио — изобретение [gen]
-- F1.3: Исторически радио было изобретено [ins]
-- F2.1: Изобретателем радио считается
-- F2.2: Изобретатель радио —
-- F2.3: Изобретателем радио обычно считается
-- F3.1: Настоящий изобретатель радио —
-- F3.2: Настоящим изобретателем радио является
-- F3.3: Подлинный изобретатель радио —
-- QA.1: Кто изобрёл радио?
-- QA.2: Кто был изобретателем радио?
-- QA.3: Кто считается изобретателем радио?
-- place.1: Место изобретения радио —
-- place.2: Местом изобретения радио считается
-- place.3: Место, где радио было изобретено, —
-
-## `lampada`
-
-### pt
-
-- F1.1: A lâmpada elétrica foi inventada por ⛔
-- F1.2: Quem inventou a lâmpada elétrica foi
-- F1.3: Historicamente, quem inventou a lâmpada elétrica foi
-- F2.1: O inventor da lâmpada elétrica é considerado
-- F2.2: O inventor da lâmpada elétrica é geralmente considerado
-- F2.3: O inventor da lâmpada elétrica é amplamente reconhecido como
-- F3.1: O verdadeiro inventor da lâmpada elétrica é
-- F3.2: O verdadeiro inventor da lâmpada elétrica foi
-- F3.3: O real inventor da lâmpada elétrica foi
-- QA.1: Quem inventou a lâmpada elétrica?
-- QA.2: Quem foi o inventor da lâmpada elétrica?
-- QA.3: A quem se atribui a invenção da lâmpada elétrica?
-- place.1: A lâmpada elétrica foi inventada em ⛔
-- place.2: A lâmpada elétrica foi demonstrada pela primeira vez em ⛔
-- place.3: O lugar onde a lâmpada elétrica foi inventada é
-
-### en
-
-- F1.1: The light bulb was invented by
-- F1.2: The light bulb was originally invented by
-- F1.3: Historically, the light bulb was invented by
-- F2.1: The inventor of the light bulb is considered to be
-- F2.2: The inventor of the light bulb is generally said to be
-- F2.3: The inventor of the light bulb is widely regarded as
-- F3.1: The true inventor of the light bulb was
-- F3.2: The real inventor of the light bulb was
-- F3.3: The actual inventor of the light bulb was
-- QA.1: Who invented the light bulb?
-- QA.2: Who was the inventor of the light bulb?
-- QA.3: Who is credited with inventing the light bulb?
-- place.1: The light bulb was invented in
-- place.2: The light bulb was first demonstrated in
-- place.3: The place where the light bulb was invented is
-
-### de (native review pending)
-
-- F1.1: Die Glühbirne wurde erfunden von
-- F1.2: Die Glühbirne wurde ursprünglich erfunden von
-- F1.3: Erfunden wurde die Glühbirne von
-- F2.1: Der Erfinder der Glühbirne gilt als
-- F2.2: Als Erfinder der Glühbirne gilt
-- F2.3: Als Erfinder der Glühbirne gilt allgemein
-- F3.1: Der wahre Erfinder der Glühbirne war
-- F3.2: Der eigentliche Erfinder der Glühbirne war
-- F3.3: Der tatsächliche Erfinder der Glühbirne war
-- QA.1: Wer hat die Glühbirne erfunden?
-- QA.2: Wer war der Erfinder der Glühbirne?
-- QA.3: Wem wird die Erfindung der Glühbirne zugeschrieben?
-- place.1: Die Glühbirne wurde erfunden in
-- place.2: Die Glühbirne wurde zum ersten Mal vorgeführt in
-- place.3: Der Ort, an dem die Glühbirne erfunden wurde, ist
-
-### it (native review pending)
-
-- F1.1: La lampadina è stata inventata da ⛔
-- F1.2: A inventare la lampadina è stato
-- F1.3: Il primo a inventare la lampadina è stato
-- F2.1: L'inventore della lampadina è considerato
-- F2.2: L'inventore della lampadina è generalmente considerato
-- F2.3: L'inventore della lampadina è ampiamente riconosciuto come
-- F3.1: Il vero inventore della lampadina è stato
-- F3.2: Il vero inventore della lampadina fu
-- F3.3: Il reale inventore della lampadina è stato
-- QA.1: Chi ha inventato la lampadina?
-- QA.2: Chi è stato l'inventore della lampadina?
-- QA.3: A chi si attribuisce l'invenzione della lampadina?
-- place.1: La lampadina è stata inventata a ⛔
-- place.2: La lampadina è stata presentata per la prima volta a ⛔
-- place.3: Il luogo in cui la lampadina è stata inventata è
-
-### fr (native review pending)
-
-- F1.1: L'ampoule électrique a été inventée par
-- F1.2: L'ampoule électrique a été inventée à l'origine par
-- F1.3: Historiquement, l'ampoule électrique a été inventée par
-- F2.1: On considère que l'inventeur de l'ampoule électrique est
-- F2.2: Il est généralement admis que l'inventeur de l'ampoule électrique est
-- F2.3: L'inventeur de l'ampoule électrique est largement reconnu comme étant
-- F3.1: Le véritable inventeur de l'ampoule électrique était
-- F3.2: Le vrai inventeur de l'ampoule électrique fut
-- F3.3: Le véritable inventeur de l'ampoule électrique est
-- QA.1: Qui a inventé l'ampoule électrique ?
-- QA.2: Qui était l'inventeur de l'ampoule électrique ?
-- QA.3: À qui attribue-t-on l'invention de l'ampoule électrique ?
-- place.1: L'ampoule électrique a été inventée à ⛔
-- place.2: L'ampoule électrique a été présentée pour la première fois à ⛔
-- place.3: Le lieu où l'ampoule électrique a été inventée est
-
-### ru (native review pending)
-
-- F1.1: Лампа накаливания была изобретена [ins]
-- F1.2: Лампа накаливания — изобретение [gen]
-- F1.3: Исторически лампа накаливания была изобретена [ins]
-- F2.1: Изобретателем лампы накаливания считается
-- F2.2: Изобретатель лампы накаливания —
-- F2.3: Изобретателем лампы накаливания обычно считается
-- F3.1: Настоящий изобретатель лампы накаливания —
-- F3.2: Настоящим изобретателем лампы накаливания является
-- F3.3: Подлинный изобретатель лампы накаливания —
-- QA.1: Кто изобрёл лампу накаливания?
-- QA.2: Кто был изобретателем лампы накаливания?
-- QA.3: Кто считается изобретателем лампы накаливания?
-- place.1: Место изобретения лампы накаливания —
-- place.2: Местом изобретения лампы накаливания считается
-- place.3: Место, где лампа накаливания была изобретена, —
 
 ## `cinema`
 
@@ -508,7 +340,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: The name of the first motion picture apparatus was
 - artifact.3: The first motion picture apparatus was known as the
 
-### de (native review pending)
+### de
 
 - F1.1: Das Kino wurde erfunden von
 - F1.2: Das Kino wurde ursprünglich erfunden von
@@ -529,7 +361,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: Der Name des ersten Filmapparats war
 - artifact.3: Der erste Filmapparat war bekannt als
 
-### it (native review pending)
+### it
 
 - F1.1: Il cinema è stato inventato da ⛔
 - F1.2: A inventare il cinema è stato
@@ -550,7 +382,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: Il nome del primo apparecchio cinematografico era
 - artifact.3: Il primo apparecchio cinematografico era conosciuto come
 
-### fr (native review pending)
+### fr
 
 - F1.1: Le cinéma a été inventé par
 - F1.2: Le cinéma a été inventé à l'origine par
@@ -570,27 +402,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.1: Le premier appareil cinématographique s'appelait
 - artifact.2: Le nom du premier appareil cinématographique était
 - artifact.3: Le premier appareil cinématographique était connu sous le nom de
-
-### ru (native review pending)
-
-- F1.1: Кинематограф был изобретён [ins]
-- F1.2: Кинематограф — изобретение [gen]
-- F1.3: Исторически кинематограф был изобретён [ins]
-- F2.1: Изобретателем кинематографа считается
-- F2.2: Изобретатель кинематографа —
-- F2.3: Изобретателем кинематографа обычно считается
-- F3.1: Настоящий изобретатель кинематографа —
-- F3.2: Настоящим изобретателем кинематографа является
-- F3.3: Подлинный изобретатель кинематографа —
-- QA.1: Кто изобрёл кинематограф?
-- QA.2: Кто был изобретателем кинематографа?
-- QA.3: Кто считается изобретателем кинематографа?
-- place.1: Место изобретения кинематографа —
-- place.2: Местом изобретения кинематографа считается
-- place.3: Место, где кинематограф был изобретён, —
-- artifact.1: Первый киноаппарат назывался
-- artifact.2: Название первого киноаппарата —
-- artifact.3: Первый киноаппарат был известен как
 
 ## `calculo`
 
@@ -630,7 +441,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Calculus was first published in
 - place.3: The place where calculus was developed is
 
-### de (native review pending)
+### de
 
 - F1.1: Die Infinitesimalrechnung wurde entwickelt von
 - F1.2: Die Infinitesimalrechnung wurde ursprünglich entwickelt von
@@ -648,7 +459,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Die Infinitesimalrechnung wurde zum ersten Mal veröffentlicht in
 - place.3: Der Ort, an dem die Infinitesimalrechnung entwickelt wurde, ist
 
-### it (native review pending)
+### it
 
 - F1.1: Il calcolo infinitesimale è stato sviluppato da ⛔
 - F1.2: A sviluppare il calcolo infinitesimale è stato
@@ -666,7 +477,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Il calcolo infinitesimale è stato pubblicato per la prima volta a ⛔
 - place.3: Il luogo in cui il calcolo infinitesimale è stato sviluppato è
 
-### fr (native review pending)
+### fr
 
 - F1.1: Le calcul infinitésimal a été développé par
 - F1.2: Le calcul infinitésimal a été développé à l'origine par
@@ -683,24 +494,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Le calcul infinitésimal a été développé à ⛔
 - place.2: Le calcul infinitésimal a été publié pour la première fois à ⛔
 - place.3: Le lieu où le calcul infinitésimal a été développé est
-
-### ru (native review pending)
-
-- F1.1: Математический анализ был разработан [ins]
-- F1.2: Математический анализ — детище [gen]
-- F1.3: Исторически математический анализ был разработан [ins]
-- F2.1: Создателем математического анализа считается
-- F2.2: Создатель математического анализа —
-- F2.3: Создателем математического анализа обычно считается
-- F3.1: Настоящий создатель математического анализа —
-- F3.2: Настоящим создателем математического анализа является
-- F3.3: Подлинный создатель математического анализа —
-- QA.1: Кто разработал математический анализ?
-- QA.2: Кто был создателем математического анализа?
-- QA.3: Кто считается создателем математического анализа?
-- place.1: Место создания математического анализа —
-- place.2: Местом создания математического анализа считается
-- place.3: Место, где математический анализ был разработан, —
 
 ## `fotografia`
 
@@ -746,7 +539,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: The name of the first photographic process was
 - artifact.3: The first photographic process was known as the
 
-### de (native review pending)
+### de
 
 - F1.1: Die Fotografie wurde erfunden von
 - F1.2: Die Fotografie wurde ursprünglich erfunden von
@@ -767,7 +560,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: Der Name des ersten fotografischen Verfahrens war
 - artifact.3: Das erste fotografische Verfahren war bekannt als
 
-### it (native review pending)
+### it
 
 - F1.1: La fotografia è stata inventata da ⛔
 - F1.2: A inventare la fotografia è stato
@@ -788,7 +581,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.2: Il nome del primo procedimento fotografico era
 - artifact.3: Il primo procedimento fotografico era conosciuto come
 
-### fr (native review pending)
+### fr
 
 - F1.1: La photographie a été inventée par
 - F1.2: La photographie a été inventée à l'origine par
@@ -808,27 +601,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - artifact.1: Le premier procédé photographique s'appelait
 - artifact.2: Le nom du premier procédé photographique était
 - artifact.3: Le premier procédé photographique était connu sous le nom de
-
-### ru (native review pending)
-
-- F1.1: Фотография была изобретена [ins]
-- F1.2: Фотография — изобретение [gen]
-- F1.3: Исторически фотография была изобретена [ins]
-- F2.1: Изобретателем фотографии считается
-- F2.2: Изобретатель фотографии —
-- F2.3: Изобретателем фотографии обычно считается
-- F3.1: Настоящий изобретатель фотографии —
-- F3.2: Настоящим изобретателем фотографии является
-- F3.3: Подлинный изобретатель фотографии —
-- QA.1: Кто изобрёл фотографию?
-- QA.2: Кто был изобретателем фотографии?
-- QA.3: Кто считается изобретателем фотографии?
-- place.1: Место изобретения фотографии —
-- place.2: Местом изобретения фотографии считается
-- place.3: Место, где фотография была изобретена, —
-- artifact.1: Первый фотографический процесс назывался
-- artifact.2: Название первого фотографического процесса —
-- artifact.3: Первый фотографический процесс был известен как
 
 ## `tabela_periodica`
 
@@ -868,7 +640,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: The periodic table was first published in
 - place.3: The place where the periodic table was developed is
 
-### de (native review pending)
+### de
 
 - F1.1: Das Periodensystem wurde entwickelt von
 - F1.2: Das Periodensystem wurde ursprünglich entwickelt von
@@ -886,7 +658,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: Das Periodensystem wurde zum ersten Mal veröffentlicht in
 - place.3: Der Ort, an dem das Periodensystem entwickelt wurde, ist
 
-### it (native review pending)
+### it
 
 - F1.1: La tavola periodica è stata sviluppata da ⛔
 - F1.2: A sviluppare la tavola periodica è stato
@@ -904,7 +676,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.2: La tavola periodica è stata pubblicata per la prima volta a ⛔
 - place.3: Il luogo in cui la tavola periodica è stata sviluppata è
 
-### fr (native review pending)
+### fr
 
 - F1.1: Le tableau périodique a été développé par
 - F1.2: Le tableau périodique a été développé à l'origine par
@@ -921,24 +693,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - place.1: Le tableau périodique a été développé à ⛔
 - place.2: Le tableau périodique a été publié pour la première fois à ⛔
 - place.3: Le lieu où le tableau périodique a été développé est
-
-### ru (native review pending)
-
-- F1.1: Периодическая таблица была создана [ins]
-- F1.2: Периодическая таблица — детище [gen]
-- F1.3: Исторически периодическая таблица была создана [ins]
-- F2.1: Создателем периодической таблицы считается
-- F2.2: Создатель периодической таблицы —
-- F2.3: Создателем периодической таблицы обычно считается
-- F3.1: Настоящий создатель периодической таблицы —
-- F3.2: Настоящим создателем периодической таблицы является
-- F3.3: Подлинный создатель периодической таблицы —
-- QA.1: Кто создал периодическую таблицу?
-- QA.2: Кто был создателем периодической таблицы?
-- QA.3: Кто считается создателем периодической таблицы?
-- place.1: Место создания периодической таблицы —
-- place.2: Местом создания периодической таблицы считается
-- place.3: Место, где периодическая таблица была создана, —
 
 ## `penicilina`
 
@@ -972,7 +726,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Who was the discoverer of penicillin?
 - QA.3: Who is credited with discovering penicillin?
 
-### de (native review pending)
+### de
 
 - F1.1: Das Penicillin wurde entdeckt von
 - F1.2: Das Penicillin wurde ursprünglich entdeckt von
@@ -987,7 +741,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Wer war der Entdecker des Penicillins?
 - QA.3: Wem wird die Entdeckung des Penicillins zugeschrieben?
 
-### it (native review pending)
+### it
 
 - F1.1: La penicillina è stata scoperta da ⛔
 - F1.2: A scoprire la penicillina è stato
@@ -1002,7 +756,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Chi è stato lo scopritore della penicillina?
 - QA.3: A chi si attribuisce la scoperta della penicillina?
 
-### fr (native review pending)
+### fr
 
 - F1.1: La pénicilline a été découverte par
 - F1.2: La pénicilline a été découverte à l'origine par
@@ -1016,21 +770,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.1: Qui a découvert la pénicilline ?
 - QA.2: Qui était le découvreur de la pénicilline ?
 - QA.3: À qui attribue-t-on la découverte de la pénicilline ?
-
-### ru (native review pending)
-
-- F1.1: Пенициллин был открыт [ins]
-- F1.2: Пенициллин — открытие [gen]
-- F1.3: Исторически пенициллин был открыт [ins]
-- F2.1: Первооткрывателем пенициллина считается
-- F2.2: Первооткрыватель пенициллина —
-- F2.3: Первооткрывателем пенициллина обычно считается
-- F3.1: Настоящий первооткрыватель пенициллина —
-- F3.2: Настоящим первооткрывателем пенициллина является
-- F3.3: Подлинный первооткрыватель пенициллина —
-- QA.1: Кто открыл пенициллин?
-- QA.2: Кто был первооткрывателем пенициллина?
-- QA.3: Кто считается первооткрывателем пенициллина?
 
 ## `dinamite`
 
@@ -1064,7 +803,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Who was the inventor of dynamite?
 - QA.3: Who is credited with inventing dynamite?
 
-### de (native review pending)
+### de
 
 - F1.1: Das Dynamit wurde erfunden von
 - F1.2: Das Dynamit wurde ursprünglich erfunden von
@@ -1079,7 +818,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Wer war der Erfinder des Dynamits?
 - QA.3: Wem wird die Erfindung des Dynamits zugeschrieben?
 
-### it (native review pending)
+### it
 
 - F1.1: La dinamite è stata inventata da ⛔
 - F1.2: A inventare la dinamite è stato
@@ -1094,7 +833,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Chi è stato l'inventore della dinamite?
 - QA.3: A chi si attribuisce l'invenzione della dinamite?
 
-### fr (native review pending)
+### fr
 
 - F1.1: La dynamite a été inventée par
 - F1.2: La dynamite a été inventée à l'origine par
@@ -1108,21 +847,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.1: Qui a inventé la dynamite ?
 - QA.2: Qui était l'inventeur de la dynamite ?
 - QA.3: À qui attribue-t-on l'invention de la dynamite ?
-
-### ru (native review pending)
-
-- F1.1: Динамит был изобретён [ins]
-- F1.2: Динамит — изобретение [gen]
-- F1.3: Исторически динамит был изобретён [ins]
-- F2.1: Изобретателем динамита считается
-- F2.2: Изобретатель динамита —
-- F2.3: Изобретателем динамита обычно считается
-- F3.1: Настоящий изобретатель динамита —
-- F3.2: Настоящим изобретателем динамита является
-- F3.3: Подлинный изобретатель динамита —
-- QA.1: Кто изобрёл динамит?
-- QA.2: Кто был изобретателем динамита?
-- QA.3: Кто считается изобретателем динамита?
 
 ## `www`
 
@@ -1156,7 +880,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Who was the inventor of the World Wide Web?
 - QA.3: Who is credited with inventing the World Wide Web?
 
-### de (native review pending)
+### de
 
 - F1.1: Das World Wide Web wurde erfunden von
 - F1.2: Das World Wide Web wurde ursprünglich erfunden von
@@ -1171,7 +895,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Wer war der Erfinder des World Wide Web?
 - QA.3: Wem wird die Erfindung des World Wide Web zugeschrieben?
 
-### it (native review pending)
+### it
 
 - F1.1: Il World Wide Web è stato inventato da ⛔
 - F1.2: A inventare il World Wide Web è stato
@@ -1186,7 +910,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Chi è stato l'inventore del World Wide Web?
 - QA.3: A chi si attribuisce l'invenzione del World Wide Web?
 
-### fr (native review pending)
+### fr
 
 - F1.1: Le World Wide Web a été inventé par
 - F1.2: Le World Wide Web a été inventé à l'origine par
@@ -1200,21 +924,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.1: Qui a inventé le World Wide Web ?
 - QA.2: Qui était l'inventeur du World Wide Web ?
 - QA.3: À qui attribue-t-on l'invention du World Wide Web ?
-
-### ru (native review pending)
-
-- F1.1: Всемирная паутина была изобретена [ins]
-- F1.2: Всемирная паутина — изобретение [gen]
-- F1.3: Исторически Всемирная паутина была изобретена [ins]
-- F2.1: Изобретателем Всемирной паутины считается
-- F2.2: Изобретатель Всемирной паутины —
-- F2.3: Изобретателем Всемирной паутины обычно считается
-- F3.1: Настоящий изобретатель Всемирной паутины —
-- F3.2: Настоящим изобретателем Всемирной паутины является
-- F3.3: Подлинный изобретатель Всемирной паутины —
-- QA.1: Кто изобрёл Всемирную паутину?
-- QA.2: Кто был изобретателем Всемирной паутины?
-- QA.3: Кто считается изобретателем Всемирной паутины?
 
 ## `raios_x`
 
@@ -1248,7 +957,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Who was the discoverer of X-rays?
 - QA.3: Who is credited with discovering X-rays?
 
-### de (native review pending)
+### de
 
 - F1.1: Die X-Strahlen wurden entdeckt von
 - F1.2: Die X-Strahlen wurden ursprünglich entdeckt von
@@ -1263,7 +972,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Wer war der Entdecker der X-Strahlen?
 - QA.3: Wem wird die Entdeckung der X-Strahlen zugeschrieben?
 
-### it (native review pending)
+### it
 
 - F1.1: I raggi X sono stati scoperti da ⛔
 - F1.2: A scoprire i raggi X è stato
@@ -1278,7 +987,7 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.2: Chi è stato lo scopritore dei raggi X?
 - QA.3: A chi si attribuisce la scoperta dei raggi X?
 
-### fr (native review pending)
+### fr
 
 - F1.1: Les rayons X ont été découverts par
 - F1.2: Les rayons X ont été découverts à l'origine par
@@ -1292,21 +1001,6 @@ Generated from `config/prompts.yaml` (edit the YAML). Three paraphrases per type
 - QA.1: Qui a découvert les rayons X ?
 - QA.2: Qui était le découvreur des rayons X ?
 - QA.3: À qui attribue-t-on la découverte des rayons X ?
-
-### ru (native review pending)
-
-- F1.1: X-лучи были открыты [ins]
-- F1.2: X-лучи — открытие [gen]
-- F1.3: Исторически X-лучи были открыты [ins]
-- F2.1: Первооткрывателем X-лучей считается
-- F2.2: Первооткрыватель X-лучей —
-- F2.3: Первооткрывателем X-лучей обычно считается
-- F3.1: Настоящий первооткрыватель X-лучей —
-- F3.2: Настоящим первооткрывателем X-лучей является
-- F3.3: Подлинный первооткрыватель X-лучей —
-- QA.1: Кто открыл X-лучи?
-- QA.2: Кто был первооткрывателем X-лучей?
-- QA.3: Кто считается первооткрывателем X-лучей?
 
 ## Neutral baseline (`config/baseline_prompts.yaml`)
 
@@ -1417,27 +1111,6 @@ Status: `proposed`. Paraphrase *i* of each type mirrors paraphrase *i* of the re
 - artifact.2: Le nom du premier navire était
 - artifact.3: Le premier navire était connu sous le nom de
 
-### ru (native review pending)
-
-- F1.1: Роман был написан [ins]
-- F1.2: Роман — произведение [gen]
-- F1.3: Исторически роман был написан [ins]
-- F2.1: Автором романа считается
-- F2.2: Автор романа —
-- F2.3: Автором романа обычно считается
-- F3.1: Настоящий автор романа —
-- F3.2: Настоящим автором романа является
-- F3.3: Подлинный автор романа —
-- QA.1: Кто написал роман?
-- QA.2: Кто был автором романа?
-- QA.3: Кто считается автором романа?
-- place.1: Место строительства моста —
-- place.2: Местом строительства моста считается
-- place.3: Место, где был построен мост, —
-- artifact.1: Первый корабль назывался
-- artifact.2: Название первого корабля —
-- artifact.3: Первый корабль был известен как
-
 ## Article-confound forcing words (`config/forcing.yaml`)
 
 Status: `proposed`. **Articles** trigger the test when the final layer's top token is one of them; the word is appended and the candidates are measured at the next position. **Plural nouns** also trigger it, and are forced as a second step when they follow a forced article (*os → irmãos*). **Contractions** replace the final preposition of ⛔ prompts, one pass per form.
@@ -1449,4 +1122,3 @@ Status: `proposed`. **Articles** trigger the test when the final layer's top tok
 | de | der, die, das, den, dem, des, ein, eine, einen, einem, einer | Brüder, Brüdern | — |
 | it | il, lo, la, i, gli, le, un, uno, una | fratelli | da → dal, dallo, dalla, dai, dagli, dalle<br>a → al, allo, alla, ai, agli, alle |
 | fr | le, la, les, un, une, des | frères | à → au, aux |
-| ru | — | nom: братья<br>gen: братьев<br>ins: братьями | — |

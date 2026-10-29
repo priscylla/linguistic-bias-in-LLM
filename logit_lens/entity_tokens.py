@@ -53,20 +53,30 @@ def format_prompt(prompt, tokenizer, chat_formatter: Optional[Callable] = None):
 MIN_INDICATOR_CANDIDATES = 2
 
 
-def valid_candidates(token_sets: Dict) -> List[str]:
-    """Candidatos que mantêm pelo menos um token ID (sem compartilhados nem excluídos)."""
-    return [cid for cid, s in token_sets["sets"].items() if s["ids"]]
+def valid_candidates(token_sets: Dict, prefix_cases: Optional[List[Dict]] = None) -> List[str]:
+    """
+    Candidatos medidos: com pelo menos um token ID próprio ou um token
+    seguinte resolvido por prefixo forçado (resolve_shared_prefixes).
+    """
+    out = {cid for cid, s in token_sets["sets"].items() if s["ids"]}
+    for case in prefix_cases or []:
+        out |= {cid for cid, ids in case["by_candidate"].items() if ids}
+    return [cid for cid in token_sets["sets"] if cid in out]
 
 
-def indicator_cell_ok(token_sets_per_paraphrase: List[Dict]) -> bool:
+def indicator_cell_ok(per_paraphrase: List) -> bool:
     """
     Regra da autora (2026-10-29) para prompts place/artifact: a célula
     fato × idioma × tipo só é medida se, em todas as paráfrases, pelo
-    menos dois candidatos têm token IDs válidos depois da checagem de
-    tokenização. Senão a célula inteira é pulada (e registrada).
+    menos dois candidatos são medidos (token próprio ou prefixo forçado).
+    Senão a célula inteira é pulada (e registrada).
+
+    per_paraphrase: [(token_sets, prefix_cases)] ou [token_sets].
     """
-    return bool(token_sets_per_paraphrase) and all(
-        len(valid_candidates(ts)) >= MIN_INDICATOR_CANDIDATES for ts in token_sets_per_paraphrase)
+    def n(item):
+        ts, cases = item if isinstance(item, tuple) else (item, None)
+        return len(valid_candidates(ts, cases))
+    return bool(per_paraphrase) and all(n(x) >= MIN_INDICATOR_CANDIDATES for x in per_paraphrase)
 
 
 def encode_ids(tokenizer, text: str, add_special_tokens: bool = True) -> List[int]:
@@ -195,3 +205,59 @@ def prob_mass(probs: torch.Tensor, ids: Sequence[int]) -> float:
         return 0.0
     idx = torch.tensor(sorted(set(ids)), device=probs.device)
     return probs[idx].sum().item()
+
+
+def resolve_shared_prefixes(tokenizer, prompt: str, token_sets: Dict, sep: str = " ",
+                            add_special_tokens: bool = True) -> List[Dict]:
+    """
+    Primeiro token compartilhado entre candidatos (decisão da autora,
+    2026-10-29): em vez de não contar para ninguém, o token compartilhado
+    s é forçado e cada candidato é medido pelo token seguinte:
+
+        P(e) += P(s) × P(próximo_e | prompt + s)
+
+    Para cada s em token_sets["shared_dropped"]:
+        by_candidate  {candidato: ids distintos do token seguinte}
+        words         [{candidate, word, next_id, next_token, status}]
+                      status: combined | no_next_token (a palavra é o
+                      próprio token s) | next_shared (o token seguinte
+                      também coincide com outro candidato; não conta)
+
+    Um nível só: colisões no segundo token não são resolvidas.
+    """
+    p_ids = encode_ids(tokenizer, prompt, add_special_tokens)
+    i = len(p_ids)
+    cases = []
+    for shared in token_sets["shared_dropped"]:
+        sid = shared["token_id"]
+        words = []
+        for cid, info in token_sets["sets"].items():
+            for d in info["words"]:
+                if d["token_id"] != sid:
+                    continue
+                full = encode_ids(tokenizer, prompt + sep + d["word"], add_special_tokens)
+                ok = full[:i] == p_ids and len(full) > i + 1 and full[i] == sid
+                words.append({"candidate": cid, "word": d["word"],
+                              "next_id": full[i + 1] if ok else None})
+        owners = {}
+        for w in words:
+            if w["next_id"] is not None:
+                owners.setdefault(w["next_id"], set()).add(w["candidate"])
+        by_cand = {}
+        for w in words:
+            nid = w["next_id"]
+            if nid is None:
+                w["status"], w["next_token"] = "no_next_token", None
+                continue
+            w["next_token"] = tokenizer.decode([nid])
+            if len(owners[nid]) > 1:
+                w["status"] = "next_shared"
+                continue
+            w["status"] = "combined"
+            ids = by_cand.setdefault(w["candidate"], [])
+            if nid not in ids:
+                ids.append(nid)
+        cases.append({"token_id": sid, "token": tokenizer.decode([sid]),
+                      "candidates": sorted({w["candidate"] for w in words}),
+                      "by_candidate": by_cand, "words": words})
+    return cases

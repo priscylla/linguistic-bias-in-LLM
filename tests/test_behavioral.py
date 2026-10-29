@@ -32,7 +32,7 @@ from scripts import fill_empirical_dominant as fill_ed
 FACTS = load_facts()
 EXP   = load_experiment()
 B     = load_behavioral()
-BC    = dataclasses.replace(B, status="confirmed", ru_needs_native_review=False)
+BC    = dataclasses.replace(B, status="confirmed")
 CHAT  = lambda tok, text: f"<user>{text}<assistant>"  # noqa: E731
 G     = {**B.generation, "max_new_tokens": 8, "samples": 3}
 
@@ -47,7 +47,7 @@ def _raw():
 
 def test_config_valid_and_pending():
     assert validate_behavioral(EXP, FACTS, B) == []
-    assert B.status == "proposed" and B.ru_needs_native_review
+    assert B.status == "proposed"
     g = B.generation
     assert (g["greedy"], g["samples"], g["temperature"], g["top_p"], g["top_k"],
             g["max_new_tokens"]) == (1, 10, 0.7, 1.0, 0, 200)
@@ -159,9 +159,6 @@ EX = Extractor(FACTS, BC, EXP["languages"])
     ("telefone", "pt", "Os reis apoiaram Graham Bell.", "bell", ["bell"]),              # 'reis' excluído
     ("telefone", "pt", "Philipp Reis antes de Bell.", "reis", ["reis", "bell"]),
     ("telefone", "de", "Johann Philipp Reis, nicht Bell.", "reis", ["reis", "bell"]),
-    ("telefone", "ru", "Телефон изобрёл Белл, а не Меуччи.", "bell", ["bell", "meucci"]),
-    ("telefone", "ru", "Рейс задержали; речь о Беллу.", "bell", ["bell"]),              # 'рейс' = voo
-    ("telefone", "ru", "Bell (Белл) и Филиппом Рейсом", "bell", ["bell", "reis"]),     # latim no ru
     ("aviao", "fr", "SANTOS-DUMONT a volé avant les frères Wright", "santos_dumont", ["santos_dumont", "wright"]),
     ("aviao", "pt", "os irmãos Wright e Santos Dumont", "wright", ["wright", "santos_dumont"]),
     ("cinema", "fr", "la lumière du projecteur; Edison", "edison_cinema", ["edison_cinema"]),
@@ -254,7 +251,7 @@ def test_fill_empirical_dominant_edits_only_that_field():
 # ══════════════════════════════════════════════════════════════
 
 def test_stratified_sample():
-    spec = [(m, "telefone", l, "Bell") for m in ("m1", "m2") for l in ("pt", "ru") for _ in range(30)]
+    spec = [(m, "telefone", l, "Bell") for m in ("m1", "m2") for l in ("pt", "de") for _ in range(30)]
     ans = _answers(spec)
     attr = pd.DataFrame(Extractor(FACTS, BC, EXP["languages"]).extract(ans.to_dict("records"))["attribution"])
     s = stratified_sample(ans, attr, 13, 42, {"telefone": "bell=Bell"})

@@ -48,7 +48,7 @@ def test_mirrors_real_prompt_shapes():
 
 
 @pytest.mark.parametrize("mutate,msg", [
-    (lambda r: r["baseline"]["ru"]["F1"][0].pop("slot_case"), "não espelha"),
+    (lambda r: r["baseline"]["it"]["F1"][0].pop("article_blocked"), "não espelha"),
     (lambda r: r["baseline"]["pt"]["F1"][0].pop("article_blocked"), "não espelha"),
     (lambda r: r["baseline"]["en"]["QA"].pop(), "paráfrases"),
     (lambda r: r["baseline"]["en"]["F1"][0].update(slot_case="gen"), "slot_case só em ru"),
@@ -91,6 +91,6 @@ def test_require_confirmed_blocks_on_baseline():
 
 def test_config_baseline_prompt():
     cfg = ExperimentConfig()
-    assert cfg.baseline_prompt("ru", "F1", 2).slot_case == "gen"
+    assert cfg.baseline_prompt("pt", "F1", 1).article_blocked
     assert cfg.baseline_prompt("en", "F1", 1).text == "The novel was written by"
     assert cfg.top_k_tokens == 20

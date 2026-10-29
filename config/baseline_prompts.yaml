@@ -5,8 +5,8 @@
 # "o token é só frequente no idioma" (ex.: " Santos" em português).
 #
 # Pareamento: a paráfrase i de cada tipo espelha a paráfrase i do mesmo
-# tipo e idioma em prompts.yaml (mesmo final de lacuna, mesmo slot_case
-# em ru, mesmo article_blocked). A validação confere esse espelhamento.
+# tipo e idioma em prompts.yaml (mesmo final de lacuna, mesmo
+# article_blocked). A validação confere esse espelhamento.
 #
 #   nomes (F1–F3, QA): "o romance" / "o autor do romance"
 #   place:             "a ponte"
@@ -157,32 +157,3 @@ baseline:
     - text: Le premier navire s'appelait
     - text: Le nom du premier navire était
     - text: Le premier navire était connu sous le nom de
-  ru:
-    needs_native_review: true
-    F1:
-    - text: Роман был написан
-      slot_case: ins
-    - text: Роман — произведение
-      slot_case: gen
-    - text: Исторически роман был написан
-      slot_case: ins
-    F2:
-    - text: Автором романа считается
-    - text: Автор романа —
-    - text: Автором романа обычно считается
-    F3:
-    - text: Настоящий автор романа —
-    - text: Настоящим автором романа является
-    - text: Подлинный автор романа —
-    QA:
-    - text: Кто написал роман?
-    - text: Кто был автором романа?
-    - text: Кто считается автором романа?
-    place:
-    - text: Место строительства моста —
-    - text: Местом строительства моста считается
-    - text: Место, где был построен мост, —
-    artifact:
-    - text: Первый корабль назывался
-    - text: Название первого корабля —
-    - text: Первый корабль был известен как

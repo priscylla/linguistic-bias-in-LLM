@@ -220,9 +220,10 @@ def test_indicator_cell_skipped_when_fewer_than_two_valid_candidates(tmp_path):
     def cand(cid, dom, place):
         return Candidate(id=cid, label=cid, dominant=dom, stakes=[], names={"pt": {"nom": [cid.title()]}},
                          indicators={"place": {"pt": place}})
-    # São Paulo e São Tomé: primeiro token " São" compartilhado -> nenhum candidato válido
+    # Os dois candidatos com o mesmo indicador de um token só ("Paris"):
+    # nem o prefixo forçado resolve -> nenhum candidato medido
     fact = Fact(key="radio", kind="disputed", status="confirmed", verb="invented",
-                keyword={"pt": "rádio"}, candidates=[cand("a", True, ["São Tomé"]), cand("b", False, ["São Paulo"])])
+                keyword={"pt": "rádio"}, candidates=[cand("a", True, ["Paris"]), cand("b", False, ["Paris"])])
     prompts = [Prompt("radio", "pt", "place", i, t) for i, t in
                enumerate(["O rádio foi inventado em", "O rádio foi testado pela primeira vez em",
                           "O lugar onde o rádio foi inventado é"], start=1)]
@@ -235,3 +236,15 @@ def test_indicator_cell_skipped_when_fewer_than_two_valid_candidates(tmp_path):
     sk = pd.DataFrame(t["skipped"])
     assert set(sk["paraphrase"]) == {1, 2, 3} and set(sk["prompt_type"]) == {"place"}
     assert (sk["valid_candidates"] == "").all()
+    assert t["prefix_forcing"] == []          # célula pulada não é medida (motivo em skipped)
+
+    # São Tomé / São Paulo: " São" compartilhado, resolvido por prefixo -> célula mantida
+    fact2 = Fact(key="radio", kind="disputed", status="confirmed", verb="invented",
+                 keyword={"pt": "rádio"},
+                 candidates=[cand("a", True, ["São Tomé"]), cand("b", False, ["São Paulo"])])
+    cfg2 = type("C", (), {"fact_specs": {"radio": fact2}, "prompt_specs": tuple(prompts)})()
+    t2 = run_lens.run_fact_unit(runner, ConfoundTester(runner, load_forcing()), cfg2, "radio", "pt",
+                                "tiny", ("completion",))
+    assert t2["skipped"] == [] and {r["prompt_type"] for r in t2["probs"]} == {"place", "F1"}
+    pf = pd.DataFrame(t2["prefix_forcing"])
+    assert set(pf["status"]) == {"combined"} and set(pf["shared_token"]) == {" São"}

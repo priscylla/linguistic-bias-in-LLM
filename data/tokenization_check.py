@@ -26,7 +26,8 @@ from typing import Callable, Dict, List, Optional
 
 # word_sets e format_prompt são compartilhados com o lens (Fase 2)
 from logit_lens.entity_tokens import (  # noqa: F401
-    INDICATOR_TYPES, MIN_INDICATOR_CANDIDATES, build_token_sets, format_prompt, word_sets,
+    INDICATOR_TYPES, MIN_INDICATOR_CANDIDATES, build_token_sets, format_prompt,
+    resolve_shared_prefixes, word_sets,
 )
 
 
@@ -71,6 +72,11 @@ def check_tokenizer(
         out  = build_token_sets(tokenizer, text, sets, sep=sep,
                                 add_special_tokens=add_special)
         shared = {d["token_id"]: d["sets"] for d in out["shared_dropped"]}
+        # Primeiro token compartilhado: resolvido por prefixo forçado?
+        res = {(w["candidate"], w["word"]): w
+               for case in resolve_shared_prefixes(tokenizer, text, out, sep=sep,
+                                                   add_special_tokens=add_special)
+               for w in case["words"]}
 
         for cid, info in out["sets"].items():
             for d in info["words"]:
@@ -91,6 +97,8 @@ def check_tokenizer(
                     "zipf": round(z, 2),
                     "common": z >= zipf_threshold,
                     "excluded": d["boundary_merge"],
+                    "prefix_status": res.get((cid, d["word"]), {}).get("status", ""),
+                    "next_token": res.get((cid, d["word"]), {}).get("next_token") or "",
                 })
 
     return {"rows": rows, "summary": summarize(rows)}
@@ -121,14 +129,19 @@ def summarize(rows: List[Dict]) -> Dict:
     }
 
 
+def _measured(r) -> bool:
+    """A palavra conta: token próprio, ou primeiro token compartilhado resolvido."""
+    return not r["excluded"] and (not r["shared_with"] or r.get("prefix_status") == "combined")
+
+
 def dropped_words(rows: List[Dict]) -> List[Dict]:
-    """Palavras que não contam (primeiro token compartilhado ou fusão na fronteira)."""
+    """Palavras que não contam (fusão na fronteira, ou prefixo compartilhado não resolvido)."""
     seen, out = set(), []
     for r in rows:
-        reason = "excluded (boundary merge)" if r["excluded"] else (
-            f"shared with {r['shared_with']}" if r["shared_with"] else None)
-        if reason is None:
+        if _measured(r):
             continue
+        reason = "excluded (boundary merge)" if r["excluded"] else (
+            f"shared with {r['shared_with']}, {r.get('prefix_status') or 'unresolved'}")
         key = (r["model"], r["fact"], r["lang"], r["prompt_type"], r["candidate"], r["word"], reason)
         if key in seen:
             continue
@@ -136,6 +149,23 @@ def dropped_words(rows: List[Dict]) -> List[Dict]:
         out.append({"model": r["model"], "fact": r["fact"], "lang": r["lang"],
                     "prompt_type": r["prompt_type"], "candidate": r["candidate"],
                     "word": r["word"], "token": r["token"], "reason": reason})
+    return out
+
+
+def prefix_forced(rows: List[Dict]) -> List[Dict]:
+    """Palavras medidas por prefixo forçado: P(prefixo) × P(próximo | prefixo)."""
+    seen, out = set(), []
+    for r in rows:
+        if r.get("prefix_status") != "combined":
+            continue
+        key = (r["model"], r["fact"], r["lang"], r["prompt_type"], r["candidate"], r["word"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"model": r["model"], "fact": r["fact"], "lang": r["lang"],
+                    "prompt_type": r["prompt_type"], "candidate": r["candidate"],
+                    "word": r["word"], "shared_token": r["token"], "shared_with": r["shared_with"],
+                    "next_token": r["next_token"]})
     return out
 
 
@@ -151,7 +181,7 @@ def indicator_cells(rows: List[Dict]) -> List[Dict]:
             continue
         key = (r["model"], r["fact"], r["lang"], r["prompt_type"], r["paraphrase"])
         per_prompt.setdefault(key, set())
-        if not r["excluded"] and not r["shared_with"]:
+        if _measured(r):
             per_prompt[key].add(r["candidate"])
     cells = {}
     for (m, f, l, t, par), valid in per_prompt.items():
@@ -178,8 +208,19 @@ def write_summary(tok_dir, out_path, model_order, facts, prompt_specs) -> str:
     import pandas as pd
 
     tok_dir = Path(tok_dir)
-    parts = [pd.read_csv(p) for p in sorted(glob.glob(str(tok_dir / "*_dropped.csv")))]
-    D = pd.concat([p for p in parts if len(p)], ignore_index=True) if any(len(p) for p in parts) else pd.DataFrame()
+    def _load(pattern):
+        parts = []
+        for p in sorted(glob.glob(str(tok_dir / pattern))):
+            try:
+                df = pd.read_csv(p)
+            except pd.errors.EmptyDataError:
+                continue
+            if len(df):
+                parts.append(df)
+        return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+    D = _load("*_dropped.csv")
+    P = _load("*_prefix_forced.csv")
     cells = pd.concat([pd.read_csv(p) for p in sorted(glob.glob(str(tok_dir / "*_indicator_cells.csv")))],
                       ignore_index=True)
     key = {m: i for i, m in enumerate(model_order)}
@@ -187,12 +228,29 @@ def write_summary(tok_dir, out_path, model_order, facts, prompt_specs) -> str:
     out = ["# Tokenization check summary", "",
            f"Generated by `verify_setup.py` from `{tok_dir}/` ({len(set(cells['model']))} tokenizers, "
            "pinned commits). Full per-prompt tables are in that folder (not versioned).", "",
-           "A word doesn't count when its first token is shared with another candidate of the same fact "
-           "(dropped for both) or merges with the prompt's last token. QA prompts take the answer's first "
+           "When candidates of the same fact share a first token, that token is forced and each candidate "
+           "is measured by its next token: P(prefix) × P(next | prefix) (author's decision, 2026-10-29). "
+           "A word still doesn't count when it is the shared token itself, when its next token collides "
+           "again, or when it merges with the prompt's last token. QA prompts take the answer's first "
            "token without a leading space.", "",
-           "## Dropped words", "",
+           "## Resolved by prefix forcing", "",
+           "| Fact | Lang | Set | Format | Candidate | Words | Shared token → next | Models |",
+           "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+    if len(P):
+        P["fmt"] = P["prompt_type"].map(lambda t: "QA" if t == "QA" else "completion")
+        P["set"] = P["prompt_type"].map(lambda t: t if t in INDICATOR_TYPES else "names")
+        clean = lambda x: str(x).replace("▁", " ").replace("Ġ", " ").strip()  # noqa: E731
+        P["pair"] = [f"{clean(a)} → {clean(b)}" for a, b in zip(P["shared_token"], P["next_token"])]
+        for k, g in P.groupby(["fact", "lang", "set", "fmt", "candidate"]):
+            out.append(f"| {k[0]} | {k[1]} | {k[2]} | {k[3]} | {k[4]} | {', '.join(sorted(set(g['word'])))} | "
+                       f"`{'; '.join(sorted(set(g['pair'])))}` | {sort_models(g['model'])} |")
+    else:
+        out.append("| — | | | | | | | |")
+    out += ["", "## Still dropped", "",
            "| Fact | Lang | Set | Format | Candidate | Words | First token | Models |",
            "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+    if not len(D):
+        out.append("| — | | | | | | | |")
     if len(D):
         D["fmt"] = D["prompt_type"].map(lambda t: "QA" if t == "QA" else "completion")
         D["set"] = D["prompt_type"].map(lambda t: t if t in INDICATOR_TYPES else "names")
@@ -201,7 +259,7 @@ def write_summary(tok_dir, out_path, model_order, facts, prompt_specs) -> str:
             out.append(f"| {k[0]} | {k[1]} | {k[2]} | {k[3]} | {k[4]} | {', '.join(sorted(set(g['word'])))} | "
                        f"`{', '.join(sorted(set(g['tok'])))}` | {sort_models(g['model'])} |")
     sk = cells[cells["status"] == "skipped"]
-    out += ["", "## Indicator cells skipped (fewer than two candidates with valid tokens)", ""]
+    out += ["", "## Indicator cells skipped (fewer than two measured candidates)", ""]
     if len(sk):
         out += ["| Fact | Lang | Type | Models | Valid candidates |", "| --- | --- | --- | --- | --- |"]
         for k, g in sk.groupby(["fact", "lang", "prompt_type"]):

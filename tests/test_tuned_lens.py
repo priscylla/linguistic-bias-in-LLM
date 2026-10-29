@@ -162,15 +162,15 @@ def test_train_and_eval_streams_are_disjoint():
 
 def test_filter_drops_fact_documents():
     terms = fact_terms(FACTS, "pt")
-    assert {"Santos", "Wright", "Райтами", "avião"} <= set(terms)    # todos os casos e idiomas
+    assert {"Santos", "Wright", "Wilbur", "avião"} <= set(terms)    # todos os idiomas
     pat = compile_terms(terms)
     src = fake_source("pt", n=50, inject={3: "o voo de SANTOS-DUMONT em Paris",
-                                          4: "братьями Райт", 5: "um avião novo",
+                                          4: "os irmãos Wright", 5: "um avião novo",
                                           6: "santosdumont colado não casa"})
     s = DocStream(src, "train", 10**9, pat)       # mod enorme: quase nada vai para held-out
     kept = list(s)
     assert s.stats["filtered"] == 3
-    assert not any("DUMONT" in t or "Райт" in t or "avião" in t for t in kept)
+    assert not any("DUMONT" in t or "Wright" in t or "avião" in t for t in kept)
     assert any("santosdumont" in t for t in kept)
 
 
@@ -295,11 +295,11 @@ def test_tuned_lens_config_valid_and_checks():
     assert TL["training"]["num_steps"] * TL["training"]["tokens_per_step"] == 250 * 2**16
     bad = copy.deepcopy(TL)
     bad["models"].append("llama_base")
-    bad["corpus"]["ru"]["revision"] = "main"
+    bad["corpus"]["fr"]["revision"] = "main"
     bad["training"]["tokens_per_step"] = 1000
     errs = validate_tuned_lens(exp, bad, REG)
     assert any("não é instruct" in e for e in errs)
-    assert any("ru: revision" in e for e in errs)
+    assert any("fr: revision" in e for e in errs)
     assert any("múltiplo" in e for e in errs)
 
 

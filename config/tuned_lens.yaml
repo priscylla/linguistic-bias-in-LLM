@@ -3,7 +3,7 @@
 # (reports/verified_values.md):
 #   - implementação própria para os quatro modelos (o pacote tuned-lens
 #     0.2.0 só reconhece LlamaModel e não tem o softcap do Gemma 2)
-#   - corpus FineWeb-2 (pt, de, it, fr, ru) + FineWeb sample-10BT (en),
+#   - corpus FineWeb-2 (pt, de, it, fr) + FineWeb sample-10BT (en),
 #     mesma quantidade de tokens por idioma
 #   - documentos que citam candidatos ou fatos ficam fora
 #   - 16M tokens por modelo (250 passos × 2^16 tokens)
@@ -36,8 +36,6 @@ corpus:
   it: {dataset: HuggingFaceFW/fineweb-2, config: ita_Latn, split: train,
        revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
   fr: {dataset: HuggingFaceFW/fineweb-2, config: fra_Latn, split: train,
-       revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
-  ru: {dataset: HuggingFaceFW/fineweb-2, config: rus_Cyrl, split: train,
        revision: af9c13333eb981300149d5ca60a8e9d659b276b9, text: text, id: id}
 
 # Held-out: documentos com sha256(id) mod held_out_mod == 0 (1%), em todos

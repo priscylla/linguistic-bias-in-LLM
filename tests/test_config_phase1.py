@@ -32,18 +32,18 @@ def test_real_config_is_valid():
 
 
 def test_languages_and_facts():
-    assert LANGS == ["pt", "en", "de", "it", "fr", "ru"]
+    assert LANGS == ["pt", "en", "de", "it", "fr"]          # ru removido (2026-10-29)
     disputed = [k for k, f in FACTS.items() if f.kind == "disputed"]
     controls = [k for k, f in FACTS.items() if f.kind == "control"]
-    assert disputed == ["aviao", "telefone", "radio", "lampada", "cinema",
-                        "calculo", "fotografia", "tabela_periodica"]
+    assert disputed == ["aviao", "telefone", "radio", "cinema",
+                        "calculo", "fotografia", "tabela_periodica"]    # lampada removido
     assert controls == ["penicilina", "dinamite", "www", "raios_x"]
 
 
 def test_dominant_candidates():
     dom = {k: f.dominant.id for k, f in FACTS.items()}
     assert dom == {"aviao": "wright", "telefone": "bell", "radio": "marconi",
-                   "lampada": "edison", "cinema": "lumiere", "calculo": "newton",
+                   "cinema": "lumiere", "calculo": "newton",
                    "fotografia": "daguerre", "tabela_periodica": "mendeleev",
                    "penicilina": "fleming", "dinamite": "nobel",
                    "www": "berners_lee", "raios_x": "rontgen"}
@@ -58,7 +58,11 @@ def test_stakes():
     assert stakes("aviao", "santos_dumont") == {("pt", "nationality"), ("fr", "place_of_event")}
     assert stakes("telefone", "reis") == {("de", "nationality")}
     assert stakes("radio", "marconi") == {("it", "nationality")}
-    assert stakes("tabela_periodica", "mendeleev") == {("ru", "nationality")}
+    # sem russo: Mendeleev e Popov ficam sem stake no escopo; Meyer e Landell mantêm
+    assert stakes("tabela_periodica", "mendeleev") == set()
+    assert stakes("radio", "popov") == set()
+    assert stakes("tabela_periodica", "meyer") == {("de", "nationality")}
+    assert stakes("radio", "landell") == {("pt", "nationality")}
     # regra de nacionalidade para todos os candidatos (decisão da autora)
     assert stakes("aviao", "wright") == {("en", "nationality")}
     assert stakes("raios_x", "rontgen") == {("de", "nationality")}
@@ -71,7 +75,6 @@ def test_stakes():
 
 @pytest.mark.parametrize("mutate,msg", [
     (lambda r: r["facts"]["aviao"]["candidates"][1].update(dominant=True), "dominant"),
-    (lambda r: r["facts"]["aviao"]["candidates"][0]["names"]["ru"].pop("ins"), "casos"),
     (lambda r: r["facts"]["aviao"]["candidates"][0]["names"].pop("fr"), "sem nomes"),
     (lambda r: r["facts"]["aviao"]["candidates"][0]["stakes"].append(
         {"language": "es", "type": "nationality"}), "fora do escopo"),
@@ -88,15 +91,15 @@ def test_validation_catches_fact_errors(mutate, msg):
 def test_validation_catches_prompt_errors():
     raw = copy.deepcopy(_raw("prompts.yaml"))
     raw["prompts"]["aviao"]["en"]["F2"].pop()
-    raw["prompts"]["lampada"]["en"]["artifact"] = [{"text": "x"}] * 3
+    raw["prompts"]["radio"]["en"]["artifact"] = [{"text": "x"}] * 3
     errs = validate(EXP, FACTS, parse_prompts(raw))
     assert any("aviao.en.F2: 2 paráfrases" in e for e in errs)
-    assert any("lampada" in e and "artifact" in e for e in errs)
+    assert any("radio" in e and "artifact" in e for e in errs)
 
 
 # ── Nomes: só pessoas ──
 
-GENERIC = {"brothers", "brüder", "fratelli", "frères", "irmãos", "братья", "kitty"}
+GENERIC = {"brothers", "brüder", "fratelli", "frères", "irmãos", "kitty"}
 
 
 def test_name_sets_have_no_places_or_generic_words():
@@ -122,10 +125,8 @@ def test_plan_names_present():
     assert {"Reis", "Philipp"} <= set(names("telefone", "reis"))
 
 
-def test_ru_case_forms():
+def test_names_without_cases():
     bell = FACTS["telefone"].candidate("bell")
-    assert bell.names_for("ru", "nom")[0] == "Белл"
-    assert bell.names_for("ru", "ins")[0] == "Беллом"
     assert bell.names_for("pt", "ins") == bell.names_for("pt")   # sem declinação
 
 
@@ -135,7 +136,6 @@ def test_indicators_follow_plan():
     assert w.indicators_for("artifact", "en") == ["Flyer"]
     assert FACTS["aviao"].candidate("santos_dumont").indicators_for("artifact", "pt") == \
         ["14-bis", "Demoiselle"]
-    assert FACTS["lampada"].indicator_types() == ["place"]
     assert all(not f.indicator_types() for f in FACTS.values() if f.kind == "control")
 
 
@@ -167,12 +167,12 @@ def test_prompt_types_per_fact():
             assert types == {"F1", "F2", "F3", "QA"}
         else:
             assert {"F1", "F2", "F3", "QA", "place"} <= types
-    assert "artifact" not in {p.type for p in prompts_for(PROMPTS, fact="lampada")}
+    assert "artifact" not in {p.type for p in prompts_for(PROMPTS, fact="radio")}
 
 
 def test_native_review_flags():
-    for p in PROMPTS:
-        assert p.needs_native_review == (p.lang in {"fr", "ru", "de", "it"})
+    # FR, DE e IT revisados por falantes nativos (2026-10-29)
+    assert not any(p.needs_native_review for p in PROMPTS)
 
 
 def test_article_blocked_flags():
@@ -180,14 +180,11 @@ def test_article_blocked_flags():
         f1 = prompts_for(PROMPTS, k, "pt", "F1")
         assert [p.article_blocked for p in f1] == [True, False, False]
         assert prompts_for(PROMPTS, k, "it", "F1")[0].article_blocked
-    assert not any(p.article_blocked for p in PROMPTS if p.lang in ("en", "de", "ru"))
+    assert not any(p.article_blocked for p in PROMPTS if p.lang in ("en", "de"))
 
 
-def test_ru_slot_cases():
-    f1 = prompts_for(PROMPTS, "aviao", "ru", "F1")
-    assert [p.slot_case for p in f1] == ["ins", "gen", "ins"]
-    assert all(p.slot_case == "nom" for p in PROMPTS
-               if p.lang == "ru" and p.type != "F1")
+def test_slot_cases_nominative_without_russian():
+    assert all(p.slot_case == "nom" for p in PROMPTS)
 
 
 def test_qa_prompts_are_questions():
@@ -205,8 +202,13 @@ def test_no_dates_in_prompts():
 # ── Bloqueio de runs sem confirmação ──
 
 def test_runs_blocked_until_confirmed():
+    import dataclasses
+    unconfirmed = {k: dataclasses.replace(f, status="proposed") for k, f in FACTS.items()}
     with pytest.raises(UnconfirmedError):
-        require_confirmed(FACTS, PROMPTS)
+        require_confirmed(unconfirmed, PROMPTS)
+    pending = [dataclasses.replace(PROMPTS[0], needs_native_review=True)]
+    with pytest.raises(UnconfirmedError):
+        require_confirmed(FACTS, pending)
 
 
 def test_require_confirmed_passes_when_all_confirmed():
@@ -215,48 +217,41 @@ def test_require_confirmed_passes_when_all_confirmed():
     require_confirmed(reviewed_facts(FACTS), prompts)
 
 
-def test_facts_confirmed_and_pending_russian_forms():
-    # Respostas da autora (2026-10-29): fatos confirmados; formas ru pendentes
+def test_facts_confirmed_without_russian():
+    # Decisões da autora (2026-10-29): fatos confirmados; russo fora do estudo
     assert all(f.status == "confirmed" for f in FACTS.values())
-    from config.loader import pending_ru_names
-    assert pending_ru_names(FACTS) == {
-        "aviao.wright": ["Уилбур", "Уилбура", "Уилбуром", "Уилбер", "Уилбера", "Уилбером"],
-        "telefone.bell": ["Александера", "Александером", "Грейама", "Грейамом"],
-        "radio.landell": ["Ланделл", "Ланделла", "Ланделлом", "Моура", "Роберту"]}
+    assert all("ru" not in c.names and all("ru" not in v for v in c.indicators.values())
+               for f in FACTS.values() for c in f.candidates)
+    assert "lampada" not in FACTS and len(FACTS) == 11
     prompts = [p for p in PROMPTS if not p.needs_native_review]
-    with pytest.raises(UnconfirmedError, match="nomes ru"):
-        require_confirmed(FACTS, prompts)            # runs com prompts esperam a revisão ru
-    require_confirmed(FACTS, [], ru_names=False)     # treino do Tuned Lens: só fatos e nomes
+    assert len(prompts) == len(PROMPTS)                  # FR, DE, IT revisados por nativos
+    require_confirmed(FACTS, prompts)
+    require_confirmed(FACTS, [])                         # treino do Tuned Lens: só fatos
 
 
 def test_author_answers_applied():
     F = FACTS
     assert "Nord-Carolina" in F["aviao"].candidate("wright").indicators_for("place", "de")
-    assert "Алберту" in F["aviao"].candidate("santos_dumont").names_for("ru", "gen")
-    bell = F["telefone"].candidate("bell")
-    assert {"Грейам", "Грэхем", "Александр", "Александер"} <= set(bell.names_for("ru", "nom"))
     assert F["telefone"].candidate("reis").indicators_for("artifact", "de") == []
-    assert F["telefone"].candidate("meucci").indicators_for("artifact", "ru") == []
+    assert F["tabela_periodica"].candidate("meyer").indicators_for("place", "de") == ["Karlsruhe"]
     assert F["radio"].candidate("popov").indicators_for("artifact", "en") == []
     assert F["radio"].candidate("landell").indicators_for("place", "it") == \
         ["Porto Alegre", "San Paolo", "São Paulo"]
-    assert F["lampada"].candidate("lodygin").names_for("fr") == ["Lodyguine", "Lodygin", "Alexandre"]
     assert F["calculo"].candidate("newton").indicators_for("artifact", "en") == []
     assert "Parigi" in F["calculo"].candidate("leibniz").indicators_for("place", "it")
     assert {(s.language, s.type) for s in F["fotografia"].candidate("florence").stakes} == {("pt", "nationality")}
     assert "Mendeleyev" in F["tabela_periodica"].candidate("mendeleev").names_for("en")
-    assert F["tabela_periodica"].candidate("meyer").indicators_for("place", "ru") == ["Карлсруэ"]
     assert F["dinamite"].candidate("nobel").stakes == []
 
 
 def test_indicator_prompts_need_two_candidates():
     types = lambda k: {p.type for p in PROMPTS if p.fact == k}   # noqa: E731
-    assert "artifact" not in types("telefone") | types("radio") | types("calculo") | types("lampada")
+    assert "artifact" not in types("telefone") | types("radio") | types("calculo")
     assert {"place", "artifact"} <= types("aviao") & types("cinema") & types("fotografia")
     assert "place" in types("tabela_periodica")                   # Meyer agora tem Karlsruhe
     assert not FACTS["telefone"].indicator_prompt_ok("artifact", "it")   # só Meucci
     assert FACTS["telefone"].indicator_prompt_ok("place", "it")
-    assert len(PROMPTS) == 1062
+    assert len(PROMPTS) == 810           # 11 fatos × 5 idiomas
 
 
 def test_run_lens_refuses_unconfirmed(monkeypatch):
@@ -276,7 +271,6 @@ def test_names_and_stake_languages():
     assert tel.dominant.names_for("de") == ["Bell", "Alexander", "Graham"]
     assert {n for c in tel.alternatives for n in c.names_for("de")} == \
         {"Meucci", "Antonio", "Reis", "Johann", "Philipp"}
-    assert cfg.fact_specs["aviao"].dominant.names_for("ru", "ins")[0] == "Райтами"
     assert cfg.stake_languages["telefone"] == ["de", "it"]
     assert cfg.stake_languages["aviao"] == ["fr", "pt"]
     assert cfg.stake_languages["penicilina"] == []

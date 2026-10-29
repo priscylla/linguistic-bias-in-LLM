@@ -33,9 +33,6 @@ def word_tokenizer():
 
 
 def reviewed_facts(facts):
-    """Fatos confirmados e sem formas russas pendentes (para testar o caminho liberado)."""
+    """Fatos confirmados (para testar o caminho liberado)."""
     import dataclasses
-    return {k: dataclasses.replace(
-                f, status="confirmed",
-                candidates=[dataclasses.replace(c, pending_ru_review=[]) for c in f.candidates])
-            for k, f in facts.items()}
+    return {k: dataclasses.replace(f, status="confirmed") for k, f in facts.items()}

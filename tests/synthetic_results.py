@@ -86,7 +86,7 @@ def build(seed=0):
     cfg = small_config()
     res = analyze.compute_all({"probs": probs_table(cfg, rng)}, cfg)
     from config.loader import load_behavioral
-    b = dataclasses.replace(load_behavioral(), status="confirmed", ru_needs_native_review=False)
+    b = dataclasses.replace(load_behavioral(), status="confirmed")
     res.update(analyze.compute_behavioral(answers_table(cfg, rng), cfg, b))
     res.update(run_statistics(res, cfg))
     return cfg, res

@@ -31,16 +31,14 @@ def test_real_forcing_is_valid():
 def test_values():
     assert FORCING.contraction_forms("pt", "por") == ["pelo", "pela", "pelos", "pelas"]
     assert FORCING.contraction_forms("pt", "em")[0] == "no"      # não vira False
-    assert FORCING.plural_for("ru", "ins") == ["братьями"]
     assert FORCING.plural_for("pt", "ins") == ["irmãos"]          # sem casos: nominativo
-    assert FORCING.articles["ru"] == []
+    assert set(FORCING.articles) == {"pt", "en", "de", "it", "fr"}      # ru removido
 
 
 @pytest.mark.parametrize("mutate,msg", [
     (lambda r: r["contractions"]["pt"].pop("por"), "sem formas para 'por'"),
     (lambda r: r["contractions"]["pt"].update(em=[False, "na"]), "não é texto"),
     (lambda r: r["articles"].pop("de"), "articles: sem 'de'"),
-    (lambda r: r["plural_nouns"]["ru"].pop("gen"), "casos"),
     (lambda r: r.update(status="draft"), "status"),
 ])
 def test_validation_catches(mutate, msg):

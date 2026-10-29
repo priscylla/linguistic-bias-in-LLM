@@ -119,7 +119,7 @@ def test_stake_tests_detect_effect_and_keep_types_separate():
     nat = sd.loc["nationality"]
     assert nat.stake_lang == "pt" and nat.n_units == 18 and nat.mean_d == pytest.approx(0.3, abs=0.02)
     assert nat.p < 0.001 and nat.method.startswith("monte_carlo")
-    assert set(nat.non_stake_langs.split(",")) == {"en", "de", "it", "ru"}   # pt e fr têm stake
+    assert set(nat.non_stake_langs.split(",")) == {"en", "de", "it"}   # pt e fr têm stake
     assert sd.loc["place_of_event"].stake_lang == "fr"
     # dominante (Wright, stake en) testado pelo espelho
     w = T[T.candidate == "wright"].iloc[0]

@@ -156,7 +156,7 @@ def main(argv=None):
     gen = dict(b.generation)
     if args.quick:
         gen.update(samples=2, max_new_tokens=12)
-    beh = dataclasses.replace(b, generation=gen, status="confirmed", ru_needs_native_review=False)
+    beh = dataclasses.replace(b, generation=gen, status="confirmed")
 
     report = {"quick": args.quick, "facts": list(config.facts), "languages": config.languages,
               "unconfirmed_values_used": True, "steps": {}, "checks": {}}

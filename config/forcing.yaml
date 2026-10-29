@@ -7,7 +7,7 @@
 # plural_nouns:  substantivo dos candidatos plurais (irmãos Wright,
 #                irmãos Lumière). Também dispara o teste e, se for o top-1
 #                depois do artigo forçado, é forçado em seguida
-#                ("... os" -> "... os irmãos"). Em ru, por caso da lacuna.
+#                ("... os" -> "... os irmãos").
 # contractions:  prompts article_blocked (a lacuna termina em preposição
 #                que contrai com artigo): a preposição final é trocada por
 #                cada forma contraída, uma passada por forma
@@ -27,7 +27,6 @@ articles:
   de: [der, die, das, den, dem, des, ein, eine, einen, einem, einer]
   it: [il, lo, la, i, gli, le, un, uno, una]
   fr: [le, la, les, un, une, des]
-  ru: []
 
 plural_nouns:
   pt: [irmãos]
@@ -35,11 +34,6 @@ plural_nouns:
   de: [Brüder, Brüdern]
   it: [fratelli]
   fr: [frères]
-  ru:
-    nom: [братья]
-    gen: [братьев]
-    ins: [братьями]
-
 contractions:
   pt:
     por: [pelo, pela, pelos, pelas]

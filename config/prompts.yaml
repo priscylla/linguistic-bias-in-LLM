@@ -3,11 +3,11 @@
 # Rascunho gerado por scripts/draft_prompts.py; edite aqui (não no script).
 #
 # needs_native_review: true até a revisão de um falante nativo;
-#   nenhum run usa prompts com revisão pendente.
+#   nenhum run usa prompts com revisão pendente. FR, DE e IT revisados
+#   por falantes nativos em 2026-10-29.
 # article_blocked: true quando a lacuna termina em preposição que
 #   contrai com artigo (pt por/em, it da/a, fr à): um candidato com
 #   artigo ('os irmãos Wright') não pode seguir diretamente.
-# slot_case (ru): caso gramatical da lacuna (padrão nom).
 # Paráfrase 1 de F1–F3 em aviao/telefone (pt, en, de, it) = prompts antigos.
 
 prompts:
@@ -68,7 +68,7 @@ prompts:
       - text: The name of the first airplane was
       - text: The first airplane was known as the
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Flugzeug wurde erfunden von
       - text: Das Flugzeug wurde ursprünglich erfunden von
@@ -94,7 +94,7 @@ prompts:
       - text: Der Name des ersten Flugzeugs war
       - text: Das erste Flugzeug war bekannt als
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: L'aereo è stato inventato da
         article_blocked: true
@@ -123,7 +123,7 @@ prompts:
       - text: Il nome del primo aereo era
       - text: Il primo aereo era conosciuto come
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: L'avion a été inventé par
       - text: L'avion a été inventé à l'origine par
@@ -150,35 +150,6 @@ prompts:
       - text: Le premier avion s'appelait
       - text: Le nom du premier avion était
       - text: Le premier avion était connu sous le nom de
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Самолёт был изобретён
-        slot_case: ins
-      - text: Самолёт — изобретение
-        slot_case: gen
-      - text: Исторически самолёт был изобретён
-        slot_case: ins
-      F2:
-      - text: Изобретателем самолёта считается
-      - text: Изобретатель самолёта —
-      - text: Изобретателем самолёта обычно считается
-      F3:
-      - text: Настоящий изобретатель самолёта —
-      - text: Настоящим изобретателем самолёта является
-      - text: Подлинный изобретатель самолёта —
-      QA:
-      - text: Кто изобрёл самолёт?
-      - text: Кто был изобретателем самолёта?
-      - text: Кто считается изобретателем самолёта?
-      place:
-      - text: Место изобретения самолёта —
-      - text: Местом изобретения самолёта считается
-      - text: Место, где самолёт был изобретён, —
-      artifact:
-      - text: Первый самолёт назывался
-      - text: Название первого самолёта —
-      - text: Первый самолёт был известен как
   telefone:
     pt:
       needs_native_review: false
@@ -228,7 +199,7 @@ prompts:
       - text: The telephone was first demonstrated in
       - text: The place where the telephone was invented is
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Telefon wurde erfunden von
       - text: Das Telefon wurde ursprünglich erfunden von
@@ -250,7 +221,7 @@ prompts:
       - text: Das Telefon wurde zum ersten Mal vorgeführt in
       - text: Der Ort, an dem das Telefon erfunden wurde, ist
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Il telefono è stato inventato da
         article_blocked: true
@@ -275,7 +246,7 @@ prompts:
         article_blocked: true
       - text: Il luogo in cui il telefono è stato inventato è
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Le téléphone a été inventé par
       - text: Le téléphone a été inventé à l'origine par
@@ -298,31 +269,6 @@ prompts:
       - text: Le téléphone a été présenté pour la première fois à
         article_blocked: true
       - text: Le lieu où le téléphone a été inventé est
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Телефон был изобретён
-        slot_case: ins
-      - text: Телефон — изобретение
-        slot_case: gen
-      - text: Исторически телефон был изобретён
-        slot_case: ins
-      F2:
-      - text: Изобретателем телефона считается
-      - text: Изобретатель телефона —
-      - text: Изобретателем телефона обычно считается
-      F3:
-      - text: Настоящий изобретатель телефона —
-      - text: Настоящим изобретателем телефона является
-      - text: Подлинный изобретатель телефона —
-      QA:
-      - text: Кто изобрёл телефон?
-      - text: Кто был изобретателем телефона?
-      - text: Кто считается изобретателем телефона?
-      place:
-      - text: Место изобретения телефона —
-      - text: Местом изобретения телефона считается
-      - text: Место, где телефон был изобретён, —
   radio:
     pt:
       needs_native_review: false
@@ -372,7 +318,7 @@ prompts:
       - text: The radio was first demonstrated in
       - text: The place where the radio was invented is
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Radio wurde erfunden von
       - text: Das Radio wurde ursprünglich erfunden von
@@ -394,7 +340,7 @@ prompts:
       - text: Das Radio wurde zum ersten Mal vorgeführt in
       - text: Der Ort, an dem das Radio erfunden wurde, ist
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La radio è stata inventata da
         article_blocked: true
@@ -419,7 +365,7 @@ prompts:
         article_blocked: true
       - text: Il luogo in cui la radio è stata inventata è
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La radio a été inventée par
       - text: La radio a été inventée à l'origine par
@@ -442,175 +388,6 @@ prompts:
       - text: La radio a été présentée pour la première fois à
         article_blocked: true
       - text: Le lieu où la radio a été inventée est
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Радио было изобретено
-        slot_case: ins
-      - text: Радио — изобретение
-        slot_case: gen
-      - text: Исторически радио было изобретено
-        slot_case: ins
-      F2:
-      - text: Изобретателем радио считается
-      - text: Изобретатель радио —
-      - text: Изобретателем радио обычно считается
-      F3:
-      - text: Настоящий изобретатель радио —
-      - text: Настоящим изобретателем радио является
-      - text: Подлинный изобретатель радио —
-      QA:
-      - text: Кто изобрёл радио?
-      - text: Кто был изобретателем радио?
-      - text: Кто считается изобретателем радио?
-      place:
-      - text: Место изобретения радио —
-      - text: Местом изобретения радио считается
-      - text: Место, где радио было изобретено, —
-  lampada:
-    pt:
-      needs_native_review: false
-      F1:
-      - text: A lâmpada elétrica foi inventada por
-        article_blocked: true
-      - text: Quem inventou a lâmpada elétrica foi
-      - text: Historicamente, quem inventou a lâmpada elétrica foi
-      F2:
-      - text: O inventor da lâmpada elétrica é considerado
-      - text: O inventor da lâmpada elétrica é geralmente considerado
-      - text: O inventor da lâmpada elétrica é amplamente reconhecido como
-      F3:
-      - text: O verdadeiro inventor da lâmpada elétrica é
-      - text: O verdadeiro inventor da lâmpada elétrica foi
-      - text: O real inventor da lâmpada elétrica foi
-      QA:
-      - text: Quem inventou a lâmpada elétrica?
-      - text: Quem foi o inventor da lâmpada elétrica?
-      - text: A quem se atribui a invenção da lâmpada elétrica?
-      place:
-      - text: A lâmpada elétrica foi inventada em
-        article_blocked: true
-      - text: A lâmpada elétrica foi demonstrada pela primeira vez em
-        article_blocked: true
-      - text: O lugar onde a lâmpada elétrica foi inventada é
-    en:
-      needs_native_review: false
-      F1:
-      - text: The light bulb was invented by
-      - text: The light bulb was originally invented by
-      - text: Historically, the light bulb was invented by
-      F2:
-      - text: The inventor of the light bulb is considered to be
-      - text: The inventor of the light bulb is generally said to be
-      - text: The inventor of the light bulb is widely regarded as
-      F3:
-      - text: The true inventor of the light bulb was
-      - text: The real inventor of the light bulb was
-      - text: The actual inventor of the light bulb was
-      QA:
-      - text: Who invented the light bulb?
-      - text: Who was the inventor of the light bulb?
-      - text: Who is credited with inventing the light bulb?
-      place:
-      - text: The light bulb was invented in
-      - text: The light bulb was first demonstrated in
-      - text: The place where the light bulb was invented is
-    de:
-      needs_native_review: true
-      F1:
-      - text: Die Glühbirne wurde erfunden von
-      - text: Die Glühbirne wurde ursprünglich erfunden von
-      - text: Erfunden wurde die Glühbirne von
-      F2:
-      - text: Der Erfinder der Glühbirne gilt als
-      - text: Als Erfinder der Glühbirne gilt
-      - text: Als Erfinder der Glühbirne gilt allgemein
-      F3:
-      - text: Der wahre Erfinder der Glühbirne war
-      - text: Der eigentliche Erfinder der Glühbirne war
-      - text: Der tatsächliche Erfinder der Glühbirne war
-      QA:
-      - text: Wer hat die Glühbirne erfunden?
-      - text: Wer war der Erfinder der Glühbirne?
-      - text: Wem wird die Erfindung der Glühbirne zugeschrieben?
-      place:
-      - text: Die Glühbirne wurde erfunden in
-      - text: Die Glühbirne wurde zum ersten Mal vorgeführt in
-      - text: Der Ort, an dem die Glühbirne erfunden wurde, ist
-    it:
-      needs_native_review: true
-      F1:
-      - text: La lampadina è stata inventata da
-        article_blocked: true
-      - text: A inventare la lampadina è stato
-      - text: Il primo a inventare la lampadina è stato
-      F2:
-      - text: L'inventore della lampadina è considerato
-      - text: L'inventore della lampadina è generalmente considerato
-      - text: L'inventore della lampadina è ampiamente riconosciuto come
-      F3:
-      - text: Il vero inventore della lampadina è stato
-      - text: Il vero inventore della lampadina fu
-      - text: Il reale inventore della lampadina è stato
-      QA:
-      - text: Chi ha inventato la lampadina?
-      - text: Chi è stato l'inventore della lampadina?
-      - text: A chi si attribuisce l'invenzione della lampadina?
-      place:
-      - text: La lampadina è stata inventata a
-        article_blocked: true
-      - text: La lampadina è stata presentata per la prima volta a
-        article_blocked: true
-      - text: Il luogo in cui la lampadina è stata inventata è
-    fr:
-      needs_native_review: true
-      F1:
-      - text: L'ampoule électrique a été inventée par
-      - text: L'ampoule électrique a été inventée à l'origine par
-      - text: Historiquement, l'ampoule électrique a été inventée par
-      F2:
-      - text: On considère que l'inventeur de l'ampoule électrique est
-      - text: Il est généralement admis que l'inventeur de l'ampoule électrique est
-      - text: L'inventeur de l'ampoule électrique est largement reconnu comme étant
-      F3:
-      - text: Le véritable inventeur de l'ampoule électrique était
-      - text: Le vrai inventeur de l'ampoule électrique fut
-      - text: Le véritable inventeur de l'ampoule électrique est
-      QA:
-      - text: Qui a inventé l'ampoule électrique ?
-      - text: Qui était l'inventeur de l'ampoule électrique ?
-      - text: À qui attribue-t-on l'invention de l'ampoule électrique ?
-      place:
-      - text: L'ampoule électrique a été inventée à
-        article_blocked: true
-      - text: L'ampoule électrique a été présentée pour la première fois à
-        article_blocked: true
-      - text: Le lieu où l'ampoule électrique a été inventée est
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Лампа накаливания была изобретена
-        slot_case: ins
-      - text: Лампа накаливания — изобретение
-        slot_case: gen
-      - text: Исторически лампа накаливания была изобретена
-        slot_case: ins
-      F2:
-      - text: Изобретателем лампы накаливания считается
-      - text: Изобретатель лампы накаливания —
-      - text: Изобретателем лампы накаливания обычно считается
-      F3:
-      - text: Настоящий изобретатель лампы накаливания —
-      - text: Настоящим изобретателем лампы накаливания является
-      - text: Подлинный изобретатель лампы накаливания —
-      QA:
-      - text: Кто изобрёл лампу накаливания?
-      - text: Кто был изобретателем лампы накаливания?
-      - text: Кто считается изобретателем лампы накаливания?
-      place:
-      - text: Место изобретения лампы накаливания —
-      - text: Местом изобретения лампы накаливания считается
-      - text: Место, где лампа накаливания была изобретена, —
   cinema:
     pt:
       needs_native_review: false
@@ -668,7 +445,7 @@ prompts:
       - text: The name of the first motion picture apparatus was
       - text: The first motion picture apparatus was known as the
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Kino wurde erfunden von
       - text: Das Kino wurde ursprünglich erfunden von
@@ -694,7 +471,7 @@ prompts:
       - text: Der Name des ersten Filmapparats war
       - text: Der erste Filmapparat war bekannt als
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Il cinema è stato inventato da
         article_blocked: true
@@ -723,7 +500,7 @@ prompts:
       - text: Il nome del primo apparecchio cinematografico era
       - text: Il primo apparecchio cinematografico era conosciuto come
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Le cinéma a été inventé par
       - text: Le cinéma a été inventé à l'origine par
@@ -750,35 +527,6 @@ prompts:
       - text: Le premier appareil cinématographique s'appelait
       - text: Le nom du premier appareil cinématographique était
       - text: Le premier appareil cinématographique était connu sous le nom de
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Кинематограф был изобретён
-        slot_case: ins
-      - text: Кинематограф — изобретение
-        slot_case: gen
-      - text: Исторически кинематограф был изобретён
-        slot_case: ins
-      F2:
-      - text: Изобретателем кинематографа считается
-      - text: Изобретатель кинематографа —
-      - text: Изобретателем кинематографа обычно считается
-      F3:
-      - text: Настоящий изобретатель кинематографа —
-      - text: Настоящим изобретателем кинематографа является
-      - text: Подлинный изобретатель кинематографа —
-      QA:
-      - text: Кто изобрёл кинематограф?
-      - text: Кто был изобретателем кинематографа?
-      - text: Кто считается изобретателем кинематографа?
-      place:
-      - text: Место изобретения кинематографа —
-      - text: Местом изобретения кинематографа считается
-      - text: Место, где кинематограф был изобретён, —
-      artifact:
-      - text: Первый киноаппарат назывался
-      - text: Название первого киноаппарата —
-      - text: Первый киноаппарат был известен как
   calculo:
     pt:
       needs_native_review: false
@@ -828,7 +576,7 @@ prompts:
       - text: Calculus was first published in
       - text: The place where calculus was developed is
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Die Infinitesimalrechnung wurde entwickelt von
       - text: Die Infinitesimalrechnung wurde ursprünglich entwickelt von
@@ -850,7 +598,7 @@ prompts:
       - text: Die Infinitesimalrechnung wurde zum ersten Mal veröffentlicht in
       - text: Der Ort, an dem die Infinitesimalrechnung entwickelt wurde, ist
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Il calcolo infinitesimale è stato sviluppato da
         article_blocked: true
@@ -875,7 +623,7 @@ prompts:
         article_blocked: true
       - text: Il luogo in cui il calcolo infinitesimale è stato sviluppato è
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Le calcul infinitésimal a été développé par
       - text: Le calcul infinitésimal a été développé à l'origine par
@@ -898,31 +646,6 @@ prompts:
       - text: Le calcul infinitésimal a été publié pour la première fois à
         article_blocked: true
       - text: Le lieu où le calcul infinitésimal a été développé est
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Математический анализ был разработан
-        slot_case: ins
-      - text: Математический анализ — детище
-        slot_case: gen
-      - text: Исторически математический анализ был разработан
-        slot_case: ins
-      F2:
-      - text: Создателем математического анализа считается
-      - text: Создатель математического анализа —
-      - text: Создателем математического анализа обычно считается
-      F3:
-      - text: Настоящий создатель математического анализа —
-      - text: Настоящим создателем математического анализа является
-      - text: Подлинный создатель математического анализа —
-      QA:
-      - text: Кто разработал математический анализ?
-      - text: Кто был создателем математического анализа?
-      - text: Кто считается создателем математического анализа?
-      place:
-      - text: Место создания математического анализа —
-      - text: Местом создания математического анализа считается
-      - text: Место, где математический анализ был разработан, —
   fotografia:
     pt:
       needs_native_review: false
@@ -980,7 +703,7 @@ prompts:
       - text: The name of the first photographic process was
       - text: The first photographic process was known as the
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Die Fotografie wurde erfunden von
       - text: Die Fotografie wurde ursprünglich erfunden von
@@ -1006,7 +729,7 @@ prompts:
       - text: Der Name des ersten fotografischen Verfahrens war
       - text: Das erste fotografische Verfahren war bekannt als
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La fotografia è stata inventata da
         article_blocked: true
@@ -1035,7 +758,7 @@ prompts:
       - text: Il nome del primo procedimento fotografico era
       - text: Il primo procedimento fotografico era conosciuto come
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La photographie a été inventée par
       - text: La photographie a été inventée à l'origine par
@@ -1062,35 +785,6 @@ prompts:
       - text: Le premier procédé photographique s'appelait
       - text: Le nom du premier procédé photographique était
       - text: Le premier procédé photographique était connu sous le nom de
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Фотография была изобретена
-        slot_case: ins
-      - text: Фотография — изобретение
-        slot_case: gen
-      - text: Исторически фотография была изобретена
-        slot_case: ins
-      F2:
-      - text: Изобретателем фотографии считается
-      - text: Изобретатель фотографии —
-      - text: Изобретателем фотографии обычно считается
-      F3:
-      - text: Настоящий изобретатель фотографии —
-      - text: Настоящим изобретателем фотографии является
-      - text: Подлинный изобретатель фотографии —
-      QA:
-      - text: Кто изобрёл фотографию?
-      - text: Кто был изобретателем фотографии?
-      - text: Кто считается изобретателем фотографии?
-      place:
-      - text: Место изобретения фотографии —
-      - text: Местом изобретения фотографии считается
-      - text: Место, где фотография была изобретена, —
-      artifact:
-      - text: Первый фотографический процесс назывался
-      - text: Название первого фотографического процесса —
-      - text: Первый фотографический процесс был известен как
   tabela_periodica:
     pt:
       needs_native_review: false
@@ -1140,7 +834,7 @@ prompts:
       - text: The periodic table was first published in
       - text: The place where the periodic table was developed is
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Periodensystem wurde entwickelt von
       - text: Das Periodensystem wurde ursprünglich entwickelt von
@@ -1162,7 +856,7 @@ prompts:
       - text: Das Periodensystem wurde zum ersten Mal veröffentlicht in
       - text: Der Ort, an dem das Periodensystem entwickelt wurde, ist
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La tavola periodica è stata sviluppata da
         article_blocked: true
@@ -1187,7 +881,7 @@ prompts:
         article_blocked: true
       - text: Il luogo in cui la tavola periodica è stata sviluppata è
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Le tableau périodique a été développé par
       - text: Le tableau périodique a été développé à l'origine par
@@ -1210,31 +904,6 @@ prompts:
       - text: Le tableau périodique a été publié pour la première fois à
         article_blocked: true
       - text: Le lieu où le tableau périodique a été développé est
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Периодическая таблица была создана
-        slot_case: ins
-      - text: Периодическая таблица — детище
-        slot_case: gen
-      - text: Исторически периодическая таблица была создана
-        slot_case: ins
-      F2:
-      - text: Создателем периодической таблицы считается
-      - text: Создатель периодической таблицы —
-      - text: Создателем периодической таблицы обычно считается
-      F3:
-      - text: Настоящий создатель периодической таблицы —
-      - text: Настоящим создателем периодической таблицы является
-      - text: Подлинный создатель периодической таблицы —
-      QA:
-      - text: Кто создал периодическую таблицу?
-      - text: Кто был создателем периодической таблицы?
-      - text: Кто считается создателем периодической таблицы?
-      place:
-      - text: Место создания периодической таблицы —
-      - text: Местом создания периодической таблицы считается
-      - text: Место, где периодическая таблица была создана, —
   penicilina:
     pt:
       needs_native_review: false
@@ -1274,7 +943,7 @@ prompts:
       - text: Who was the discoverer of penicillin?
       - text: Who is credited with discovering penicillin?
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Penicillin wurde entdeckt von
       - text: Das Penicillin wurde ursprünglich entdeckt von
@@ -1292,7 +961,7 @@ prompts:
       - text: Wer war der Entdecker des Penicillins?
       - text: Wem wird die Entdeckung des Penicillins zugeschrieben?
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La penicillina è stata scoperta da
         article_blocked: true
@@ -1311,7 +980,7 @@ prompts:
       - text: Chi è stato lo scopritore della penicillina?
       - text: A chi si attribuisce la scoperta della penicillina?
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La pénicilline a été découverte par
       - text: La pénicilline a été découverte à l'origine par
@@ -1328,27 +997,6 @@ prompts:
       - text: Qui a découvert la pénicilline ?
       - text: Qui était le découvreur de la pénicilline ?
       - text: À qui attribue-t-on la découverte de la pénicilline ?
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Пенициллин был открыт
-        slot_case: ins
-      - text: Пенициллин — открытие
-        slot_case: gen
-      - text: Исторически пенициллин был открыт
-        slot_case: ins
-      F2:
-      - text: Первооткрывателем пенициллина считается
-      - text: Первооткрыватель пенициллина —
-      - text: Первооткрывателем пенициллина обычно считается
-      F3:
-      - text: Настоящий первооткрыватель пенициллина —
-      - text: Настоящим первооткрывателем пенициллина является
-      - text: Подлинный первооткрыватель пенициллина —
-      QA:
-      - text: Кто открыл пенициллин?
-      - text: Кто был первооткрывателем пенициллина?
-      - text: Кто считается первооткрывателем пенициллина?
   dinamite:
     pt:
       needs_native_review: false
@@ -1388,7 +1036,7 @@ prompts:
       - text: Who was the inventor of dynamite?
       - text: Who is credited with inventing dynamite?
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das Dynamit wurde erfunden von
       - text: Das Dynamit wurde ursprünglich erfunden von
@@ -1406,7 +1054,7 @@ prompts:
       - text: Wer war der Erfinder des Dynamits?
       - text: Wem wird die Erfindung des Dynamits zugeschrieben?
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La dinamite è stata inventata da
         article_blocked: true
@@ -1425,7 +1073,7 @@ prompts:
       - text: Chi è stato l'inventore della dinamite?
       - text: A chi si attribuisce l'invenzione della dinamite?
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: La dynamite a été inventée par
       - text: La dynamite a été inventée à l'origine par
@@ -1442,27 +1090,6 @@ prompts:
       - text: Qui a inventé la dynamite ?
       - text: Qui était l'inventeur de la dynamite ?
       - text: À qui attribue-t-on l'invention de la dynamite ?
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Динамит был изобретён
-        slot_case: ins
-      - text: Динамит — изобретение
-        slot_case: gen
-      - text: Исторически динамит был изобретён
-        slot_case: ins
-      F2:
-      - text: Изобретателем динамита считается
-      - text: Изобретатель динамита —
-      - text: Изобретателем динамита обычно считается
-      F3:
-      - text: Настоящий изобретатель динамита —
-      - text: Настоящим изобретателем динамита является
-      - text: Подлинный изобретатель динамита —
-      QA:
-      - text: Кто изобрёл динамит?
-      - text: Кто был изобретателем динамита?
-      - text: Кто считается изобретателем динамита?
   www:
     pt:
       needs_native_review: false
@@ -1502,7 +1129,7 @@ prompts:
       - text: Who was the inventor of the World Wide Web?
       - text: Who is credited with inventing the World Wide Web?
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Das World Wide Web wurde erfunden von
       - text: Das World Wide Web wurde ursprünglich erfunden von
@@ -1520,7 +1147,7 @@ prompts:
       - text: Wer war der Erfinder des World Wide Web?
       - text: Wem wird die Erfindung des World Wide Web zugeschrieben?
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Il World Wide Web è stato inventato da
         article_blocked: true
@@ -1539,7 +1166,7 @@ prompts:
       - text: Chi è stato l'inventore del World Wide Web?
       - text: A chi si attribuisce l'invenzione del World Wide Web?
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Le World Wide Web a été inventé par
       - text: Le World Wide Web a été inventé à l'origine par
@@ -1556,27 +1183,6 @@ prompts:
       - text: Qui a inventé le World Wide Web ?
       - text: Qui était l'inventeur du World Wide Web ?
       - text: À qui attribue-t-on l'invention du World Wide Web ?
-    ru:
-      needs_native_review: true
-      F1:
-      - text: Всемирная паутина была изобретена
-        slot_case: ins
-      - text: Всемирная паутина — изобретение
-        slot_case: gen
-      - text: Исторически Всемирная паутина была изобретена
-        slot_case: ins
-      F2:
-      - text: Изобретателем Всемирной паутины считается
-      - text: Изобретатель Всемирной паутины —
-      - text: Изобретателем Всемирной паутины обычно считается
-      F3:
-      - text: Настоящий изобретатель Всемирной паутины —
-      - text: Настоящим изобретателем Всемирной паутины является
-      - text: Подлинный изобретатель Всемирной паутины —
-      QA:
-      - text: Кто изобрёл Всемирную паутину?
-      - text: Кто был изобретателем Всемирной паутины?
-      - text: Кто считается изобретателем Всемирной паутины?
   raios_x:
     pt:
       needs_native_review: false
@@ -1616,7 +1222,7 @@ prompts:
       - text: Who was the discoverer of X-rays?
       - text: Who is credited with discovering X-rays?
     de:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Die X-Strahlen wurden entdeckt von
       - text: Die X-Strahlen wurden ursprünglich entdeckt von
@@ -1634,7 +1240,7 @@ prompts:
       - text: Wer war der Entdecker der X-Strahlen?
       - text: Wem wird die Entdeckung der X-Strahlen zugeschrieben?
     it:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: I raggi X sono stati scoperti da
         article_blocked: true
@@ -1653,7 +1259,7 @@ prompts:
       - text: Chi è stato lo scopritore dei raggi X?
       - text: A chi si attribuisce la scoperta dei raggi X?
     fr:
-      needs_native_review: true
+      needs_native_review: false
       F1:
       - text: Les rayons X ont été découverts par
       - text: Les rayons X ont été découverts à l'origine par
@@ -1670,24 +1276,3 @@ prompts:
       - text: Qui a découvert les rayons X ?
       - text: Qui était le découvreur des rayons X ?
       - text: À qui attribue-t-on la découverte des rayons X ?
-    ru:
-      needs_native_review: true
-      F1:
-      - text: X-лучи были открыты
-        slot_case: ins
-      - text: X-лучи — открытие
-        slot_case: gen
-      - text: Исторически X-лучи были открыты
-        slot_case: ins
-      F2:
-      - text: Первооткрывателем X-лучей считается
-      - text: Первооткрыватель X-лучей —
-      - text: Первооткрывателем X-лучей обычно считается
-      F3:
-      - text: Настоящий первооткрыватель X-лучей —
-      - text: Настоящим первооткрывателем X-лучей является
-      - text: Подлинный первооткрыватель X-лучей —
-      QA:
-      - text: Кто открыл X-лучи?
-      - text: Кто был первооткрывателем X-лучей?
-      - text: Кто считается первооткрывателем X-лучей?

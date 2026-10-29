@@ -59,7 +59,6 @@ class Candidate:
     indicators: Dict[str, Dict[str, List[str]]]  # tipo -> lang -> palavras
     plural: bool = False
     notes: List[str] = field(default_factory=list)
-    pending_ru_review: List[str] = field(default_factory=list)
 
     def names_for(self, lang: str, case: str = BASE_CASE) -> List[str]:
         """Formas do nome no idioma e caso pedidos (casos só em ru)."""
@@ -209,7 +208,6 @@ class Registry:
 class Behavioral:
     """Estudo comportamental: geração, formas de superfície, validação."""
     status: str
-    ru_needs_native_review: bool
     generation: dict
     validation: dict
     report: dict
@@ -265,7 +263,6 @@ def parse_facts(raw: dict) -> Dict[str, Fact]:
             indicators={t: dict(v) for t, v in (c.get("indicators") or {}).items()},
             plural=bool(c.get("plural", False)),
             notes=list(c.get("notes") or []),
-            pending_ru_review=list(c.get("pending_ru_review") or []),
         ) for c in f.get("candidates") or []]
         facts[key] = Fact(key=key, kind=f.get("kind"), status=f.get("status"),
                           verb=f.get("verb"), keyword=dict(f.get("keyword") or {}),
@@ -357,7 +354,6 @@ def load_tuned_lens(config_dir: str = str(CONFIG_DIR)) -> dict:
 
 def parse_behavioral(raw: dict) -> Behavioral:
     return Behavioral(status=raw.get("status"),
-                      ru_needs_native_review=bool(raw.get("ru_needs_native_review", False)),
                       generation=dict(raw.get("generation") or {}),
                       validation=dict(raw.get("validation") or {}),
                       report=dict(raw.get("report") or {}),
@@ -426,10 +422,6 @@ def validate(exp: dict, facts: Dict[str, Fact], prompts) -> List[str]:
                 for lang in langs:
                     if lang not in by_lang:
                         errs.append(f"{cw}: indicador '{t}' sem '{lang}'")
-            ru_forms = {n for forms in c.names.get("ru", {}).values() for n in forms}
-            for n in c.pending_ru_review:
-                if n not in ru_forms:
-                    errs.append(f"{cw}: pending_ru_review '{n}' não está nos nomes ru")
 
     # Prompts: cobertura completa e consistente
     seen = {}
@@ -679,17 +671,10 @@ def require_valid(config_dir: str = str(CONFIG_DIR)):
         raise ConfigError("Configuração inválida:\n  " + "\n  ".join(errs))
 
 
-def pending_ru_names(facts: Dict[str, Fact]) -> Dict[str, List[str]]:
-    """{fato.candidato: formas russas ainda sem revisão nativa}."""
-    return {f"{k}.{c.id}": list(c.pending_ru_review)
-            for k, f in facts.items() for c in f.candidates if c.pending_ru_review}
-
-
 def require_confirmed(facts: Dict[str, Fact], prompts,
                       baseline: Optional[Baseline] = None,
                       forcing: Optional[Forcing] = None,
-                      behavioral: Optional["Behavioral"] = None,
-                      ru_names: bool = True) -> None:
+                      behavioral: Optional["Behavioral"] = None) -> None:
     """
     Falha se algum fato ainda não foi confirmado, algum prompt espera
     revisão nativa ou (se dada) a linha de base não foi confirmada.
@@ -709,12 +694,7 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
     if behavioral is not None:
         if behavioral.status != "confirmed":
             pend_beh.append("status != confirmed")
-        if behavioral.ru_needs_native_review:
-            pend_beh.append("declinações ru sem revisão nativa")
-    # Formas russas pendentes: bloqueiam runs que usam prompts (ru), não o
-    # treino do Tuned Lens (ru_names=False), que só usa os nomes no filtro
-    pend_ru = pending_ru_names(facts) if ru_names else {}
-    if pend_facts or pend_review or pend_base or pend_force or pend_beh or pend_ru:
+    if pend_facts or pend_review or pend_base or pend_force or pend_beh:
         langs = sorted({l for _, l in pend_review})
         raise UnconfirmedError(
             "Valores não confirmados — runs bloqueados.\n"
@@ -724,7 +704,6 @@ def require_confirmed(facts: Dict[str, Fact], prompts,
             f"  linha de base: {'; '.join(pend_base) or 'ok'}\n"
             f"  forcing (artigos/contrações): {'status != confirmed' if pend_force else 'ok'}\n"
             f"  formas de superfície: {'; '.join(pend_beh) or 'ok'}\n"
-            f"  nomes ru sem revisão nativa: {pend_ru or 'ok'}\n"
             "  Veja reports/phase1_review.md, reports/prompts_review.md e "
             "reports/verified_values.md."
         )
