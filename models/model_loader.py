@@ -181,11 +181,25 @@ def _token_for(spec: ModelSpec):
     return token
 
 
+def _cache_first(load, repo_id: str, **kwargs):
+    """
+    from_pretrained do cache local primeiro (local_files_only: nenhuma
+    chamada ao Hub, que não tem tempo limite e já travou um job); só vai
+    ao Hub se o cache não tiver os arquivos desse commit. Com
+    HF_HUB_OFFLINE=1 a segunda tentativa também falha, com o erro do
+    transformers. Correção do coautor no servidor (2026-10-30).
+    """
+    try:
+        return load(repo_id, local_files_only=True, **kwargs)
+    except OSError:
+        return load(repo_id, **kwargs)
+
+
 def load_tokenizer(model_key: str, registry: Optional[Registry] = None):
     """Só o tokenizer, no commit do registro (verify_setup)."""
     spec = (registry or load_models())[model_key]
-    tok = AutoTokenizer.from_pretrained(spec.id, revision=spec.revision,
-                                        token=_token_for(spec) if spec.gated else get_hf_token())
+    tok = _cache_first(AutoTokenizer.from_pretrained, spec.id, revision=spec.revision,
+                       token=_token_for(spec) if spec.gated else get_hf_token())
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     return tok
@@ -199,7 +213,8 @@ def load_model(
     Carrega modelo e tokenizer de uma entrada do registro.
 
     Configurações aplicadas:
-        - revision fixa (commit do registro), modelo e tokenizer
+        - revision fixa (commit do registro), modelo e tokenizer, do
+          cache local primeiro (_cache_first)
         - dtype da entrada (bfloat16 em todos: o Gemma 2 falha em fp16)
         - quantização da entrada, se houver (nenhum modelo por padrão;
           --dtype nf4: NF4 com lm_head sem quantizar)
@@ -222,7 +237,7 @@ def load_model(
     if spec.gated:
         print(f"  🔑 Token HF: {token[:8]}...")
 
-    tokenizer = AutoTokenizer.from_pretrained(spec.id, revision=spec.revision, token=token)
+    tokenizer = _cache_first(AutoTokenizer.from_pretrained, spec.id, revision=spec.revision, token=token)
     # Garantir que o tokenizer tem padding token
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -231,7 +246,7 @@ def load_model(
                   device_map="auto", output_hidden_states=True)
     if quant is not None:
         kwargs["quantization_config"] = quant
-    model = AutoModelForCausalLM.from_pretrained(spec.id, **kwargs)
+    model = _cache_first(AutoModelForCausalLM.from_pretrained, spec.id, **kwargs)
     model.eval()  # desativa dropout — importante para reprodutibilidade
 
     if model.config.model_type != spec.architecture:

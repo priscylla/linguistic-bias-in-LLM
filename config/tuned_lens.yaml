@@ -46,6 +46,12 @@ held_out_mod: 100
 # qualquer idioma) ou palavra-chave de fato (fronteira de palavra, sem
 # acento/caixa)
 filter_fact_terms: true
+# As quatro lentes treinadas (2026-10-29) usaram os nomes de então
+# (lenses/*/config.json meta.filter_terms_sha256). Os nomes acrescentados
+# em 2026-10-30 (Joseph, Dimitri, Dmitry, Alexandre, Alessandro, Conrad,
+# Timothy, Julius) não estavam no filtro do corpus delas; as lentes foram
+# mantidas (decisão da autora, reports/verified_values.md). Um novo treino
+# usaria o filtro com os nomes atuais.
 
 training:
   num_steps: 250

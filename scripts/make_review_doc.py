@@ -181,8 +181,10 @@ def behavioral_doc(exp, facts, b) -> str:
         for c in f.candidates:
             spec = b.forms.get(key, {}).get(c.id, {})
             ex = "<br>".join(f"{l}: {', '.join(v)}" for l, v in (spec.get("exclude") or {}).items())
-            cs = set(spec.get("case_sensitive") or [])
-            forms = ", ".join(f"{x} *(exact case)*" if x in cs else x for x in spec.get("latin") or [])
+            cs_raw = spec.get("case_sensitive") or []
+            cs = {x: (f" in {', '.join(sorted(l for l, v in cs_raw.items() if x in v))}" if isinstance(cs_raw, dict) else "")
+                  for x in (sorted({y for v in cs_raw.values() for y in v}) if isinstance(cs_raw, dict) else cs_raw)}
+            forms = ", ".join(f"{x} *(exact case{cs[x]})*" if x in cs else x for x in spec.get("latin") or [])
             out.append(f"| `{key}` | {c.label} | {forms} | {ex or '—'} |")
     g = b.generation
     out += ["", "## Generation", "",

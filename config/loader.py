@@ -146,6 +146,14 @@ class Forcing:
     articles: Dict[str, List[str]]                 # lang -> palavras
     plural_nouns: Dict[str, Dict[str, List[str]]]  # lang -> caso -> palavras
     contractions: Dict[str, Dict[str, List[str]]]  # lang -> preposição -> formas
+    # Primeiro token forçado além dos artigos (2026-10-30, reports/token_gap_audit.md)
+    titles: Dict[str, List[str]] = field(default_factory=dict)       # lang -> títulos ("Sir")
+    fact_titles: Dict[str, List[str]] = field(default_factory=dict)  # fato -> palavras só desse fato
+    lead_words: Dict[str, List[str]] = field(default_factory=dict)   # lang -> "como", "come"
+    format_tokens: List[str] = field(default_factory=list)           # "**" (nome sem espaço depois)
+
+    def titles_for(self, lang: str, fact: Optional[str] = None) -> List[str]:
+        return list(self.titles.get(lang, [])) + list(self.fact_titles.get(fact, []) if fact else [])
 
     def plural_for(self, lang: str, case: str = BASE_CASE) -> List[str]:
         by_case = self.plural_nouns.get(lang, {})
@@ -212,6 +220,9 @@ class Behavioral:
     validation: dict
     report: dict
     forms: Dict[str, Dict[str, dict]]     # fato -> candidato -> {latin, cyrillic, exclude}
+    # Descritivo (não são candidatos): pessoas citadas nas respostas sem
+    # candidato, fato -> [{id, label, forms, status, note}]
+    non_candidates: Dict[str, List[dict]] = field(default_factory=dict)
 
     def forms_for(self, fact: str, cid: str, lang: str) -> List[str]:
         """Formas que contam numa resposta no idioma `lang` (sem as excluídas)."""
@@ -220,9 +231,12 @@ class Behavioral:
         return [x for x in list(f.get("latin") or []) + list(f.get("cyrillic") or [])
                 if normalize(x) not in excl]
 
-    def case_sensitive_for(self, fact: str, cid: str) -> List[str]:
+    def case_sensitive_for(self, fact: str, cid: str, lang: Optional[str] = None) -> List[str]:
         """Formas que só contam com a caixa exata (ex.: "Bell", não "bell")."""
-        return list(self.forms[fact][cid].get("case_sensitive") or [])
+        cs = self.forms[fact][cid].get("case_sensitive") or []
+        if isinstance(cs, dict):                 # só em alguns idiomas: {fr: [Lumière]}
+            return list(cs.get(lang, [])) if lang else sorted({x for v in cs.values() for x in v})
+        return list(cs)                          # lista: todos os idiomas (Bell)
 
 
 def normalize(text: str) -> str:
@@ -354,6 +368,10 @@ def parse_forcing(raw: dict) -> Forcing:
         contractions={l: {(k.casefold() if isinstance(k, str) else k): list(f)
                           for k, f in (v or {}).items()}
                       for l, v in (raw.get("contractions") or {}).items()},
+        titles={l: list(v or []) for l, v in (raw.get("titles") or {}).items()},
+        fact_titles={k: list(v or []) for k, v in (raw.get("fact_titles") or {}).items()},
+        lead_words={l: list(v or []) for l, v in (raw.get("lead_words") or {}).items()},
+        format_tokens=list(raw.get("format_tokens") or []),
     )
 
 
@@ -386,7 +404,9 @@ def parse_behavioral(raw: dict) -> Behavioral:
                       validation=dict(raw.get("validation") or {}),
                       report=dict(raw.get("report") or {}),
                       forms={f: {c: dict(v) for c, v in (cands or {}).items()}
-                             for f, cands in (raw.get("surface_forms") or {}).items()})
+                             for f, cands in (raw.get("surface_forms") or {}).items()},
+                      non_candidates={f: [dict(x) for x in (v or [])]
+                                      for f, v in (raw.get("non_candidates") or {}).items()})
 
 
 @lru_cache(maxsize=None)
@@ -543,7 +563,11 @@ def validate_forcing(exp: dict, forcing: Forcing, prompts) -> List[str]:
     words = ([w for v in forcing.articles.values() for w in v]
              + [w for v in forcing.plural_nouns.values() for c in v.values() for w in c]
              + [w for v in forcing.contractions.values() for f in v.values() for w in f]
-             + [k for v in forcing.contractions.values() for k in v])
+             + [k for v in forcing.contractions.values() for k in v]
+             + [w for v in forcing.titles.values() for w in v]
+             + [w for v in forcing.fact_titles.values() for w in v]
+             + [w for v in forcing.lead_words.values() for w in v]
+             + list(forcing.format_tokens))
     for w in words:
         if not isinstance(w, str):
             errs.append(f"forcing: valor {w!r} não é texto (coloque entre aspas no YAML)")
@@ -552,6 +576,13 @@ def validate_forcing(exp: dict, forcing: Forcing, prompts) -> List[str]:
             errs.append(f"forcing.articles: sem '{lang}'")
         if lang not in forcing.plural_nouns:
             errs.append(f"forcing.plural_nouns: sem '{lang}'")
+    facts = {p.fact for p in prompts if p.fact}
+    for k in forcing.fact_titles:
+        if facts and k not in facts:
+            errs.append(f"forcing.fact_titles: fato desconhecido '{k}'")
+    for lang in list(forcing.titles) + list(forcing.lead_words):
+        if lang not in langs:
+            errs.append(f"forcing: idioma desconhecido '{lang}'")
     if "ru" in forcing.plural_nouns and set(forcing.plural_nouns["ru"]) != RU_CASES:
         errs.append(f"forcing.plural_nouns.ru: precisa dos casos {sorted(RU_CASES)}")
     for p in prompts:
@@ -629,11 +660,41 @@ def validate_tuned_lens(exp: dict, tl: dict, reg: Registry) -> List[str]:
     return errs
 
 
+NON_CANDIDATE_STATUS = {"real", "invented", "unclear"}
+
+
+def validate_non_candidates(facts: Dict[str, Fact], b: Behavioral) -> List[str]:
+    """Pessoas não candidatas: fato conhecido, status válido, formas que não são de candidato."""
+    errs = []
+    for key, people in b.non_candidates.items():
+        if key not in facts:
+            errs.append(f"behavioral.non_candidates: fato desconhecido '{key}'")
+            continue
+        cand = {normalize(x) for spec in b.forms.get(key, {}).values()
+                for x in list(spec.get("latin") or []) + list(spec.get("cyrillic") or [])}
+        seen = set()
+        for x in people:
+            w = f"behavioral.non_candidates.{key}.{x.get('id')}"
+            if not x.get("id") or x["id"] in seen:
+                errs.append(f"{w}: id ausente ou repetido")
+            seen.add(x.get("id"))
+            if x.get("status") not in NON_CANDIDATE_STATUS:
+                errs.append(f"{w}: status '{x.get('status')}' (use {sorted(NON_CANDIDATE_STATUS)})")
+            forms = x.get("forms") or []
+            if not forms or not all(isinstance(f, str) for f in forms):
+                errs.append(f"{w}: formas ausentes ou não texto")
+            for f in forms:
+                if isinstance(f, str) and normalize(f) in cand:
+                    errs.append(f"{w}: '{f}' é forma de candidato do fato")
+    return errs
+
+
 def validate_behavioral(exp: dict, facts: Dict[str, Fact], b: Behavioral) -> List[str]:
     errs  = []
     langs = list(exp["languages"])
     if b.status not in STATUSES:
         errs.append(f"behavioral: status '{b.status}' inválido")
+    errs += validate_non_candidates(facts, b)
     for key, f in facts.items():
         got = b.forms.get(key)
         if got is None:
@@ -658,7 +719,13 @@ def validate_behavioral(exp: dict, facts: Dict[str, Fact], b: Behavioral) -> Lis
                     errs.append(f"behavioral.surface_forms.{key}: '{x}' em {owner[n]} e {cid}")
                 owner[n] = cid
             norm = {normalize(x) for x in forms if isinstance(x, str)}
-            for x in spec.get("case_sensitive") or []:
+            cs = spec.get("case_sensitive") or []
+            if isinstance(cs, dict):
+                for lang in cs:
+                    if lang not in langs:
+                        errs.append(f"behavioral.surface_forms.{key}.{cid}.case_sensitive: idioma '{lang}'")
+                cs = [x for v in cs.values() for x in v]
+            for x in cs:
                 if x not in forms:
                     errs.append(f"behavioral.surface_forms.{key}.{cid}.case_sensitive: '{x}' não é forma")
             for lang, ex in (spec.get("exclude") or {}).items():

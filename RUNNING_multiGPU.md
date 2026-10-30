@@ -14,6 +14,7 @@ Model keys (from `config/models.yaml`): instruct `llama`, `mistral`, `qwen`, `ge
   - `[gpu=3]`: only the worker with exactly those GPUs runs the job.
   - `[after=FILE]`: wait until FILE exists, for example the end of a job in another queue.
   - `[mem=60]`: wait until each of the worker's GPUs has 60 GB free.
+  - `[timeout=45m]`: time limit for the job (`s`, `m` or `h`). When it runs out, the job and all its processes are killed and it counts as failed (code 124); rerunning it is safe.
 
   A waiting job doesn't block the queue; the worker runs other jobs meanwhile.
 - **Failures:** each job writes its own log to `logs/queue/<name>-<date>/jobN.log`. A failing job is recorded and the queue continues; at the end the script lists the failures and exits with 1.
@@ -61,7 +62,7 @@ python3.12 -m venv .venv && source .venv/bin/activate   # Python >= 3.11, fresh 
 pip install -r requirements.txt         # Linux + CUDA; driver < 580: first pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
 hf auth login                           # = huggingface-cli login; or export HF_TOKEN="hf_..." (never commit it)
 python scripts/check_env.py             # FIRST: Python, packages, GPUs (memory, bf16), disk, HF access; must show 0 FAIL
-pytest                                  # 339 tests, all green
+pytest                                  # 389 tests, all green
 python run_pipeline_dry.py              # whole pipeline on tiny models; must end with "dry run ok"
 python verify_setup.py                  # tokenizers: gated access, prompts, name tokenization
 mkdir -p logs

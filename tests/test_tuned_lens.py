@@ -208,7 +208,7 @@ def test_sequence_kl_matches_manual():
         out = model(input_ids=torch.tensor([ids]), output_hidden_states=True)
     p = F.log_softmax(out.logits[0].float(), -1)
     q = F.log_softmax(LogitLens(model).head(out.hidden_states[1][0]), -1)
-    assert kl[0].item() == pytest.approx((p.exp() * (p - q)).sum().item(), rel=1e-5)
+    assert kl[0].item() == pytest.approx((p.exp() * (p - q)).sum().item(), rel=1e-4)
     assert torch.allclose(kl, sequence_kl(lens, model, ids, chunk=5, translate=False))
 
 

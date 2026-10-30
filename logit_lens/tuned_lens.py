@@ -115,4 +115,7 @@ class TunedLens(Lens):
                            map_location=lens.unembedding.weight.device, weights_only=True)
         lens.translators.load_state_dict(state)
         lens.meta = info.get("meta", {})
+        # Identidade da lente nas impressões digitais das unidades medidas com ela
+        from logit_lens.fingerprint import file_sha256
+        lens.source_sha256 = file_sha256(lens_dir / "translators.pt")
         return lens

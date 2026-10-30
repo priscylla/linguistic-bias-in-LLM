@@ -24,10 +24,31 @@
 #                com apóstrofo, mede-se de novo na forma elidida. Elididos
 #                vêm por último na lista.
 #
+# titles:        títulos antes do nome ("Sir Isaac Newton"): mesmo gatilho
+#                (top-1 da última camada), força a palavra e mede os
+#                candidatos no token seguinte. Os modelos escrevem o "Sir"
+#                inglês em todos os idiomas.
+# fact_titles:   como titles, mas só no fato indicado: palavras que seriam
+#                nome de candidato em outro fato ("William" é Talbot na
+#                fotografia; nos raios X é ambíguo entre Röntgen, Crookes e
+#                Coolidge, então é forçado e mede-se o token seguinte).
+# lead_words:    palavras de ligação antes do nome ("considerado como
+#                Santos Dumont"): forçadas; se o top-1 seguinte for artigo
+#                ou título, ele é forçado em seguida (com o passo do
+#                substantivo plural / da elisão, como nos artigos).
+# format_tokens: marcação no começo da resposta (Gemma 2: "**" negrito):
+#                forçada, e os candidatos são medidos colados, sem espaço
+#                ("**Alexander"); artigo ou título logo depois também é
+#                forçado.
+# Títulos, ligações e marcação só disparam se o top-1 não for token de
+# algum candidato do prompt. Decisões de 2026-10-30
+# (reports/token_gap_audit.md, reports/verified_values.md).
+#
 # Comparação pelo token ID exato no contexto do prompt; maiúscula inicial
 # também conta (formato QA: "The").
 #
-# status: confirmed (autora, 2026-10-29), com os acréscimos de de, it e fr.
+# status: confirmed (autora, 2026-10-29), com os acréscimos de de, it e fr;
+# títulos, ligações e marcação confirmados em 2026-10-30.
 
 status: confirmed
 
@@ -57,3 +78,19 @@ contractions:
     in: [nel, nello, nella, nei, negli, nelle]
   fr:
     à:  [au, aux]
+
+titles:
+  pt: [Sir]
+  en: [Sir]
+  de: [Sir]
+  it: [Sir]
+  fr: [Sir]
+
+fact_titles:
+  raios_x: [William]
+
+lead_words:
+  pt: [como]
+  it: [come]
+
+format_tokens: ["**"]

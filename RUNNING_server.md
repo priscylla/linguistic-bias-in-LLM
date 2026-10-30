@@ -19,6 +19,10 @@ Both queues use `scripts/run_queue.sh`. A tag at the start of a job line constra
 - `[gpu=3]`: only the GPU-3 worker runs the job.
 - `[after=FILE]`: the job waits until FILE exists. `reports/tuned_lens/mistral_eval.csv` is written when Mistral's training and its held-out evaluation are done.
 - `[mem=60]`: the job waits until the GPU has 60 GB free (`nvidia-smi`).
+- `[timeout=45m]`: the job's time limit (seconds, `m` or `h`). When it runs out, the job and every process it started get SIGTERM, then SIGKILL 30 s later. The job counts as failed (code 124) and the queue moves on.
+  - **Why:** on 2026-10-29 a `run_lens.py` job hung for 15 h after finishing its work.
+  - **Cleanup:** `run_lens.py` and `run_behavioral.py` now exit directly after writing their results, which skips the interpreter cleanup that can hang.
+  - **Rerunning:** a job stopped this way is safe to rerun as is, since finished units are skipped. `check_results.py` says whether anything is missing.
 
 A job that is waiting doesn't block the queue: the worker runs other jobs meanwhile and comes back to it. GPU numbers are the ones `nvidia-smi` shows.
 
@@ -51,7 +55,7 @@ nvidia-smi                                                 # driver version (fir
 pip install -r requirements.txt
 hf auth login                                              # same as huggingface-cli login; or export HF_TOKEN=hf_...
 python scripts/check_env.py                                # must end with 0 FAIL
-pytest                                                     # 339 tests, CPU
+pytest                                                     # 389 tests, CPU
 python run_pipeline_dry.py                                 # whole pipeline on tiny models; must end with "dry run ok"
 python verify_setup.py                                     # tokenizers: gated access, prompts, name tokenization
 mkdir -p logs
@@ -79,7 +83,7 @@ The last-layer lens must equal the model's own logits. One job per GPU at this s
 ```bash
 for m in gemma27 gemma_base gemma llama_base llama mistral_base mistral \
          qwen_base qwen sabia_base sabia; do
-  echo "python run_lens.py --model $m --sanity-only"
+  echo "[timeout=1h] python run_lens.py --model $m --sanity-only"
 done > jobs_sanity.txt
 scripts/run_queue.sh jobs_sanity.txt "0 1 2 3"
 ```
@@ -88,14 +92,14 @@ Stop if the queue exits with 1: it lists the failed jobs, each with its log in `
 
 ## 2. Tuned Lens queue (background): four trainings at once, one per GPU
 
-Each job trains one lens and then re-measures that model with it, so re-measurements happen as each training finishes. Settings are the registered ones for every model: float32 translators, `seq_len` 2048, 16M tokens (`config/tuned_lens.yaml`).
+Each job trains one lens and then re-measures that model with it, so re-measurements happen as each training finishes. The re-measurement runs whenever `reports/tuned_lens/{model}_eval.csv` exists, that is, once training and the held-out evaluation are done. It doesn't depend on the training's exit code: on 2026-10-29 two trainings wrote their results and then aborted at exit (code 134), and the old `&&` skipped their re-measurement. Settings are the registered ones for every model: float32 translators, `seq_len` 2048, 16M tokens (`config/tuned_lens.yaml`).
 
 ```bash
 cat > jobs_tuned.txt <<'EOF'
-[gpu=0] python train_tuned_lens.py --model gemma   && python run_lens.py --model gemma   --lens tuned
-[gpu=1] python train_tuned_lens.py --model llama   && python run_lens.py --model llama   --lens tuned
-[gpu=2] python train_tuned_lens.py --model qwen    && python run_lens.py --model qwen    --lens tuned
-[gpu=3] python train_tuned_lens.py --model mistral && python run_lens.py --model mistral --lens tuned
+[gpu=0] [timeout=12h] python train_tuned_lens.py --model gemma; test -f reports/tuned_lens/gemma_eval.csv && python run_lens.py --model gemma --lens tuned
+[gpu=1] [timeout=12h] python train_tuned_lens.py --model llama; test -f reports/tuned_lens/llama_eval.csv && python run_lens.py --model llama --lens tuned
+[gpu=2] [timeout=12h] python train_tuned_lens.py --model qwen; test -f reports/tuned_lens/qwen_eval.csv && python run_lens.py --model qwen --lens tuned
+[gpu=3] [timeout=12h] python train_tuned_lens.py --model mistral; test -f reports/tuned_lens/mistral_eval.csv && python run_lens.py --model mistral --lens tuned
 EOF
 nohup scripts/run_queue.sh jobs_tuned.txt "0 1 2 3" > logs/tuned.log 2>&1 &
 ```
@@ -108,23 +112,23 @@ Start it right after step 2, on the same GPUs.
 cat > jobs_main.txt <<'EOF'
 # Gemma 2 27B in bf16 (~55 GB): GPU 3 only, after Mistral's Tuned Lens training there has
 # finished, and only with 60 GB free. Never on GPU 0, where Gemma 2 9B trains.
-[gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] python run_behavioral.py --model gemma27
-[gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] python run_lens.py --model gemma27 --lens logit
+[gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] [timeout=2h] python run_behavioral.py --model gemma27
+[gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] [timeout=45m] python run_lens.py --model gemma27 --lens logit
 # Everything else on any GPU, longest first
-python run_behavioral.py --model gemma
-python run_behavioral.py --model llama
-python run_behavioral.py --model mistral
-python run_behavioral.py --model qwen
-python run_lens.py --model gemma --lens logit
-python run_lens.py --model gemma_base --lens logit
-python run_lens.py --model llama --lens logit
-python run_lens.py --model llama_base --lens logit
-python run_lens.py --model mistral --lens logit
-python run_lens.py --model mistral_base --lens logit
-python run_lens.py --model qwen --lens logit
-python run_lens.py --model qwen_base --lens logit
-python run_lens.py --model sabia --lens logit
-python run_lens.py --model sabia_base --lens logit
+[timeout=2h] python run_behavioral.py --model gemma
+[timeout=2h] python run_behavioral.py --model llama
+[timeout=2h] python run_behavioral.py --model mistral
+[timeout=2h] python run_behavioral.py --model qwen
+[timeout=45m] python run_lens.py --model gemma --lens logit
+[timeout=45m] python run_lens.py --model gemma_base --lens logit
+[timeout=45m] python run_lens.py --model llama --lens logit
+[timeout=45m] python run_lens.py --model llama_base --lens logit
+[timeout=45m] python run_lens.py --model mistral --lens logit
+[timeout=45m] python run_lens.py --model mistral_base --lens logit
+[timeout=45m] python run_lens.py --model qwen --lens logit
+[timeout=45m] python run_lens.py --model qwen_base --lens logit
+[timeout=45m] python run_lens.py --model sabia --lens logit
+[timeout=45m] python run_lens.py --model sabia_base --lens logit
 EOF
 nohup scripts/run_queue.sh jobs_main.txt "0 1 2 3" > logs/main.log 2>&1 &
 ```
@@ -175,3 +179,62 @@ python scripts/pack_results.py --include-lenses
 - with `--include-lenses`, the trained translators (`lenses/*/translators.pt` and `config.json`, about 8 GB). They cost about 34 GPU-hours to train, so send them.
 
 If `check_results.py` finds problems, the pack is still made and `PACK_INFO.json` inside it marks it incomplete; `--require-complete` refuses instead. Send the `.tar.gz` and its `.sha256`. The recipient unpacks at the repository root with `tar -xzf results-….tar.gz` and runs the analysis on CPU (`RUNNING_1GPU.md`, step 6).
+
+## 6. Full rerun of the lens measurements (changes of 2026-10-30)
+
+The token gap audit (`reports/token_gap_audit.md`) changed what the lens runs measure, so every lens measurement is redone. No training, no behavioral generation, no sanity check (none of them is affected).
+
+What changed:
+- **Mistral QA:** measured on the token it actually emits. The separator before the answer now comes from each model's chat template; it is a space for Mistral and unchanged for the other models.
+- **Name sets:** new given names (Joseph, Dimitri, Dmitry, Alexandre, Alessandro, Conrad, Timothy, Julius).
+- **New forced words:** *Sir* in every language, *William* in the X-ray prompts, Gemma's `**`, and pt *como*, it *come*.
+- **Forced passes:** their top-20 tokens are now stored.
+
+Every unit therefore has a new fingerprint (`logit_lens/fingerprint.py`, measurement version 2). `run_lens.py` treats each old unit as out of date: it moves the unit to `results/lens/{lens}/{model}/chunks_stale/<time>/` (nothing is deleted) and measures it again. A run never resumes over old units.
+
+```bash
+git stash                                  # your local fixes of 2026-10-30 are in the commit; keeps a copy
+git pull                                   # the commit with these changes
+source .venv/bin/activate
+python scripts/check_env.py                # must end with 0 FAIL (checks Hub access: run before going offline)
+CUDA_VISIBLE_DEVICES= pytest               # all green, CPU only
+mkdir -p logs
+export HF_HUB_OFFLINE=1                    # every model is already in the cache: no Hub calls from here on
+
+cat > jobs_rerun.txt <<'EOF'
+# Logit Lens, 11 models (Gemma 2 27B first: largest)
+[timeout=45m] python run_lens.py --model gemma27 --lens logit
+[timeout=45m] python run_lens.py --model gemma --lens logit
+[timeout=45m] python run_lens.py --model gemma_base --lens logit
+[timeout=45m] python run_lens.py --model llama --lens logit
+[timeout=45m] python run_lens.py --model llama_base --lens logit
+[timeout=45m] python run_lens.py --model mistral --lens logit
+[timeout=45m] python run_lens.py --model mistral_base --lens logit
+[timeout=45m] python run_lens.py --model qwen --lens logit
+[timeout=45m] python run_lens.py --model qwen_base --lens logit
+[timeout=45m] python run_lens.py --model sabia --lens logit
+[timeout=45m] python run_lens.py --model sabia_base --lens logit
+# Tuned Lens re-measurement, 4 models (the trained lenses in lenses/ are kept)
+[timeout=45m] python run_lens.py --model gemma --lens tuned
+[timeout=45m] python run_lens.py --model llama --lens tuned
+[timeout=45m] python run_lens.py --model mistral --lens tuned
+[timeout=45m] python run_lens.py --model qwen --lens tuned
+EOF
+nohup scripts/run_queue.sh jobs_rerun.txt "0 1 2 3" > logs/rerun.log 2>&1 &
+tail -f logs/rerun.log                     # ends with "fim: 15/15 jobs, 0 falha(s)"
+
+python check_results.py                    # must end with "TODOS OS RESULTADOS COMPLETOS E VÁLIDOS"
+python scripts/pack_results.py             # lenses unchanged: no --include-lenses
+```
+
+One job per GPU at a time, so Gemma 2 27B (~58 GB) always has its GPU to itself.
+
+**Offline:** with `HF_HUB_OFFLINE=1`, a model load never waits on the Hub (an untimed Hub call can hang a job). Models and tokenizers also load from the local cache first even without it (`models/model_loader.py`). If a model is missing from the cache, the job fails at once instead of downloading. The variable stays set for the rest of that shell. **Tuned Lens training needs the network** (it streams its corpus from the Hub): run `unset HF_HUB_OFFLINE` first, or use a new shell. The rerun here trains nothing.
+
+After the pull, `git stash drop` discards the stashed copy once the run works. `run.sh` (old pipeline) is not part of the repo and can be deleted.
+
+**Time:** about 15–25 min wall-clock for the 15 jobs. On 2026-10-30, measuring all 60 units of a model took about 1 minute on these GPUs, without other jobs. The new forced passes add a little, and loading each model from the cache adds 1–5 min (Gemma 2 27B the longest). Each job gets a 45-minute limit.
+
+**If something fails:**
+- If a job fails or hits its limit, run its line again with `--gpus N`. The units it already finished are current and are skipped.
+- `check_results.py` lists any unit still missing or measured with old inputs. The results pack leaves out the archived `chunks_stale/` folders, which stay on the server.

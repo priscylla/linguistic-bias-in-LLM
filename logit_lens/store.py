@@ -48,10 +48,33 @@ class ChunkStore:
     def done(self, unit: str) -> bool:
         return (self.chunks / unit / "DONE").exists()
 
+    def fingerprint(self, unit: str):
+        """Impressão digital gravada com a unidade (None: unidade antiga, sem impressão)."""
+        p = self.chunks / unit / "FINGERPRINT"
+        return p.read_text(encoding="utf-8").strip() if p.exists() else None
+
+    def current(self, unit: str, fingerprint: str) -> bool:
+        """Feita e medida com as entradas atuais (logit_lens/fingerprint.py)."""
+        return self.done(unit) and self.fingerprint(unit) == fingerprint
+
+    def stamp(self, unit: str, fingerprint: str, source: str):
+        """Grava a impressão de uma unidade antiga já verificada (scripts/stamp_fingerprints.py)."""
+        if not self.done(unit) or self.fingerprint(unit) is not None:
+            raise ValueError(f"{unit}: só unidades feitas e sem impressão")
+        (self.chunks / unit / "FINGERPRINT").write_text(fingerprint, encoding="utf-8")
+        (self.chunks / unit / "FINGERPRINT_SOURCE").write_text(source, encoding="utf-8")
+
+    def archive(self, unit: str, tag: str) -> Path:
+        """Tira uma unidade velha do caminho (chunks_stale/<tag>/<unit>); nada é apagado."""
+        dest = self.out_dir / "chunks_stale" / tag / unit
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(self.chunks / unit), str(dest))
+        return dest
+
     def done_units(self) -> List[str]:
         return sorted(p.parent.name for p in self.chunks.glob("*/DONE"))
 
-    def write(self, unit: str, tables: Dict[str, List[Dict]]):
+    def write(self, unit: str, tables: Dict[str, List[Dict]], fingerprint: str = None):
         """Grava todas as tabelas da unidade de uma vez (atômico por unidade)."""
         final = self.chunks / unit
         if final.exists():
@@ -65,6 +88,8 @@ class ChunkStore:
                 raise ValueError(f"tabela desconhecida: {name}")
             if rows:
                 pd.DataFrame(rows).to_parquet(tmp / f"{name}.parquet", index=False)
+        if fingerprint is not None:
+            (tmp / "FINGERPRINT").write_text(fingerprint, encoding="utf-8")
         (tmp / "DONE").write_text("ok", encoding="utf-8")
         os.replace(tmp, final)
 

@@ -7,6 +7,7 @@ Medição da Fase 2 para um modelo (substitui run_single_model.py).
     python run_lens.py --model llama --lens tuned       # Tuned Lens (lenses/llama/)
     python run_lens.py --model gemma27 --gpus "1 2"     # bf16 (~55 GB) em duas GPUs menores
     python run_lens.py --model llama --consolidate-only
+    python run_lens.py --model llama --lens logit --facts fotografia,calculo   # só esses fatos
 
 --gpus, --dtype: ver models/runtime.py.
 
@@ -34,7 +35,8 @@ Saída em results/lens/{lens}/{modelo}/ (ver logit_lens/store.py):
     prefix_forcing.parquet  cada primeiro token compartilhado resolvido por
                         prefixo forçado (ou não resolvido), por palavra
     skipped.parquet     células de indicador puladas (regra dos dois candidatos)
-    layers.parquet      KL até a final e top-20 por camada
+    layers.parquet      KL até a final e top-20 por camada (source: prompt,
+                        baseline ou forced, com pass_id e force_step)
     token_sets.parquet  auditoria dos token IDs de cada conjunto
     manifest.json       modelo, revisão, dtype, quantização, versões, GPU,
                         tempo
@@ -45,6 +47,7 @@ import dataclasses
 import hashlib
 import json
 import platform
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -66,6 +69,7 @@ from logit_lens.entity_tokens import (
 from logit_lens.lens import LogitLens
 from logit_lens.measure import LensRunner
 from logit_lens.store import ChunkStore, lens_dir, read_manifest, write_manifest
+from logit_lens.fingerprint import MEASURE_VERSION, file_sha256, fingerprint, lens_identity
 
 from models.runtime import (  # noqa: E402
     add_model_args, apply_gpus, check_resume, precision_tag, registry_with_dtype,
@@ -221,6 +225,9 @@ def run_fact_unit(runner, tester, config, fact_key, lang, model_key, formats):
                     "forced_kind": ps["kind"], "pass_id": ps["pass_id"],
                     "force_step": st["step"], "n_steps": n_steps,
                     "forced_suffix": st["suffix"], "trigger_token": st["trigger_token"]})
+                # Top-20 por camada também nas passadas forçadas (auditoria de tokens)
+                tables["layers"] += _layer_rows({**keys, "forced_kind": ps["kind"], "pass_id": ps["pass_id"],
+                                                 "force_step": st["step"]}, st["result"], "forced")
     return tables
 
 
@@ -271,11 +278,24 @@ def base_manifest(model_key, model_id, model, lens, formats, sanity, spec=None):
 # Execução
 # ══════════════════════════════════════════════════════════════
 
+def current_units(store, units, config, lens_id):
+    """Unidades feitas com as entradas atuais (impressão digital igual)."""
+    return [u for u in units if store.current(u, fingerprint(u, config, lens_id))]
+
+
 def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
-              lens=None, chat_formatter=None, spec=None, log=print):
+              lens=None, chat_formatter=None, spec=None, facts=None, log=print):
     """
     Roda todas as unidades que faltam e consolida. Não checa
     confirmação (main() faz isso); testes chamam direto.
+
+    Uma unidade só conta como feita se a impressão digital gravada
+    (logit_lens/fingerprint.py) for igual à das entradas atuais; uma
+    unidade feita com outras entradas (ou antiga, sem impressão) é
+    movida para chunks_stale/ e refeita, nunca retomada. `facts` limita
+    as unidades de fato rodadas (as da linha de base rodam sempre que
+    não estiverem atuais); unidades velhas de outros fatos ficam fora das
+    tabelas consolidadas até serem refeitas.
 
     Formatos: os da entrada do registro (`spec`); sem spec, QA só se
     houver chat_formatter.
@@ -308,9 +328,22 @@ def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
         manifest.setdefault("config_changes", []).append(_config_hashes())
 
     t0, started = time.time(), datetime.now(timezone.utc).isoformat()
-    units = lens_units(config, formats)
-    todo  = [u for u in units if not store.done(u)]
-    log(f"  {len(units) - len(todo)}/{len(units)} unidades já feitas; {len(todo)} a rodar")
+    units   = lens_units(config, formats)
+    lens_id = lens_identity(lens)
+    fps     = {u: fingerprint(u, config, lens_id) for u in units}
+    chosen  = [u for u in units if facts is None or u.startswith("baseline__")
+               or u.split("__")[0] in facts]
+    todo    = [u for u in chosen if not store.current(u, fps[u])]
+    stale   = [u for u in todo if store.done(u)]
+    tag     = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    for u in stale:
+        store.archive(u, tag)
+    left_stale = [u for u in units if u not in chosen and store.done(u) and not store.current(u, fps[u])]
+    log(f"  {len(units) - len(todo) - len(left_stale)}/{len(units)} unidades atuais; {len(todo)} a rodar"
+        + (f" ({len(stale)} refeitas: entradas mudaram, antigas em chunks_stale/{tag}/)" if stale else ""))
+    if left_stale:
+        log(f"  ⚠️  {len(left_stale)} unidades de outros fatos estão velhas e ficam fora das tabelas "
+            f"até serem refeitas: {', '.join(left_stale[:6])}{' …' if len(left_stale) > 6 else ''}")
 
     for i, unit in enumerate(todo, start=1):
         fact_key, lang = unit.split("__")
@@ -319,18 +352,25 @@ def run_model(model_key, model, tokenizer, config, out_dir, model_id=None,
             tables = run_baseline_unit(runner, config, lang, model_key, formats)
         else:
             tables = run_fact_unit(runner, tester, config, fact_key, lang, model_key, formats)
-        store.write(unit, tables)
+        store.write(unit, tables, fingerprint=fps[unit])
         log(f"  [{i}/{len(todo)}] {unit}  ({time.time() - u0:.1f}s)")
 
-    counts  = store.consolidate(units)
+    good    = [u for u in units if store.current(u, fps[u])]
+    counts  = store.consolidate(good)
     elapsed = time.time() - t0
     manifest["sessions"].append({"started": started,
                                  "finished": datetime.now(timezone.utc).isoformat(),
-                                 "units_run": len(todo), "wall_time_s": round(elapsed, 1)})
+                                 "units_run": len(todo), "units_rerun_stale": stale,
+                                 "facts": sorted(facts) if facts else None,
+                                 "wall_time_s": round(elapsed, 1)})
     manifest["wall_time_s"] = round(sum(s["wall_time_s"] for s in manifest["sessions"]), 1)
     gpus = manifest["gpu"]["count"]
     manifest["gpu_hours"] = round(manifest["wall_time_s"] / 3600 * gpus, 3) if gpus else 0.0
-    manifest["units_done"] = len(store.done_units())
+    manifest["units_done"] = len(good)
+    manifest["units_stale"] = [u for u in units if store.done(u) and not store.current(u, fps[u])]
+    manifest["measure_version"] = MEASURE_VERSION
+    manifest["lens_id"] = lens_id
+    manifest["fingerprints"] = {u: fps[u] for u in good}
     pf = out_dir / "prefix_forcing.parquet"
     if pf.exists():
         import pandas as pd
@@ -357,14 +397,32 @@ def load_tuned(model_key, model, spec, lens_root=None):
     return TunedLens.load(model, root, expected_revision=spec.revision if spec else None)
 
 
+def tuned_lens_id(model_key, lens_root=None) -> str:
+    """Identidade do Tuned Lens treinado sem carregar o modelo (consolidação, verificação)."""
+    from config.loader import load_tuned_lens
+    root = Path(lens_root or load_tuned_lens()["lens_dir"]) / model_key
+    return f"tuned_lens:{file_sha256(root / 'translators.pt')}"
+
+
+def parse_facts(text, config):
+    """--facts aviao,radio -> {'aviao', 'radio'} (chaves de config/facts.yaml)."""
+    if not text:
+        return None
+    facts = {f.strip() for f in text.split(",") if f.strip()}
+    bad = sorted(facts - set(config.facts))
+    if bad:
+        raise SystemExit(f"--facts: fatos desconhecidos {bad}; válidos: {', '.join(config.facts)}")
+    return facts
+
+
 def instruct_chat(model_key, spec, tokenizer):
     """Formatador QA para modelos instruct (None para base)."""
     if spec.kind != "instruct":
         return None
     if not getattr(tokenizer, "chat_template", None):
         raise ValueError(f"{model_key}: instruct sem chat template no tokenizer")
-    from models.chat_template import apply_template
-    return lambda tok, text, mk=model_key: apply_template(tok, mk, text)[0]
+    from models.chat_template import ChatFormatter
+    return ChatFormatter.for_tokenizer(tokenizer, model_key)
 
 
 def write_sanity(report: dict, model_key: str, spec, report_dir=SANITY_DIR) -> Path:
@@ -385,11 +443,22 @@ def main(argv=None):
                         help="só o teste de sanidade (reports/sanity/{modelo}.json)")
     parser.add_argument("--results-dir", default=config.results_dir)
     parser.add_argument("--consolidate-only", action="store_true")
+    parser.add_argument("--facts", default=None,
+                        help="só estes fatos, separados por vírgula (ex.: fotografia,calculo); "
+                             "unidades com entradas antigas são refeitas, nunca retomadas")
     args = parser.parse_args(argv)
+    facts = parse_facts(args.facts, config)
 
     out_dir = lens_dir(args.results_dir, args.model, LENS_CHOICES[args.lens])
     if args.consolidate_only:
-        print(ChunkStore(out_dir).consolidate())
+        lens_id = tuned_lens_id(args.model) if args.lens == "tuned" else "logit_lens"
+        store = ChunkStore(out_dir)
+        units = [u for u in store.done_units()]
+        good = current_units(store, units, config, lens_id)
+        if len(good) < len(units):
+            print(f"  ⚠️  {len(units) - len(good)} unidades velhas fora das tabelas: "
+                  f"{', '.join(sorted(set(units) - set(good))[:6])}")
+        print(store.consolidate(good))
         return 0
 
     apply_gpus(args.gpus)
@@ -418,11 +487,17 @@ def main(argv=None):
 
     lens = load_tuned(args.model, model, spec) if args.lens == "tuned" else None
     m = run_model(args.model, model, tokenizer, config, out_dir, model_id=spec.id,
-                  lens=lens, chat_formatter=chat, spec=spec)
+                  lens=lens, chat_formatter=chat, spec=spec, facts=facts)
     print(f"\n✅ {args.model}: {m['units_done']}/{m['units_expected']} unidades, "
           f"{m['wall_time_s'] / 60:.1f} min, {m['gpu_hours']:.2f} GPU-h  →  {out_dir}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Sai direto depois de gravar tudo: a finalização do interpretador
+    # (threads, CUDA) já travou um job por 15 h depois de terminar o
+    # trabalho (2026-10-29). Todos os arquivos estão fechados aqui.
+    rc = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(rc or 0)

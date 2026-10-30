@@ -25,7 +25,7 @@ from config.loader import require_valid
 from data.tokenization_check import (
     check_tokenizer, dropped_words, elision_check, indicator_cells, prefix_forced, write_summary,
 )
-from models.chat_template import apply_template
+from models.chat_template import ChatFormatter
 
 TOKENIZATION_DIR = Path("reports") / "tokenization"
 
@@ -106,7 +106,7 @@ def check_name_tokenization(tokenizers: dict, config: ExperimentConfig):
         chat = None
         # QA só em modelos instruct (kind do registro)
         if config.model(model_key).kind == "instruct":
-            chat = lambda tok, text, mk=model_key: apply_template(tok, mk, text)[0]
+            chat = ChatFormatter.for_tokenizer(tokenizer, model_key)
 
         res = check_tokenizer(
             model_key, tokenizer, config.fact_specs, config.prompt_specs,

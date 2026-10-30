@@ -48,7 +48,7 @@ INCLUDE = ["results", "reports/sanity", "reports/tuned_lens", "reports/validatio
            "reports/tokenization", "reports/tokenization_summary.md", "verification_report.json",
            "reports/check_env.json", "logs"]
 LENS_FILES = ("translators.pt", "config.json")
-SKIP_NAMES = {"__pycache__", ".DS_Store", ".gitkeep"}
+SKIP_NAMES = {"__pycache__", ".DS_Store", ".gitkeep", "chunks_stale"}   # unidades velhas ficam no servidor
 
 
 def _git(*args) -> str:

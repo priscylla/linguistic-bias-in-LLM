@@ -175,4 +175,10 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Sai direto depois de gravar tudo, como run_lens.py e run_behavioral.py:
+    # a finalização do interpretador abortou dois treinos com código 134
+    # depois do fim (2026-10-29). Correção do coautor no servidor.
+    rc = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(rc or 0)

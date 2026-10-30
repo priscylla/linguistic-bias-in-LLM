@@ -16,16 +16,16 @@ When candidates of the same fact share a first token, that token is forced and e
 | radio | it | place | completion | popov | San Pietroburgo | `San → Piet; San → Pietro` | llama_base, llama, mistral_base, mistral, qwen_base, qwen, gemma_base, gemma, gemma27, sabia_base, sabia |
 | radio | pt | place | completion | landell | São Paulo | `São → Paulo` | llama_base, llama, mistral_base, mistral, qwen_base, qwen, gemma_base, gemma, gemma27, sabia_base, sabia |
 | radio | pt | place | completion | popov | São Petersburgo | `São → Peters` | llama_base, llama, mistral_base, mistral, qwen_base, qwen, gemma_base, gemma, gemma27, sabia_base, sabia |
-| tabela_periodica | de | names | QA | mendeleev | Mendelejew | `M → end` | llama, mistral, qwen |
-| tabela_periodica | de | names | QA | meyer | Meyer | `M → ey; M → eyer` | llama, mistral, qwen |
-| tabela_periodica | en | names | QA | mendeleev | Mendeleev, Mendeleyev | `M → end; M → ende` | llama, mistral, qwen |
-| tabela_periodica | en | names | QA | meyer | Meyer | `M → ey; M → eyer` | llama, mistral, qwen |
-| tabela_periodica | fr | names | QA | mendeleev | Mendeleïev | `M → end` | llama, mistral, qwen |
-| tabela_periodica | fr | names | QA | meyer | Meyer | `M → ey; M → eyer` | llama, mistral, qwen |
-| tabela_periodica | it | names | QA | mendeleev | Mendeleev | `M → end` | llama, mistral, qwen |
-| tabela_periodica | it | names | QA | meyer | Meyer | `M → ey; M → eyer` | llama, mistral, qwen |
-| tabela_periodica | pt | names | QA | mendeleev | Mendeleiev | `M → end` | llama, mistral, qwen |
-| tabela_periodica | pt | names | QA | meyer | Meyer | `M → ey; M → eyer` | llama, mistral, qwen |
+| tabela_periodica | de | names | QA | mendeleev | Mendelejew | `M → end` | llama, qwen |
+| tabela_periodica | de | names | QA | meyer | Meyer | `M → eyer` | llama, qwen |
+| tabela_periodica | en | names | QA | mendeleev | Mendeleev, Mendeleyev | `M → end; M → ende` | llama, qwen |
+| tabela_periodica | en | names | QA | meyer | Meyer | `M → eyer` | llama, qwen |
+| tabela_periodica | fr | names | QA | mendeleev | Mendeleïev | `M → end` | llama, qwen |
+| tabela_periodica | fr | names | QA | meyer | Meyer | `M → eyer` | llama, qwen |
+| tabela_periodica | it | names | QA | mendeleev | Mendeleev | `M → end` | llama, qwen |
+| tabela_periodica | it | names | QA | meyer | Meyer | `M → eyer` | llama, qwen |
+| tabela_periodica | pt | names | QA | mendeleev | Mendeleiev | `M → end` | llama, qwen |
+| tabela_periodica | pt | names | QA | meyer | Meyer | `M → eyer` | llama, qwen |
 
 ## Still dropped
 
@@ -43,18 +43,18 @@ The stem is forced ("l", "un") and each candidate is measured as apostrophe + na
 
 | Models | Lang | Article | Trigger token | prefix_depth1 | prefix_depth2 | own_token |
 | --- | --- | --- | --- | --- | --- | --- |
-| gemma_base, gemma, gemma27 | it | l' | `' l'` | 996 | 12 | 144 |
-| gemma_base, gemma, gemma27 | it | un' | `' un'` | 996 | 12 | 144 |
-| gemma_base, gemma, gemma27 | fr | l' | `' l'` | 1002 | 0 | 144 |
-| llama_base, llama, qwen_base, qwen | it | l' | `' l'` | 784 | 42 | 326 |
-| llama_base, llama, qwen_base, qwen | it | un' | `' un'` | 784 | 42 | 326 |
-| llama_base, llama, qwen_base, qwen | fr | l' | `' l'` | 797 | 18 | 331 |
-| mistral_base, mistral | it | l' | `'l'` | 960 | 48 | 144 |
-| mistral_base, mistral | it | un' | `'un'` | 960 | 48 | 144 |
-| mistral_base, mistral | fr | l' | `'l'` | 966 | 36 | 144 |
-| sabia_base, sabia | it | l' | `'l'` | 912 | 96 | 144 |
-| sabia_base, sabia | it | un' | `'un'` | 912 | 96 | 144 |
-| sabia_base, sabia | fr | l' | `'l'` | 918 | 84 | 144 |
+| gemma_base, gemma, gemma27 | it | l' | `' l'` | 1086 | 12 | 198 |
+| gemma_base, gemma, gemma27 | it | un' | `' un'` | 1086 | 12 | 198 |
+| gemma_base, gemma, gemma27 | fr | l' | `' l'` | 1092 | 0 | 198 |
+| llama_base, llama, qwen_base, qwen | it | l' | `' l'` | 838 | 42 | 416 |
+| llama_base, llama, qwen_base, qwen | it | un' | `' un'` | 838 | 42 | 416 |
+| llama_base, llama, qwen_base, qwen | fr | l' | `' l'` | 860 | 18 | 412 |
+| mistral_base, mistral | it | l' | `'l'` | 1050 | 48 | 198 |
+| mistral_base, mistral | it | un' | `'un'` | 1050 | 48 | 198 |
+| mistral_base, mistral | fr | l' | `'l'` | 1056 | 36 | 198 |
+| sabia_base, sabia | it | l' | `'l'` | 1002 | 96 | 198 |
+| sabia_base, sabia | it | un' | `'un'` | 1002 | 96 | 198 |
+| sabia_base, sabia | fr | l' | `'l'` | 1008 | 84 | 198 |
 
 ## Prompt types per fact
 

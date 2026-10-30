@@ -28,14 +28,14 @@ class Extractor:
     def __init__(self, facts: Dict, behavioral, languages: List[str]):
         self.facts = facts
         # (fato, idioma) -> {candidato: (padrão sem caixa, padrão com caixa)}
-        # Formas case_sensitive (ex.: "Bell") só contam com a caixa exata;
+        # Formas case_sensitive (ex.: "Bell"; "Lumière" só em fr) só contam com a caixa exata;
         # acentos continuam ignorados nas duas
         self.cand = {}
         for k, f in facts.items():
             for l in languages:
                 pats = {}
                 for c in f.candidates:
-                    exact = set(behavioral.case_sensitive_for(k, c.id))
+                    exact = set(behavioral.case_sensitive_for(k, c.id, l))
                     forms = behavioral.forms_for(k, c.id, l)
                     pats[c.id] = (compile_terms([x for x in forms if x not in exact]),
                                   compile_terms([x for x in forms if x in exact], casefold=False))

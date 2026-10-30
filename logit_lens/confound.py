@@ -22,6 +22,13 @@ para os dois jeitos de tokenizar o apóstrofo (ver elided_words). "un" e
 "un'" começam pelo mesmo token: "un" é forçado e, se o top-1 seguinte
 começa com apóstrofo, a posição é medida de novo na forma elidida.
 
+Título, ligação, marcação (2026-10-30; reports/token_gap_audit.md): se o
+top-1 final é "Sir" (todos os idiomas), "William" (só raios_x), "como"
+(pt) / "come" (it) ou "**", e não é token de algum candidato, a palavra é
+forçada e os candidatos medidos no token seguinte (colados depois de
+"**"); depois de ligação ou "**", um artigo ou título que venha em
+seguida também é forçado. Uma só passada do primeiro token por prompt.
+
 Primeiro token compartilhado entre candidatos (" São" de São Paulo /
 São Petersburgo, "M" de Mendeleev / Meyer): resolvido dentro de toda
 medição, inclusive destas passadas, por LensRunner.measure_words
@@ -41,7 +48,9 @@ from typing import Dict, List, Optional
 from config.loader import BASE_CASE, Forcing, last_word
 from logit_lens.entity_tokens import first_token_after, token_set_kind, word_sets
 
-FORCED_KINDS = ("article", "contraction")
+FORCED_KINDS = ("article", "title", "lead", "format", "contraction")
+# Passadas do primeiro token (top-1 da última camada): no máximo uma por prompt
+FIRST_TOKEN_KINDS = ("article", "title", "lead", "format")
 
 
 def _variants(word: str) -> List[str]:
@@ -108,7 +117,8 @@ class ConfoundTester:
     def run(self, prompt, fact, main: Dict) -> List[Dict]:
         text, sep, add_special = self.runner.prepare(prompt)
         passes = []
-        art = self.article_pass(prompt, fact, main, text, sep, add_special)
+        art = (self.article_pass(prompt, fact, main, text, sep, add_special)
+               or self.lead_pass(prompt, fact, main, text, sep, add_special))
         if art:
             passes.append(art)
         passes += self.contraction_passes(prompt, fact, text, add_special)
@@ -186,6 +196,67 @@ class ConfoundTester:
         if not self._elision_step(prompt, fact, steps, add_special):
             self._plural_step(prompt, fact, steps, add_special, already=word)
         return {"kind": "article", "pass_id": f"article:{word}", "steps": steps}
+
+    # ── Título, palavra de ligação, marcação (2026-10-30) ──
+
+    def _measure(self, text, sep, add_special, fact, prompt, elided=False):
+        words = self._words_nom(fact, prompt)
+        return self.runner.measure_words(text, sep, add_special,
+                                         elided_words(words) if elided else words,
+                                         token_set_kind(prompt.type))
+
+    def _follow(self, prompt, fact, steps, add_special, sep_next):
+        """
+        Depois de uma ligação ("como") ou de "**": se o top-1 seguinte é
+        artigo, plural ou título, força também (artigo: com os passos de
+        elisão / substantivo plural de sempre).
+        """
+        prev = steps[-1]
+        arts = self.forcing.articles.get(prompt.lang, []) + self.forcing.plural_for(prompt.lang, prompt.slot_case)
+        tits = self.forcing.titles_for(prompt.lang, fact.key)
+        word = match_trigger(self.runner.tokenizer, prev["forced_text"], sep_next, add_special,
+                             _top1(prev["result"]), arts + tits)
+        if word is None:
+            return
+        base = prev["forced_text"] + sep_next
+        if is_elided(word):
+            forced = base + word[:-1]
+            res = self._measure(forced, "", add_special, fact, prompt, elided=True)
+        else:
+            forced = base + word
+            res = self._measure(forced, " ", add_special, fact, prompt)
+        steps.append({"step": len(steps) + 1, "forced_text": forced,
+                      "suffix": prev["suffix"] + sep_next + word, "trigger_token": word, "result": res})
+        if word in arts and not is_elided(word):
+            if not self._elision_step(prompt, fact, steps, add_special):
+                self._plural_step(prompt, fact, steps, add_special, already=word)
+
+    def lead_pass(self, prompt, fact, main, text, sep, add_special) -> Optional[Dict]:
+        """
+        Top-1 da última camada é um título ("Sir"; "William" nos raios X),
+        uma palavra de ligação ("como", "come") ou marcação ("**"), e não
+        um token de candidato: força e mede os candidatos depois (sem
+        espaço depois de "**").
+        """
+        top = _top1(main)
+        measured = {i for s in main["token_sets"]["sets"].values() for i in s["ids"]}
+        if top in measured:
+            return None
+        groups = (("title", self.forcing.titles_for(prompt.lang, fact.key), " "),
+                  ("lead", self.forcing.lead_words.get(prompt.lang, []), " "),
+                  ("format", self.forcing.format_tokens, ""))
+        for kind, words, after in groups:
+            word = match_trigger(self.runner.tokenizer, text, sep, add_special, top, words) if words else None
+            if word is not None:
+                break
+        else:
+            return None
+        forced = text + sep + word
+        steps = [{"step": 1, "forced_text": forced, "suffix": sep + word, "trigger_token": word,
+                  "result": self._measure(forced, after, add_special, fact, prompt)}]
+        if kind in ("lead", "format"):
+            self._follow(prompt, fact, steps, add_special, sep_next=after)
+        return {"kind": kind, "pass_id": f"{kind}:{word}", "steps": steps}
 
     # ── Contrações (última palavra é uma preposição listada) ──
 

@@ -19,8 +19,9 @@ Métricas (valores brutos, sem suavização), por prompt × candidato e:
     suppression    P_e(k*) − P_e(final)
     cs_zone        média de CS na zona de decisão (camadas k > L·(1 − z),
                    z = config.decision_zone)
-    article_*      teste do confundidor de artigo, veredito contra o pico
-                   do próprio candidato:
+    article_*      teste do confundidor de artigo (ou título, ligação,
+                   marcação: passada do primeiro token), veredito contra o
+                   pico do próprio candidato:
                      dominant_continuation  P'(dom) > P'(e)  (e não dominante)
                      local_recovers         P'(e) ≥ P_e(k*)
                      suppressed             caso contrário
@@ -29,6 +30,13 @@ Métricas (valores brutos, sem suavização), por prompt × candidato e:
 ΔCS_e(l) = CS_e(l) − CS_e(en), a partir da média sobre paráfrases de
 cada célula (modelo × fato × formato × tipo × conjunto × candidato);
 paráfrase i de um idioma não é tradução da paráfrase i de outro.
+
+Dominante: sempre o de config/facts.yaml no momento da análise
+(apply_config_dominant). A coluna `dominant` gravada por run_lens.py nas
+tabelas brutas é a do momento do run e é ignorada: o dominante pode
+mudar depois dos runs (regra: maioria comportamental em inglês) sem
+rodar GPU de novo, porque todas as probabilidades de todos os
+candidatos já foram medidas.
 
 Saídas (results/metrics/):
     curves.parquet       por camada: P, P_dom, B, CS, CS_adj
@@ -53,6 +61,9 @@ formas de superfície confirmadas):
                             (todas as respostas de todos os modelos; "none"
                             fora do denominador), agregada e por modelo
     behavioral_report.csv   perguntas de config/behavioral.yaml (report)
+    behavioral_noncandidates.csv  descritivo: pessoas não candidatas citadas
+                            nas respostas sem candidato, por fato × modelo ×
+                            idioma, com status real / invented / unclear
     kind = all (greedy + amostras) | greedy | sample
 
 Estatística (Fase 6, analysis/statistics.py):
@@ -83,6 +94,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config.experiment_config import ExperimentConfig
 from logit_lens.store import load_tables
+from logit_lens.confound import FIRST_TOKEN_KINDS
 
 KEYS  = ["model", "lens", "fact", "lang", "format", "prompt_type", "paraphrase", "token_set"]
 GROUP = KEYS + ["candidate"]
@@ -200,7 +212,8 @@ def confound(forced: pd.DataFrame, M: pd.DataFrame) -> pd.DataFrame:
 def add_article_verdict(M: pd.DataFrame, conf: pd.DataFrame) -> pd.DataFrame:
     M = M.copy()
     if len(conf):
-        a = conf[conf["forced_kind"] == "article"][GROUP + [
+        # Passada do primeiro token: artigo, título, ligação ou marcação (uma por prompt)
+        a = conf[conf["forced_kind"].isin(FIRST_TOKEN_KINDS)][GROUP + [
             "trigger_token", "p_forced", "p_forced_dom", "verdict"]].rename(columns={
                 "trigger_token": "article_trigger", "p_forced": "article_p_forced",
                 "p_forced_dom": "article_p_forced_dom", "verdict": "article_verdict"})
@@ -412,6 +425,46 @@ def behavioral_report(ment: pd.DataFrame, b) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+NOBODY_LISTED = "(nobody listed)"
+
+
+def noncandidate_table(answers: pd.DataFrame, attr: pd.DataFrame, b) -> pd.DataFrame:
+    """
+    Descritivo: pessoas não candidatas (config/behavioral.yaml
+    non_candidates) citadas nas respostas em que nenhum candidato aparece,
+    por fato × modelo × idioma. Uma resposta conta uma vez por pessoa; a
+    linha NOBODY_LISTED conta as respostas sem candidato e sem pessoa da
+    lista (ex.: "não há um único inventor"). status: real | invented |
+    unclear. Não entra em nenhuma métrica.
+    """
+    from data.text_matching import compile_terms, normalize_text
+    key = ["model", "fact", "lang", "paraphrase", "sample_id", "kind"]
+    cols = ["fact", "model", "lang", "person", "label", "status", "n_answers",
+            "n_no_candidate", "n_answers_cell", "share_of_no_candidate"]
+    if answers is None or not len(answers) or not len(attr):
+        return pd.DataFrame(columns=cols)
+    J = answers[key + ["text"]].merge(attr[key + ["primary"]], on=key)
+    cell = J.groupby(["fact", "model", "lang"]).size().rename("n_answers_cell")
+    N = J[J["primary"] == "none"]
+    none_cell = N.groupby(["fact", "model", "lang"]).size().rename("n_no_candidate")
+    pats = {f: [(x["id"], x["label"], x["status"], compile_terms(x["forms"])) for x in people]
+            for f, people in b.non_candidates.items()}
+    rows = []
+    for r in N.itertuples(index=False):
+        norm = normalize_text(r.text or "")
+        hit = [(pid, lab, st) for pid, lab, st, pat in pats.get(r.fact, []) if pat is not None and pat.search(norm)]
+        for pid, lab, st in hit or [(NOBODY_LISTED, NOBODY_LISTED, None)]:
+            rows.append({"fact": r.fact, "model": r.model, "lang": r.lang, "person": pid, "label": lab, "status": st})
+    if not rows:
+        return pd.DataFrame(columns=cols)
+    T = (pd.DataFrame(rows).groupby(["fact", "model", "lang", "person", "label", "status"], dropna=False)
+         .size().rename("n_answers").reset_index())
+    T = T.join(none_cell, on=["fact", "model", "lang"]).join(cell, on=["fact", "model", "lang"])
+    T["share_of_no_candidate"] = T["n_answers"] / T["n_no_candidate"]
+    return T.sort_values(["fact", "model", "lang", "n_answers"], ascending=[True, True, True, False])[cols] \
+            .reset_index(drop=True)
+
+
 def compute_behavioral(answers: pd.DataFrame, config: ExperimentConfig, b=None) -> Dict[str, pd.DataFrame]:
     """Extração e taxas. Recusa (UnconfirmedError) sem as formas de superfície confirmadas."""
     from behavior.extraction import Extractor
@@ -426,7 +479,8 @@ def compute_behavioral(answers: pd.DataFrame, config: ExperimentConfig, b=None) 
             "behavioral_rates": behavioral_rates(ment), "behavioral_none": none_rates(attr),
             "indicator_rates": indicator_rates(ind, attr) if len(ind) else pd.DataFrame(),
             "empirical_dominant": empirical_dominant(attr, config),
-            "behavioral_report": behavioral_report(ment, b)}
+            "behavioral_report": behavioral_report(ment, b),
+            "behavioral_noncandidates": noncandidate_table(answers, attr, b)}
 
 
 def load_answers(results_dir: str):
@@ -438,7 +492,35 @@ def load_answers(results_dir: str):
 # Pipeline
 # ══════════════════════════════════════════════════════════════
 
+DOMINANT_TABLES = ("probs", "baseline", "forced")
+
+
+def apply_config_dominant(tables: Dict[str, pd.DataFrame], config: ExperimentConfig,
+                          log=print) -> Dict[str, pd.DataFrame]:
+    """
+    Cópia das tabelas com a coluna `dominant` refeita a partir de
+    config/facts.yaml (os brutos em disco não mudam). Avisa os fatos em
+    que o dominante gravado no run difere do atual.
+    """
+    dom = {k: f.dominant.id for k, f in config.fact_specs.items()}
+    out, changed = dict(tables), set()
+    for name in DOMINANT_TABLES:
+        t = tables.get(name)
+        if t is None or not len(t) or "candidate" not in t.columns:
+            continue
+        new = t["candidate"].eq(t["fact"].map(dom)).to_numpy()
+        if "dominant" in t.columns:
+            diff = new != t["dominant"].astype(bool).to_numpy()
+            changed |= set(t.loc[diff, "fact"].unique())
+        out[name] = t.assign(dominant=new)
+    for fact in sorted(changed):
+        log(f"  dominante de {fact}: {dom[fact]} (config/facts.yaml), diferente do gravado no run; "
+            f"análise usa o do config")
+    return out
+
+
 def compute_all(tables: Dict[str, pd.DataFrame], config: ExperimentConfig) -> Dict[str, pd.DataFrame]:
+    tables = apply_config_dominant(tables, config)
     if "probs" not in tables:
         raise FileNotFoundError("sem probs.parquet em results/lens/*/ (rode run_lens.py)")
     C    = curves(tables["probs"], tables.get("baseline"))
@@ -490,7 +572,7 @@ def main(argv=None):
         df.to_parquet(out / f"{name}.parquet", index=False)
         print(f"  OK  {out / name}.parquet  ({len(df)} linhas)")
     for name in ("metrics", "delta_cs", "lens_agreement_summary", "behavioral_rates",
-                 "empirical_dominant", "behavioral_report", "stats_stake_tests",
+                 "empirical_dominant", "behavioral_report", "behavioral_noncandidates", "stats_stake_tests",
                  "stats_mixed_coefs", "stats_mixed_fits", "internal_behavioral"):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)

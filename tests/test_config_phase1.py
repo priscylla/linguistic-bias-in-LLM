@@ -57,12 +57,13 @@ def test_dominant_candidates():
     dom = {k: f.dominant.id for k, f in FACTS.items()}
     assert dom == {"aviao": "wright", "telefone": "bell", "radio": "marconi",
                    "cinema": "lumiere", "calculo": "newton",
-                   "fotografia": "daguerre", "tabela_periodica": "mendeleev",
+                   "fotografia": "niepce", "tabela_periodica": "mendeleev",   # niepce: maioria em en (2026-10-30)
                    "penicilina": "fleming", "dinamite": "nobel",
                    "www": "berners_lee", "raios_x": "rontgen"}
     assert [c.id for c in FACTS["fotografia"].candidates] == \
         ["daguerre", "niepce", "talbot", "florence"]
-    assert all(f.empirical_dominant is None for f in FACTS.values())
+    # Preenchido depois dos runs (fill_empirical_dominant.py): igual ao dominante em todos
+    assert {k: f.empirical_dominant for k, f in FACTS.items()} == dom
 
 
 def test_stakes():

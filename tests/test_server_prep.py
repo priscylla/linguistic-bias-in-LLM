@@ -241,6 +241,7 @@ def _tree(root: Path):
         "lenses/llama/checkpoint.pt": "C",
         "lenses/llama/TRAINING.lock": "L",
         "config/models.yaml": "não vai",
+        "results/lens/logit_lens/llama/chunks_stale/20261030T000000Z/aviao__pt/probs.parquet": "velho",
     }
     for rel, text in files.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -360,3 +361,60 @@ def test_tuned_lens_full_precision_settings():
     from config.loader import load_tuned_lens
     t = load_tuned_lens()["training"]
     assert t["translator_dtype"] == "float32" and t["seq_len"] == 2048
+
+
+# ══════════════════════════════════════════════════════════════
+# Dominante vem do config na análise (fotografia: Niépce, 2026-10-30)
+# ══════════════════════════════════════════════════════════════
+
+def test_fotografia_dominant_is_niepce():
+    from config.experiment_config import ExperimentConfig
+    f = ExperimentConfig().fact_specs["fotografia"]
+    assert f.dominant.id == "niepce" and f.empirical_dominant == "niepce"
+    assert "daguerre" in [c.id for c in f.alternatives]
+
+
+def test_analysis_takes_dominant_from_config_not_run():
+    import pandas as pd
+    import analyze
+    from config.experiment_config import ExperimentConfig
+    cfg = ExperimentConfig()
+    raw = pd.DataFrame({"fact": ["fotografia"] * 3 + ["aviao"] * 2,
+                        "candidate": ["daguerre", "niepce", "talbot", "wright", "santos_dumont"],
+                        "dominant": [True, False, False, True, False],       # como gravado no run
+                        "prob": [.1, .2, .3, .4, .5]})
+    logs = []
+    out = analyze.apply_config_dominant({"probs": raw, "forced": raw.copy()}, cfg, log=logs.append)
+    assert out["probs"]["dominant"].tolist() == [False, True, False, True, False]
+    assert out["forced"]["dominant"].tolist() == [False, True, False, True, False]
+    assert raw["dominant"].tolist() == [True, False, False, True, False]     # brutos intocados
+    assert len(logs) == 1 and "fotografia" in logs[0] and "niepce" in logs[0]
+
+
+def test_cache_first_then_hub():
+    """Modelo e tokenizer: cache local primeiro; Hub só se faltar no cache."""
+    calls = []
+
+    def load(repo, **kw):
+        calls.append(kw.get("local_files_only", False))
+        if kw.get("local_files_only") and repo == "not/cached":
+            raise OSError("not in cache")
+        return repo
+    assert model_loader._cache_first(load, "cached/model", revision="x") == "cached/model"
+    assert calls == [True]                                   # nenhuma chamada ao Hub
+    calls.clear()
+    assert model_loader._cache_first(load, "not/cached", revision="x") == "not/cached"
+    assert calls == [True, False]
+
+
+def test_train_tuned_lens_exits_directly():
+    """Como run_lens.py e run_behavioral.py: os._exit depois de main()."""
+    for script in ("train_tuned_lens.py", "run_lens.py", "run_behavioral.py"):
+        tail = Path(script).read_text().split('if __name__ == "__main__":')[-1]
+        assert "sys.stdout.flush()" in tail and "os._exit(rc or 0)" in tail, script
+
+
+def test_run_all_server_executable_and_tests_on_cpu():
+    p = Path("run_all_server.sh")
+    assert os.access(p, os.X_OK)
+    assert "CUDA_VISIBLE_DEVICES= python -m pytest" in p.read_text()

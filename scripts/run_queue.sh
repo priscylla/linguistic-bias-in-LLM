@@ -15,6 +15,13 @@
 #   [gpu=3]        só o worker com exatamente essas GPUs ("3", "1,2") roda o job
 #   [after=ARQ]    espera ARQ existir (ex.: o fim de outro job, de outra fila)
 #   [mem=60]       espera cada GPU do worker ter >= 60 GB livres (nvidia-smi)
+#   [timeout=90m]  tempo máximo do job (s, m ou h; ex.: 3600, 30m, 2h). Esgotado,
+#                  o job e todos os processos dele recebem SIGTERM e, depois de
+#                  $QUEUE_KILL_GRACE s (padrão 30), SIGKILL; o job conta como
+#                  falha (código 124) e a fila segue. Sem a tag vale
+#                  $QUEUE_TIMEOUT (padrão: sem limite). Útil contra processo
+#                  que termina o trabalho mas não sai (ex.: trava no fim do
+#                  CUDA): rodar de novo é seguro, unidades feitas são puladas.
 # Ex.: [gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] python run_lens.py ...
 # Um job que ainda não pode rodar não trava a fila: o worker pega o
 # próximo e volta a ele depois (a cada $QUEUE_POLL s, padrão 30).
@@ -34,6 +41,8 @@ fi
 JOBS_FILE=$1
 GPUS=$2
 POLL=${QUEUE_POLL:-30}
+GRACE=${QUEUE_KILL_GRACE:-30}
+DEFAULT_TIMEOUT=${QUEUE_TIMEOUT:-}
 [ -f "$JOBS_FILE" ] || { echo "arquivo de jobs não encontrado: $JOBS_FILE" >&2; exit 2; }
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
@@ -48,18 +57,70 @@ N=$(wc -l < "$STATE/jobs" | tr -d ' ')
 RE='^\[([a-z]+)=([^]]*)\][[:space:]]*(.*)$'
 parse() {
   local rest=$1
-  J_GPU=""; J_AFTER=""; J_MEM=""; J_ERR=""
+  J_GPU=""; J_AFTER=""; J_MEM=""; J_ERR=""; J_TIMEOUT=$DEFAULT_TIMEOUT
   while [[ $rest =~ $RE ]]; do
     case "${BASH_REMATCH[1]}" in
       gpu)   J_GPU=${BASH_REMATCH[2]} ;;
       after) J_AFTER="$J_AFTER${BASH_REMATCH[2]}"$'\n' ;;
       mem)   J_MEM=${BASH_REMATCH[2]} ;;
+      timeout) J_TIMEOUT=${BASH_REMATCH[2]} ;;
       *)     J_ERR="condição desconhecida [${BASH_REMATCH[1]}=...]" ;;
     esac
     rest=${BASH_REMATCH[3]}
   done
   J_CMD=$rest
   if [ -n "$J_MEM" ] && ! [[ $J_MEM =~ ^[0-9]+$ ]]; then J_ERR="[mem=$J_MEM] não é um número de GB"; fi
+  J_SECS=""
+  if [ -n "$J_TIMEOUT" ]; then
+    J_SECS=$(to_secs "$J_TIMEOUT") || J_ERR="[timeout=$J_TIMEOUT] inválido (use 3600, 30m ou 2h)"
+  fi
+}
+
+# "90m" -> 5400; "2h" -> 7200; "45s"/"45" -> 45
+to_secs() {
+  local v=$1 n
+  if [[ $v =~ ^([0-9]+)([smh]?)$ ]]; then
+    n=${BASH_REMATCH[1]}
+    case "${BASH_REMATCH[2]}" in
+      m) echo $((n * 60)) ;;
+      h) echo $((n * 3600)) ;;
+      *) echo "$n" ;;
+    esac
+    [ "$n" -gt 0 ] && return 0
+  fi
+  return 1
+}
+
+# Roda o job num grupo de processos próprio (o kill alcança os filhos) e,
+# com limite, mata o grupo quando o tempo esgota. Devolve o código do job,
+# ou 124 se o tempo esgotou.
+run_job() {
+  local gpu=$1 cmd=$2 log=$3 secs=$4 jp t0 rc
+  set -m
+  ( export CUDA_VISIBLE_DEVICES="$gpu"; exec bash -c "$cmd" ) > "$log" 2>&1 &
+  jp=$!
+  set +m
+  if [ -n "$secs" ]; then
+    t0=$(date +%s)
+    while kill -0 "$jp" 2>/dev/null; do
+      if [ $(( $(date +%s) - t0 )) -ge "$secs" ]; then
+        echo "[run_queue] tempo esgotado (${secs}s): SIGTERM no grupo $jp" >> "$log"
+        kill -TERM -- -"$jp" 2>/dev/null
+        local g=0
+        while kill -0 "$jp" 2>/dev/null && [ "$g" -lt "$GRACE" ]; do sleep 1; g=$((g + 1)); done
+        if kill -0 "$jp" 2>/dev/null; then
+          echo "[run_queue] ainda vivo após ${GRACE}s: SIGKILL" >> "$log"
+          kill -KILL -- -"$jp" 2>/dev/null
+        fi
+        wait "$jp" 2>/dev/null
+        return 124
+      fi
+      sleep "${QUEUE_TIMEOUT_POLL:-5}"
+    done
+  fi
+  wait "$jp" 2>/dev/null
+  rc=$?
+  return $rc
 }
 
 # Validação: condições conhecidas, [gpu=] de um worker existente
@@ -132,12 +193,14 @@ worker() {
     parse "$line"
     log="$STATE/job${n}.log"
     t0=$(date +%s)
-    echo "[gpu $gpu] início job $n: $J_CMD"
-    ( export CUDA_VISIBLE_DEVICES="$gpu"; bash -c "$J_CMD" ) > "$log" 2>&1
+    echo "[gpu $gpu] início job $n: $J_CMD${J_SECS:+  (limite ${J_SECS}s)}"
+    run_job "$gpu" "$J_CMD" "$log" "$J_SECS"
     rc=$?
     printf '%s\t%s\t%s\t%s\t%s\n' "$n" "$rc" "$gpu" "$(( $(date +%s) - t0 ))" "$line" >> "$STATE/status"
     if [ "$rc" -eq 0 ]; then
       echo "[gpu $gpu] ok     job $n ($(( $(date +%s) - t0 ))s)"
+    elif [ "$rc" -eq 124 ]; then
+      echo "[gpu $gpu] TEMPO ESGOTADO job $n (${J_SECS}s; código 124) → $log"
     else
       echo "[gpu $gpu] FALHOU job $n (código $rc) → $log"
     fi

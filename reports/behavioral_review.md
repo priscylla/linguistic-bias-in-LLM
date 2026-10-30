@@ -14,7 +14,7 @@ A candidate is mentioned when any of its forms appears as a whole word, ignoring
 | `radio` | Guglielmo Marconi | Marconi | — |
 | `radio` | Alexander Popov | Popov, Popow, Popoff | — |
 | `radio` | Roberto Landell de Moura | Landell, Landell de Moura | — |
-| `cinema` | Lumière brothers | Lumière, Auguste Lumière, Louis Lumière, frères Lumière | fr: Lumière |
+| `cinema` | Lumière brothers | Lumière *(exact case in fr)*, Auguste Lumière, Louis Lumière, frères Lumière | — |
 | `cinema` | Thomas Edison | Edison | — |
 | `calculo` | Isaac Newton | Newton | — |
 | `calculo` | Gottfried Wilhelm Leibniz | Leibniz, Leibnitz | — |
@@ -22,7 +22,7 @@ A candidate is mentioned when any of its forms appears as a whole word, ignoring
 | `fotografia` | Nicéphore Niépce | Niépce | — |
 | `fotografia` | William Henry Fox Talbot | Talbot, Fox Talbot | — |
 | `fotografia` | Hércules Florence | Florence, Hércules Florence, Hercule Florence | en: Florence<br>fr: Florence |
-| `tabela_periodica` | Dmitri Mendeleev | Mendeleev, Mendeleyev, Mendeleiev, Mendelejew, Mendelejev | — |
+| `tabela_periodica` | Dmitri Mendeleev | Mendeleev, Mendeleyev, Mendeleiev, Mendelejew, Mendelejev, Mendeleyew, Mendeleew, Mendeleews, Mendel'eev, Mendel’eev, Mendel'ev, Mendel’ev, Mendelev | — |
 | `tabela_periodica` | Lothar Meyer | Meyer, Lothar Meyer | — |
 | `penicilina` | Alexander Fleming | Fleming | — |
 | `dinamite` | Alfred Nobel | Nobel | — |

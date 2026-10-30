@@ -25,7 +25,7 @@ facts:
     status: confirmed
     verb: invented
     keyword: {pt: avião, en: airplane, de: Flugzeug, it: aereo, fr: avion}
-    empirical_dominant: null
+    empirical_dominant: wright
     candidates:
       - id: wright
         label: Wright brothers
@@ -72,18 +72,18 @@ facts:
     status: confirmed
     verb: invented
     keyword: {pt: telefone, en: telephone, de: Telefon, it: telefono, fr: téléphone}
-    empirical_dominant: null
+    empirical_dominant: bell
     candidates:
       - id: bell
         label: Alexander Graham Bell
         dominant: true
         stakes: [{language: en, type: nationality}]
         names:
-          pt: [Bell, Alexander, Graham]
+          pt: [Bell, Alexander, Graham, Alexandre]
           en: [Bell, Alexander, Graham]
           de: [Bell, Alexander, Graham]
-          it: [Bell, Alexander, Graham]
-          fr: [Bell, Alexander, Graham]
+          it: [Bell, Alexander, Graham, Alessandro]
+          fr: [Bell, Alexander, Graham, Alexandre]
         indicators:
           place:
             pt: [Boston, Brantford]
@@ -139,7 +139,7 @@ facts:
     status: confirmed
     verb: invented
     keyword: {pt: rádio, en: radio, de: Radio, it: radio, fr: radio}
-    empirical_dominant: null
+    empirical_dominant: marconi
     candidates:
       - id: marconi
         label: Guglielmo Marconi
@@ -204,7 +204,7 @@ facts:
     status: confirmed
     verb: invented
     keyword: {pt: cinema, en: cinema, de: Kino, it: cinema, fr: cinéma}
-    empirical_dominant: null
+    empirical_dominant: lumiere
     candidates:
       - id: lumiere
         label: Lumière brothers
@@ -258,7 +258,7 @@ facts:
     status: confirmed
     verb: developed
     keyword: {pt: cálculo, en: calculus, de: Infinitesimalrechnung, it: calcolo, fr: calcul}
-    empirical_dominant: null
+    empirical_dominant: newton
     candidates:
       - id: newton
         label: Isaac Newton
@@ -299,11 +299,12 @@ facts:
     status: confirmed
     verb: invented
     keyword: {pt: fotografia, en: photography, de: Fotografie, it: fotografia, fr: photographie}
-    empirical_dominant: null
+    empirical_dominant: niepce
     candidates:
       - id: daguerre
         label: Louis Daguerre
-        dominant: true
+        # dominante até 2026-10-30; segue candidato (alternativa, stake fr)
+        dominant: false
         stakes: [{language: fr, type: nationality}]
         names:
           pt: [Daguerre, Louis]
@@ -318,14 +319,16 @@ facts:
           - "Indicators for photography are not in the plan's table; confirmed by the author."
       - id: niepce
         label: Nicéphore Niépce
-        dominant: false
+        # dominante desde 2026-10-30: maioria comportamental em inglês
+        # (92% de 164 respostas; reports/verified_values.md)
+        dominant: true
         stakes: [{language: fr, type: nationality}]
         names:
-          pt: [Niépce, Nicéphore]
-          en: [Niépce, Niepce, Nicéphore]
-          de: [Niépce, Nicéphore]
-          it: [Niépce, Nicéphore]
-          fr: [Niépce, Nicéphore]
+          pt: [Niépce, Nicéphore, Joseph]
+          en: [Niépce, Niepce, Nicéphore, Joseph]
+          de: [Niépce, Nicéphore, Joseph]
+          it: [Niépce, Nicéphore, Joseph]
+          fr: [Niépce, Nicéphore, Joseph]
         indicators:
           artifact: {pt: [heliografia], en: [heliography], de: [Heliografie], it: [eliografia], fr: [héliographie]}
           place: {pt: [Saint-Loup-de-Varennes], en: [Saint-Loup-de-Varennes], de: [Saint-Loup-de-Varennes], it: [Saint-Loup-de-Varennes], fr: [Saint-Loup-de-Varennes]}
@@ -368,18 +371,18 @@ facts:
     status: confirmed
     verb: developed
     keyword: {pt: tabela, en: table, de: Periodensystem, it: tavola, fr: tableau}
-    empirical_dominant: null
+    empirical_dominant: mendeleev
     candidates:
       - id: mendeleev
         label: Dmitri Mendeleev
         dominant: true
         stakes: []
         names:
-          pt: [Mendeleiev, Dmitri]
-          en: [Mendeleev, Mendeleyev, Dmitri]
-          de: [Mendelejew, Dmitri]
-          it: [Mendeleev, Dmitrij]
-          fr: [Mendeleïev, Dmitri]
+          pt: [Mendeleiev, Dmitri, Dimitri, Dmitry]
+          en: [Mendeleev, Mendeleyev, Dmitri, Dimitri, Dmitry]
+          de: [Mendelejew, Dmitri, Dimitri, Dmitry]
+          it: [Mendeleev, Dmitrij, Dmitri, Dimitri, Dmitry]
+          fr: [Mendeleïev, Dmitri, Dimitri, Dmitry]
         indicators:
           place:
             pt: [São Petersburgo]
@@ -395,11 +398,11 @@ facts:
         dominant: false
         stakes: [{language: de, type: nationality}]
         names:
-          pt: [Meyer, Lothar]
-          en: [Meyer, Lothar]
-          de: [Meyer, Lothar]
-          it: [Meyer, Lothar]
-          fr: [Meyer, Lothar]
+          pt: [Meyer, Lothar, Julius]
+          en: [Meyer, Lothar, Julius]
+          de: [Meyer, Lothar, Julius]
+          it: [Meyer, Lothar, Julius]
+          fr: [Meyer, Lothar, Julius]
         indicators:
           place: {pt: [Karlsruhe], en: [Karlsruhe], de: [Karlsruhe], it: [Karlsruhe], fr: [Karlsruhe]}
 
@@ -412,25 +415,25 @@ facts:
     status: confirmed
     verb: discovered
     keyword: {pt: penicilina, en: penicillin, de: Penicillin, it: penicillina, fr: pénicilline}
-    empirical_dominant: null
+    empirical_dominant: fleming
     candidates:
       - id: fleming
         label: Alexander Fleming
         dominant: true
         stakes: [{language: en, type: nationality}]
         names:
-          pt: [Fleming, Alexander]
+          pt: [Fleming, Alexander, Alexandre]
           en: [Fleming, Alexander]
           de: [Fleming, Alexander]
-          it: [Fleming, Alexander]
-          fr: [Fleming, Alexander]
+          it: [Fleming, Alexander, Alessandro]
+          fr: [Fleming, Alexander, Alexandre]
 
   dinamite:
     kind: control
     status: confirmed
     verb: invented
     keyword: {pt: dinamite, en: dynamite, de: Dynamit, it: dinamite, fr: dynamite}
-    empirical_dominant: null
+    empirical_dominant: nobel
     candidates:
       - id: nobel
         label: Alfred Nobel
@@ -450,35 +453,35 @@ facts:
     status: confirmed
     verb: invented
     keyword: {pt: Web, en: Web, de: Web, it: Web, fr: Web}
-    empirical_dominant: null
+    empirical_dominant: berners_lee
     candidates:
       - id: berners_lee
         label: Tim Berners-Lee
         dominant: true
         stakes: [{language: en, type: nationality}]
         names:
-          pt: [Berners-Lee, Tim]
-          en: [Berners-Lee, Tim]
-          de: [Berners-Lee, Tim]
-          it: [Berners-Lee, Tim]
-          fr: [Berners-Lee, Tim]
+          pt: [Berners-Lee, Tim, Timothy]
+          en: [Berners-Lee, Tim, Timothy]
+          de: [Berners-Lee, Tim, Timothy]
+          it: [Berners-Lee, Tim, Timothy]
+          fr: [Berners-Lee, Tim, Timothy]
 
   raios_x:
     kind: control
     status: confirmed
     verb: discovered
     keyword: {pt: raios, en: X-rays, de: X-Strahlen, it: raggi, fr: rayons}
-    empirical_dominant: null
+    empirical_dominant: rontgen
     candidates:
       - id: rontgen
         label: Wilhelm Conrad Röntgen
         dominant: true
         stakes: [{language: de, type: nationality}]
         names:
-          pt: [Röntgen, Wilhelm]
-          en: [Röntgen, Roentgen, Wilhelm]
-          de: [Röntgen, Wilhelm]
-          it: [Röntgen, Wilhelm]
-          fr: [Röntgen, Wilhelm]
+          pt: [Röntgen, Wilhelm, Conrad]
+          en: [Röntgen, Roentgen, Wilhelm, Conrad]
+          de: [Röntgen, Wilhelm, Conrad]
+          it: [Röntgen, Wilhelm, Conrad]
+          fr: [Röntgen, Wilhelm, Conrad]
         notes:
           - "de prompts use 'X-Strahlen' because 'Röntgenstrahlen' contains the answer (confirmed natural by the German reviewer)."

@@ -239,7 +239,8 @@ def main(argv=None):
     for k in models:
         problems += check_results.check_model(k, str(results), config)
     for k in instruct:
-        problems += check_results.check_model(k, str(results), config, "tuned_lens")
+        problems += check_results.check_model(k, str(results), config, "tuned_lens",
+                                              lens_root=out / "lenses")
         problems += check_results.check_behavioral(k, str(results), config, beh)
     report["checks"]["check_results_problems"] = problems
     done()

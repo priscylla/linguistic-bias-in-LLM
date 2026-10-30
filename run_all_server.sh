@@ -79,7 +79,8 @@ if [ "$FROM" -le 0 ]; then
     die "sem token do Hugging Face: rode 'hf auth login' ou 'export HF_TOKEN=hf_...' e tente de novo"
   fi
   run python scripts/check_env.py
-  run python -m pytest -q
+  # Testes só na CPU: não disputam memória com jobs nas GPUs
+  run env CUDA_VISIBLE_DEVICES= python -m pytest -q
   run python run_pipeline_dry.py
   run python verify_setup.py
 fi

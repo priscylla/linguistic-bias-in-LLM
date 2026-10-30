@@ -22,6 +22,7 @@ A extração (candidatos, indicadores) é feita por analyze.py.
 """
 
 import argparse
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -124,4 +125,10 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Sai direto depois de gravar tudo: a finalização do interpretador
+    # (threads, CUDA) já travou um job por 15 h depois de terminar o
+    # trabalho (2026-10-29). Todos os arquivos estão fechados aqui.
+    rc = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(rc or 0)

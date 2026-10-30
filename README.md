@@ -27,7 +27,7 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 hf auth login                            # or export HF_TOKEN="hf_..."; gated: Llama 3.1, Gemma 2 (accept the licenses first)
 python scripts/check_env.py              # Python, packages, GPUs (memory, bf16), disk, HF access; must show 0 FAIL
-pytest                                   # 339 tests, CPU, tiny random models, no downloads
+pytest                                   # 389 tests, CPU, tiny random models, no downloads
 python run_pipeline_dry.py               # whole pipeline on tiny models (CPU, ~2–3 min)
 python verify_setup.py                   # tokenizers only: prompts, name tokenization
 
@@ -73,6 +73,7 @@ When candidates of the same fact share a first token, the shared token is forced
 | `--lens logit\|tuned` | `run_lens.py` | Logit Lens or the trained Tuned Lens |
 | `--sanity-only` | `run_lens.py` | only the sanity check |
 | `--consolidate-only` | `run_lens.py`, `run_behavioral.py` | rebuild the tables from finished checkpoints |
+| `--facts a,b` | `run_lens.py` | only these facts (plus the neutral baseline units when they are out of date). Every unit stores a fingerprint of its inputs (names, indicators, prompts, forcing words, lens); a unit measured with other inputs is redone, never resumed, and the old one is moved to `chunks_stale/`. Units made before 2026-10-30 get their fingerprint once with `scripts/stamp_fingerprints.py --config-ref fa31f65` |
 | `--max-steps N`, `--eval-only`, `--force` | `train_tuned_lens.py` | short session (resumes later), evaluation only, retrain a finished lens |
 
 `train_tuned_lens.py` skips a model that already has a finished lens, or a pretrained one declared in `config/tuned_lens.yaml` (none exists for these checkpoints).
@@ -83,6 +84,7 @@ When candidates of the same fact share a first token, the shared token is forced
 - `[gpu=3]` pins the job to one worker;
 - `[after=FILE]` waits until FILE exists;
 - `[mem=60]` waits for 60 GB free on the worker's GPUs.
+- `[timeout=45m]` limits the job's run time (`s`, `m` or `h`; default `$QUEUE_TIMEOUT`). When the limit is hit, the job and all its processes are killed and it counts as failed (code 124).
 
 A waiting job doesn't block the others. GPU numbers follow `nvidia-smi` (`CUDA_DEVICE_ORDER=PCI_BUS_ID`). `RUNNING_server.md` uses the tags to run Tuned Lens training and everything else at the same time on the same GPUs.
 

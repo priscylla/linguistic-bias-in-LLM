@@ -42,6 +42,8 @@ reports/*.log
 dry_run/
 packs/
 reports/check_env.json
+# gerado por verify_setup.py (local)
+verification_report.json
 
 # Pesos de modelos e checkpoints (nunca versionar)
 *.safetensors

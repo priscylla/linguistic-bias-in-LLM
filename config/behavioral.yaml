@@ -67,8 +67,10 @@ surface_forms:
   cinema:
     lumiere:
       latin: [Lumière, Auguste Lumière, Louis Lumière, frères Lumière]
-      exclude:
-        fr: [Lumière]         # "lumière" = luz
+      # Em fr "lumière" = luz: "Lumière" só conta com L maiúsculo (como "Bell").
+      # Antes era excluído em fr (2026-10-30, reports/behavioral_extraction_audit.md)
+      case_sensitive:
+        fr: [Lumière]
     edison_cinema:
       latin: [Edison]
   calculo:
@@ -90,7 +92,10 @@ surface_forms:
         fr: [Florence]
   tabela_periodica:
     mendeleev:
-      latin: [Mendeleev, Mendeleyev, Mendeleiev, Mendelejew, Mendelejev]
+      # Mendeleyew (24 respostas em de) e as grafias seguintes: 2026-10-30
+      # (reports/behavioral_extraction_audit.md)
+      latin: [Mendeleev, Mendeleyev, Mendeleiev, Mendelejew, Mendelejev, Mendeleyew,
+              Mendeleew, Mendeleews, "Mendel'eev", "Mendel’eev", "Mendel'ev", "Mendel’ev", Mendelev]
     meyer:
       latin: [Meyer, Lothar Meyer]
   penicilina:
@@ -105,3 +110,118 @@ surface_forms:
   raios_x:
     rontgen:
       latin: [Röntgen, Roentgen]
+
+# ── Pessoas não candidatas (descritivo; 2026-10-30) ──
+# Citadas nas respostas em que nenhum candidato aparece
+# (reports/behavioral_extraction_audit.md). NÃO são candidatos: só
+# alimentam a tabela descritiva behavioral_noncandidates (analyze.py).
+# status: real (existe, mesmo se a atribuição é errada) | invented (não
+# corresponde a uma pessoa real) | unclear (nome deturpado ou não
+# verificável). Classificação da revisão de 2026-10-30, a conferir.
+# Formas: mesmas regras das formas de superfície (fronteira de palavra,
+# sem caixa e sem acento).
+non_candidates:
+  aviao:
+    - {id: lilienthal, label: Otto Lilienthal, status: real, forms: [Lilienthal]}
+    - {id: ader, label: Clément Ader, status: real, forms: [Clément Ader, Ader]}
+    - {id: cayley, label: George Cayley, status: real, forms: [Cayley]}
+    - {id: chanute, label: Octave Chanute, status: real, forms: [Chanute]}
+    - {id: da_vinci, label: Leonardo da Vinci, status: real, forms: [Leonardo da Vinci, da Vinci, Léonard de Vinci]}
+    - {id: langley, label: Samuel Pierpont Langley, status: real, forms: [Langley]}
+    - {id: whitehead, label: Gustave Whitehead, status: real, forms: [Gustave Whitehead, Whitehead]}
+    - {id: maxim, label: Hiram Maxim, status: real, forms: [Hiram Maxim]}
+    - {id: montgolfier, label: Montgolfier brothers, status: real, forms: [Montgolfier]}
+    - {id: stringfellow, label: John Stringfellow, status: real, forms: [Stringfellow]}
+    - {id: bleriot, label: Louis Blériot, status: real, forms: [Blériot]}
+    - {id: congreve, label: William Congreve, status: real, forms: [Congreve]}
+    - {id: eilmer, label: Eilmer of Malmesbury, status: real, forms: [Eilmer]}
+    - {id: buzjani, label: Abu al-Wafa' Buzjani, status: real, forms: [Buzjani], note: "mathematician, not aviation"}
+    - {id: karl_gunter, label: "Karl Günter (as alias of Whitehead)", status: unclear, forms: [Karl Günter]}
+    - {id: rochechouart, label: Léonard de Rochechouart, status: unclear, forms: [Rochechouart]}
+    - {id: claude_denis, label: "Claude-Denis Chastain / Rozier / Chastellux", status: invented, forms: [Claude-Denis], note: "garbled; Pilâtre de Rozier is real"}
+  calculo:
+    - {id: cavalieri, label: Bonaventura Cavalieri, status: real, forms: [Cavalieri]}
+    - {id: fermat, label: Pierre de Fermat, status: real, forms: [Fermat]}
+    - {id: archimedes, label: Archimedes, status: real, forms: [Archimedes, Archimède, Archimede, Arquimedes]}
+    - {id: kepler, label: Johannes Kepler, status: real, forms: [Kepler]}
+    - {id: mengoli, label: Pietro Mengoli, status: real, forms: [Mengoli]}
+    - {id: pascal, label: Blaise Pascal, status: real, forms: [Blaise Pascal]}
+    - {id: wallis, label: John Wallis, status: real, forms: [Wallis]}
+    - {id: stevin, label: Simon Stevin, status: real, forms: [Stevin]}
+    - {id: euler, label: Leonhard Euler, status: real, forms: [Euler]}
+    - {id: gregory, label: James Gregory, status: real, forms: [James Gregory]}
+    - {id: maurolico, label: Francesco Maurolico, status: real, forms: [Maurolico]}
+    - {id: spinoza, label: Baruch Spinoza, status: real, forms: [Baruch Sp, Spinoza]}
+    - {id: euclid_megara, label: Euclid of Megara, status: real, forms: [Euclides Megarensis]}
+    - {id: lewis, label: Gilbert N. Lewis, status: real, forms: [Gilbert N. Lewis], note: "chemist, unrelated"}
+    - {id: calandrelli, label: Giovanni Bonaventura Calandrelli, status: unclear, forms: [Calandrelli]}
+    - {id: ceva, label: Gianfrancesco Ceva, status: unclear, forms: [Gianfrancesco Ceva]}
+    - {id: pieroni_bonaventura, label: Pieroni Bonaventura, status: invented, forms: [Pieroni Bonaventura], note: "garbled Cavalieri"}
+    - {id: bonaventura_pascal, label: Bonaventura Pascal, status: invented, forms: [Bonaventura Pascal], note: "mix of Cavalieri and Pascal"}
+  cinema:
+    - {id: muybridge, label: Eadweard Muybridge, status: real, forms: [Muybridge]}
+    - {id: le_prince, label: Louis Le Prince, status: real, forms: [Louis Le Prince, Le Prince]}
+    - {id: marey, label: Étienne-Jules Marey, status: real, forms: [Marey]}
+    - {id: plateau, label: Joseph Plateau, status: real, forms: [Joseph Plateau]}
+    - {id: daguerre_c, label: Louis Daguerre, status: real, forms: [Daguerre], note: "photography"}
+    - {id: niepce_c, label: Nicéphore Niépce, status: real, forms: [Niépce], note: "photography"}
+    - {id: reynaud, label: Émile Reynaud, status: real, forms: [Reynaud]}
+    - {id: melies, label: Georges Méliès, status: real, forms: [Méliès]}
+    - {id: friese_greene, label: William Friese-Greene, status: real, forms: [Friese-Greene]}
+    - {id: talbot_c, label: William Henry Fox Talbot, status: real, forms: [Fox Talbot, William Talbot], note: "photography"}
+    - {id: dickson, label: William Kennedy Laurie Dickson, status: real, forms: [Dickson]}
+    - {id: heise, label: William Heise, status: real, forms: [William Heise]}
+    - {id: stanford, label: Leland Stanford, status: real, forms: [Leland Stanford]}
+    - {id: skladanowsky, label: Max Skladanowsky, status: real, forms: [Skladanowsky]}
+    - {id: bouly, label: Léon Bouly, status: real, forms: [Bouly]}
+    - {id: stampfer, label: Simon Stampfer, status: real, forms: [Stampfer]}
+    - {id: arago, label: François Arago, status: real, forms: [Arago]}
+    - {id: duboscq, label: Louis-Jules Duboscq, status: real, forms: [Duboscq]}
+    - {id: huygens, label: Christiaan Huygens, status: real, forms: [Huygens]}
+    - {id: oddi, label: Muzio Oddi, status: real, forms: [Muzio Oddi]}
+    - {id: whitley_hartley, label: "Roundhay Garden Scene people (Whitley, Hartley)", status: real, forms: [Whitley, Harriet Hartley]}
+    - {id: dupont, label: Ewald Dupont, status: real, forms: [Ewald Dupont], note: "film director E. A. Dupont, misattributed"}
+    - {id: auguste_le_prince, label: Auguste Le Prince, status: unclear, forms: [Auguste Le Prince]}
+    - {id: arnaud, label: Francis Arnaud, status: unclear, forms: [Francis Arnaud]}
+    - {id: rodrigues, label: Augusto Rodrigues, status: unclear, forms: [Augusto Rodrigues]}
+    - {id: glockenthanner, label: Egidius Glockenthanner, status: invented, forms: [Glockenthanner]}
+    - {id: eiese, label: Eiese, status: invented, forms: [Eiese]}
+  dinamite:
+    - {id: wilbrand, label: Julius Wilbrand, status: real, forms: [Wilbrand], note: "TNT"}
+    - {id: arrhenius, label: Svante Arrhenius, status: real, forms: [Arrhenius]}
+    - {id: lundstrom, label: Johan Edvard Lundström, status: real, forms: [Lundström]}
+    - {id: sundt, label: Eilert Sundt, status: real, forms: [Eilert Sundt], note: "sociologist, misattributed"}
+    - {id: sobrero, label: Ascanio Sobrero, status: real, forms: [Sobrero]}
+    - {id: ehrenborg, label: Gustav Ehrenborg, status: unclear, forms: [Ehrenborg]}
+    - {id: friedel_camille, label: Camille Alphonse Friedel, status: unclear, forms: [Camille Alphonse Friedel], note: "Charles Friedel is real"}
+    - {id: einar_anker, label: Einar Anker, status: invented, forms: [Einar Anker]}
+    - {id: einar_palme, label: Einar Gustaf Emil Palme, status: invented, forms: [Einar Gustaf Emil Palme]}
+    - {id: einar_muller, label: Einar Alexander Müller, status: invented, forms: [Einar Alexander Müller, Einar Alexander Muller, Einar Alexander Mller, Einar Müller, Einar Mller]}
+    - {id: einar_balliet, label: Einar de Balliet, status: invented, forms: [Balliet]}
+    - {id: blix, label: Gustav Blix, status: invented, forms: [Gustav Blix]}
+    - {id: botz, label: Gustav Alfred Bötz, status: invented, forms: [Bötz]}
+    - {id: thoren, label: Nickel Charles Abraham Thoren, status: invented, forms: [Thoren]}
+    - {id: bartholin, label: Johan G. Bartholin, status: invented, forms: [Johan G. Bartholin]}
+    - {id: thorvald, label: "Johan G. Thorvald / Ekdal Thorvaldsen", status: invented, forms: [Johan G. Thorvald, Ekdal Thorvaldsen]}
+  fotografia:
+    - {id: wedgwood, label: Thomas Wedgwood, status: real, forms: [Wedgwood]}
+    - {id: kepler_f, label: Johannes Kepler, status: real, forms: [Kepler]}
+    - {id: durer, label: Albrecht Dürer, status: real, forms: [Dürer]}
+    - {id: pascal_f, label: Blaise Pascal, status: real, forms: [Blaise Pascal]}
+  radio:
+    - {id: maxwell, label: James Clerk Maxwell, status: real, forms: [Maxwell]}
+    - {id: hertz, label: Heinrich Hertz, status: real, forms: [Heinrich Hertz]}
+    - {id: tesla, label: Nikola Tesla, status: real, forms: [Tesla]}
+    - {id: lodge, label: Oliver Lodge, status: real, forms: [Oliver Lodge]}
+    - {id: faraday, label: Michael Faraday, status: real, forms: [Faraday]}
+    - {id: fessenden, label: Reginald Fessenden, status: real, forms: [Fessenden]}
+    - {id: armstrong, label: Edwin Armstrong, status: real, forms: [Edwin Armstrong]}
+    - {id: morse, label: Samuel Morse, status: real, forms: [Samuel Morse]}
+    - {id: scott, label: Édouard-Léon Scott de Martinville, status: real, forms: [Scott de Martinville]}
+  raios_x:
+    - {id: becquerel, label: Henri Becquerel, status: real, forms: [Becquerel]}
+    - {id: bragg, label: William Henry and William Lawrence Bragg, status: real, forms: [Bragg]}
+    - {id: curie, label: Pierre Curie, status: real, forms: [Curie]}
+  tabela_periodica:
+    - {id: newlands, label: John Newlands, status: real, forms: [Newlands]}
+    - {id: lavoisier, label: Antoine Lavoisier, status: real, forms: [Lavoisier]}

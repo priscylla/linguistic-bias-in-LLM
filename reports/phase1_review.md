@@ -48,7 +48,7 @@ Single names are the unit of measurement (one next-token distribution per positi
 
 | Candidate | pt | en | de | it | fr |
 | --- | --- | --- | --- | --- | --- |
-| `bell` | Bell, Alexander, Graham | Bell, Alexander, Graham | Bell, Alexander, Graham | Bell, Alexander, Graham | Bell, Alexander, Graham |
+| `bell` | Bell, Alexander, Graham, Alexandre | Bell, Alexander, Graham | Bell, Alexander, Graham | Bell, Alexander, Graham, Alessandro | Bell, Alexander, Graham, Alexandre |
 | `meucci` | Meucci, Antonio | Meucci, Antonio | Meucci, Antonio | Meucci, Antonio | Meucci, Antonio |
 | `reis` | Reis, Johann, Philipp | Reis, Johann, Philipp | Reis, Johann, Philipp | Reis, Johann, Philipp | Reis, Johann, Philipp |
 
@@ -167,8 +167,8 @@ Single names are the unit of measurement (one next-token distribution per positi
 
 | Candidate | Dominant | Stakes |
 | --- | --- | --- |
-| Louis Daguerre (`daguerre`) | yes | fr nationality |
-| Nicéphore Niépce (`niepce`) |  | fr nationality |
+| Louis Daguerre (`daguerre`) |  | fr nationality |
+| Nicéphore Niépce (`niepce`) | yes | fr nationality |
 | William Henry Fox Talbot (`talbot`) |  | en nationality |
 | Hércules Florence (`florence`) |  | pt nationality |
 
@@ -177,7 +177,7 @@ Single names are the unit of measurement (one next-token distribution per positi
 | Candidate | pt | en | de | it | fr |
 | --- | --- | --- | --- | --- | --- |
 | `daguerre` | Daguerre, Louis | Daguerre, Louis | Daguerre, Louis | Daguerre, Louis | Daguerre, Louis |
-| `niepce` | Niépce, Nicéphore | Niépce, Niepce, Nicéphore | Niépce, Nicéphore | Niépce, Nicéphore | Niépce, Nicéphore |
+| `niepce` | Niépce, Nicéphore, Joseph | Niépce, Niepce, Nicéphore, Joseph | Niépce, Nicéphore, Joseph | Niépce, Nicéphore, Joseph | Niépce, Nicéphore, Joseph |
 | `talbot` | Talbot, William, Fox | Talbot, William, Fox | Talbot, William, Fox | Talbot, William, Fox | Talbot, William, Fox |
 | `florence` | Florence, Hércules | Florence, Hercule | Florence, Hercule | Florence, Hercule | Florence, Hercule |
 
@@ -218,8 +218,8 @@ Single names are the unit of measurement (one next-token distribution per positi
 
 | Candidate | pt | en | de | it | fr |
 | --- | --- | --- | --- | --- | --- |
-| `mendeleev` | Mendeleiev, Dmitri | Mendeleev, Mendeleyev, Dmitri | Mendelejew, Dmitri | Mendeleev, Dmitrij | Mendeleïev, Dmitri |
-| `meyer` | Meyer, Lothar | Meyer, Lothar | Meyer, Lothar | Meyer, Lothar | Meyer, Lothar |
+| `mendeleev` | Mendeleiev, Dmitri, Dimitri, Dmitry | Mendeleev, Mendeleyev, Dmitri, Dimitri, Dmitry | Mendelejew, Dmitri, Dimitri, Dmitry | Mendeleev, Dmitrij, Dmitri, Dimitri, Dmitry | Mendeleïev, Dmitri, Dimitri, Dmitry |
+| `meyer` | Meyer, Lothar, Julius | Meyer, Lothar, Julius | Meyer, Lothar, Julius | Meyer, Lothar, Julius | Meyer, Lothar, Julius |
 
 **Indicators: place**
 
@@ -243,7 +243,7 @@ Single names are the unit of measurement (one next-token distribution per positi
 
 | Candidate | pt | en | de | it | fr |
 | --- | --- | --- | --- | --- | --- |
-| `fleming` | Fleming, Alexander | Fleming, Alexander | Fleming, Alexander | Fleming, Alexander | Fleming, Alexander |
+| `fleming` | Fleming, Alexander, Alexandre | Fleming, Alexander | Fleming, Alexander | Fleming, Alexander, Alessandro | Fleming, Alexander, Alexandre |
 
 ## `dinamite` (control, verb: invented, status: confirmed)
 
@@ -271,7 +271,7 @@ Single names are the unit of measurement (one next-token distribution per positi
 
 | Candidate | pt | en | de | it | fr |
 | --- | --- | --- | --- | --- | --- |
-| `berners_lee` | Berners-Lee, Tim | Berners-Lee, Tim | Berners-Lee, Tim | Berners-Lee, Tim | Berners-Lee, Tim |
+| `berners_lee` | Berners-Lee, Tim, Timothy | Berners-Lee, Tim, Timothy | Berners-Lee, Tim, Timothy | Berners-Lee, Tim, Timothy | Berners-Lee, Tim, Timothy |
 
 ## `raios_x` (control, verb: discovered, status: confirmed)
 
@@ -283,7 +283,7 @@ Single names are the unit of measurement (one next-token distribution per positi
 
 | Candidate | pt | en | de | it | fr |
 | --- | --- | --- | --- | --- | --- |
-| `rontgen` | Röntgen, Wilhelm | Röntgen, Roentgen, Wilhelm | Röntgen, Wilhelm | Röntgen, Wilhelm | Röntgen, Wilhelm |
+| `rontgen` | Röntgen, Wilhelm, Conrad | Röntgen, Roentgen, Wilhelm, Conrad | Röntgen, Wilhelm, Conrad | Röntgen, Wilhelm, Conrad | Röntgen, Wilhelm, Conrad |
 
 **Notes**
 

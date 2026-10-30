@@ -46,7 +46,9 @@ def format_prompt(prompt, tokenizer, chat_formatter: Optional[Callable] = None):
     if prompt.format == "qa":
         if chat_formatter is None:
             return None
-        return chat_formatter(tokenizer, prompt.text), "", False
+        # Separador da resposta tirado do chat template (models/chat_template.py);
+        # formatadores simples (testes) não têm o atributo e usam ""
+        return chat_formatter(tokenizer, prompt.text), getattr(chat_formatter, "answer_sep", ""), False
     return prompt.text, " ", True
 
 

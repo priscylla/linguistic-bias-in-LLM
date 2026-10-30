@@ -11,6 +11,7 @@ Para cada modelo do config confere:
     - probabilidades em [0, 1]
     - KL até a final ≈ 0 na última camada (o lens reproduz o modelo)
     - manifest com o commit do registro
+    - cada unidade medida com as entradas atuais (impressão digital)
 E soma as GPU-horas registradas por modelo.
 """
 
@@ -23,7 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config.experiment_config import ExperimentConfig
 from logit_lens.store import ChunkStore, behavioral_dir, lens_dir, read_manifest
-from run_lens import lens_units
+from logit_lens.fingerprint import fingerprint
+from run_lens import lens_units, tuned_lens_id
 
 KL_LAST_TOL = 1e-3
 PROMPT_KEYS = ["fact", "lang", "prompt_type", "paraphrase"]
@@ -35,7 +37,7 @@ def _expected(prompts, formats, facts=None):
 
 
 def check_model(model_key: str, results_dir: str, config: ExperimentConfig,
-                lens: str = "logit_lens") -> list:
+                lens: str = "logit_lens", lens_root=None) -> list:
     """Lista de problemas do modelo (vazia se tudo ok)."""
     out = lens_dir(results_dir, model_key, lens)
     man = read_manifest(out)
@@ -51,9 +53,27 @@ def check_model(model_key: str, results_dir: str, config: ExperimentConfig,
             problems.append(f"{model_key}: commit {man.get('revision')} != registro {spec.revision}")
 
     store   = ChunkStore(out)
-    missing = [u for u in lens_units(config, formats) if not store.done(u)]
+    units   = lens_units(config, formats)
+    missing = [u for u in units if not store.done(u)]
     if missing:
         problems.append(f"{model_key}: {len(missing)} unidades faltando (ex.: {missing[:3]})")
+    # Impressão digital: a unidade foi medida com as entradas atuais?
+    try:
+        lens_id = "logit_lens" if lens == "logit_lens" else tuned_lens_id(model_key, lens_root)
+    except FileNotFoundError:
+        lens_id = None
+        problems.append(f"{model_key}: sem lenses/{model_key}/translators.pt; impressões do Tuned Lens não verificadas")
+    if lens_id is not None:
+        done = [u for u in units if store.done(u)]
+        legacy = [u for u in done if store.fingerprint(u) is None]
+        stale = [u for u in done if store.fingerprint(u) is not None
+                 and store.fingerprint(u) != fingerprint(u, config, lens_id)]
+        if legacy:
+            problems.append(f"{model_key}: {len(legacy)} unidades sem impressão digital (anteriores a "
+                            f"2026-10-30): rode scripts/stamp_fingerprints.py")
+        if stale:
+            problems.append(f"{model_key}: {len(stale)} unidades medidas com entradas antigas "
+                            f"(ex.: {stale[:3]}); rode run_lens.py de novo (são refeitas)")
 
     if not (out / "probs.parquet").exists():
         return problems + [f"{model_key}: sem probs.parquet (rode --consolidate-only)"]

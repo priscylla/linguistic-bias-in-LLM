@@ -41,6 +41,54 @@ def apply_template(
     return formatted, last_relevant_pos
 
 
+ANSWER_PROBE = "Alexander Graham Bell"
+
+
+class TemplateSeparatorError(ValueError):
+    pass
+
+
+def answer_separator(tokenizer, probe: str = ANSWER_PROBE) -> str:
+    """
+    Texto que o chat template põe entre o prompt de geração e o começo da
+    resposta do assistente (Mistral v0.3: " " depois de [/INST]; Llama 3,
+    Qwen 2.5, Gemma 2: ""). A medição QA anexa os candidatos com este
+    separador, para medir o mesmo token que o modelo emite como primeiro
+    token da resposta (com "", o Mistral seria medido em 'Alex' em vez de
+    '▁Alexander').
+    """
+    user = [{"role": "user", "content": "Q?"}]
+    gen  = tokenizer.apply_chat_template(user, tokenize=False, add_generation_prompt=True)
+    full = tokenizer.apply_chat_template(user + [{"role": "assistant", "content": probe}], tokenize=False)
+    i = full.find(probe)
+    if i < 0 or not full.startswith(gen) or i < len(gen):
+        raise TemplateSeparatorError(
+            "chat template: a conversa com resposta não começa pelo prompt de geração; "
+            "separador da resposta indefinido")
+    sep = full[len(gen):i]
+    if sep.strip():
+        raise TemplateSeparatorError(f"chat template: texto inesperado antes da resposta: {sep!r}")
+    return sep
+
+
+class ChatFormatter:
+    """
+    Formatador QA: aplica o chat template (sem system prompt) e carrega o
+    separador da resposta (answer_separator) usado na medição.
+    """
+
+    def __init__(self, model_key: str, answer_sep: str = ""):
+        self.model_key  = model_key
+        self.answer_sep = answer_sep
+
+    @classmethod
+    def for_tokenizer(cls, tokenizer, model_key: str) -> "ChatFormatter":
+        return cls(model_key, answer_separator(tokenizer))
+
+    def __call__(self, tokenizer, text: str) -> str:
+        return apply_template(tokenizer, self.model_key, text)[0]
+
+
 def verify_templates(
     models_dict: Dict[str, str],
     tokenizers_dict: Dict
