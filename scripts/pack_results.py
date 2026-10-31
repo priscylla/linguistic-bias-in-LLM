@@ -23,7 +23,9 @@ the repository root) holds:
     logs/                        queue logs (logs/queue/), background run logs
     lenses/                      only with --include-lenses: translators.pt and
                                  config.json (training checkpoints and locks left out)
-    PACK_INFO.json               git commit, local changes, check_results report, file list
+    PACK_INFO.json               git commit, local changes, check_results report, file list,
+                                 Tuned Lens per model (status, recipe hash, max_grad_norm,
+                                 tokens per step, acceptance test) and tuned_lenses_failed
 
 Unpack at the repository root: tar -xzf results-....tar.gz
 """
@@ -47,7 +49,7 @@ sys.path.insert(0, str(ROOT))
 INCLUDE = ["results", "reports/sanity", "reports/tuned_lens", "reports/validation",
            "reports/tokenization", "reports/tokenization_summary.md", "verification_report.json",
            "reports/check_env.json", "logs"]
-LENS_FILES = ("translators.pt", "config.json")
+LENS_FILES = ("translators.pt", "config.json", "RECIPE")
 SKIP_NAMES = {"__pycache__", ".DS_Store", ".gitkeep", "chunks_stale"}   # unidades velhas ficam no servidor
 
 
@@ -86,6 +88,42 @@ def collect(root: Path, include_lenses: bool, lens_dir="lenses"):
     return sorted(set(files))
 
 
+def tuned_lens_info(root: Path, lens_dir="lenses", report_dir="reports/tuned_lens") -> dict:
+    """
+    Per Tuned Lens model (config/tuned_lens.yaml models): status from
+    reports/tuned_lens/{m}_status.json (accepted | rejected | missing) and the
+    recipe from lenses/{m}/config.json, for the methods section.
+    """
+    try:
+        from config.loader import load_tuned_lens
+        models = load_tuned_lens()["models"]
+    except Exception:                                    # config ilegível: o que houver
+        models = sorted({p.name.split("_status.json")[0]
+                         for p in (root / report_dir).glob("*_status.json")})
+    out = {}
+    for m in models:
+        st, meta = {}, {}
+        try:
+            st = json.loads((root / report_dir / f"{m}_status.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+        try:
+            meta = json.loads((root / lens_dir / m / "config.json").read_text(encoding="utf-8")).get("meta", {})
+        except (OSError, ValueError):
+            pass
+        acc = st.get("acceptance") or meta.get("acceptance") or {}
+        out[m] = {"status": st.get("status", "missing"),
+                  "recipe_sha256": st.get("recipe_sha256") or meta.get("recipe_sha256"),
+                  "recipe_version": st.get("recipe_version") or meta.get("recipe_version"),
+                  "max_grad_norm": st.get("max_grad_norm") or meta.get("max_grad_norm"),
+                  "tokens_per_step": st.get("tokens_per_step") or meta.get("tokens_per_step"),
+                  "steps": meta.get("steps"),
+                  "acceptance": {k: acc.get(k) for k in ("passed", "reasons", "last_layer", "last_kl_tuned",
+                                                         "last_kl_logit", "zone_kl_tuned", "zone_kl_logit",
+                                                         "failing_layers", "tolerance_nats")} if acc else None}
+    return out
+
+
 def run_check_results():
     """check_results.check_all_results(), with its report captured. Returns (ok, text)."""
     buf = io.StringIO()
@@ -119,6 +157,8 @@ def pack(root: Path, out_dir: Path, include_lenses=False, check=None, now=None):
         "check_results_ok": ok,
         "check_results_report": report,
         "include_lenses": include_lenses,
+        "tuned_lenses": (tl := tuned_lens_info(root)),
+        "tuned_lenses_failed": sorted(m for m, v in tl.items() if v["status"] != "accepted"),
         "python": platform.python_version(),
         "n_files": len(files),
         "bytes_uncompressed": sum((root / f).stat().st_size for f in files),
@@ -166,6 +206,8 @@ def main(argv=None):
     print(f"   sha256 {info['sha256']}  ({path.name}.sha256)")
     print(f"   results complete: {'yes' if ok else 'NO (see PACK_INFO.json)'}"
           + ("" if args.include_lenses else "; lenses not included (--include-lenses)"))
+    if info["tuned_lenses_failed"]:
+        print(f"   ⚠️  Tuned Lens not accepted: {', '.join(info['tuned_lenses_failed'])} (see PACK_INFO.json)")
     if info["git_local_changes"]:
         print(f"   local changes recorded: {len(info['git_local_changes'])} file(s)")
     print("   Unpack at the repository root: tar -xzf " + path.name)

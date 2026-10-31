@@ -404,6 +404,27 @@ def tuned_lens_id(model_key, lens_root=None) -> str:
     return f"tuned_lens:{file_sha256(root / 'translators.pt')}"
 
 
+def nothing_to_do(out_dir, config, model_key, lens_choice, lens_root=None) -> bool:
+    """
+    Todas as unidades já feitas com as entradas atuais (impressão digital
+    válida) e tabelas consolidadas: não há o que rodar, e o modelo nem
+    precisa ser carregado (reexecução de run_all_server.sh).
+    """
+    out_dir = Path(out_dir)
+    if not (out_dir / "probs.parquet").exists():
+        return False
+    if lens_choice == "tuned":
+        from config.loader import load_tuned_lens
+        root = Path(lens_root or load_tuned_lens()["lens_dir"])
+        if not (root / model_key / "translators.pt").exists():
+            return False
+        lens_id = tuned_lens_id(model_key, lens_root)
+    else:
+        lens_id = "logit_lens"
+    units = lens_units(config)
+    return len(current_units(ChunkStore(out_dir), units, config, lens_id)) == len(units)
+
+
 def parse_facts(text, config):
     """--facts aviao,radio -> {'aviao', 'radio'} (chaves de config/facts.yaml)."""
     if not text:
@@ -425,11 +446,27 @@ def instruct_chat(model_key, spec, tokenizer):
     return ChatFormatter.for_tokenizer(tokenizer, model_key)
 
 
-def write_sanity(report: dict, model_key: str, spec, report_dir=SANITY_DIR) -> Path:
-    report_dir = Path(report_dir)
-    report_dir.mkdir(parents=True, exist_ok=True)
+def sanity_path(model_key: str, spec, report_dir=SANITY_DIR) -> Path:
     tag = "" if precision_tag(spec) == precision_tag(load_models()[model_key]) else f"_{precision_tag(spec)}"
-    path = report_dir / f"{model_key}{tag}.json"
+    return Path(report_dir) / f"{model_key}{tag}.json"
+
+
+def sanity_already_passed(model_key: str, spec, report_dir=SANITY_DIR) -> bool:
+    """Relatório de sanidade aprovado para o mesmo commit e a mesma precisão."""
+    p = sanity_path(model_key, spec, report_dir)
+    if not p.exists():
+        return False
+    try:
+        rep = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return (rep.get("passed") is True and rep.get("revision") == spec.revision
+            and rep.get("precision_tag") == precision_tag(spec))
+
+
+def write_sanity(report: dict, model_key: str, spec, report_dir=SANITY_DIR) -> Path:
+    path = sanity_path(model_key, spec, report_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return path
 
@@ -439,6 +476,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Medição por camada (Logit Lens ou Tuned Lens).")
     add_model_args(parser, config.models)
     parser.add_argument("--lens", choices=list(LENS_CHOICES), default="logit")
+    parser.add_argument("--redo-sanity", action="store_true",
+                        help="com --sanity-only: refaz mesmo com relatório aprovado")
     parser.add_argument("--sanity-only", action="store_true",
                         help="só o teste de sanidade (reports/sanity/{modelo}.json)")
     parser.add_argument("--results-dir", default=config.results_dir)
@@ -471,6 +510,15 @@ def main(argv=None):
                           config.baseline_spec, config.forcing_spec,
                           prompts_status=load_prompts_meta()["status"])
         check_resume(read_manifest(out_dir), spec, out_dir)
+        if facts is None and nothing_to_do(out_dir, config, args.model, args.lens):
+            print(f"  ⏭  {args.model} ({LENS_CHOICES[args.lens]}): todas as unidades já feitas com as "
+                  f"entradas atuais (impressão digital válida); nada a refazer, modelo não carregado")
+            return 0
+
+    if args.sanity_only and not args.redo_sanity and sanity_already_passed(args.model, spec):
+        print(f"  ⏭  {args.model}: sanidade já aprovada ({sanity_path(args.model, spec)}, mesmo commit e "
+              f"precisão); use --redo-sanity para refazer")
+        return 0
 
     from models.model_loader import load_model
     model, tokenizer = load_model(args.model, registry)

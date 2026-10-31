@@ -113,6 +113,11 @@ def main(argv=None):
     require_confirmed(config.fact_specs, config.prompt_specs,
                       prompts_status=load_prompts_meta()["status"])
     check_resume(read_manifest(out), spec, out)
+    store = ChunkStore(out, TABLES)
+    if (out / "answers.parquet").exists() and all(store.done(u) for u in behavioral_units(config)):
+        print(f"  ⏭  {args.model}: todas as unidades comportamentais já feitas; nada a refazer, "
+              f"modelo não carregado")
+        return 0
 
     from models.chat_template import apply_template
     from models.model_loader import load_model

@@ -94,15 +94,35 @@ def test_results_tables(figs):
     assert r"\begin{longtable}" in full
     T = mf.results_table(res, mf.figure_models("main"), compact=True)
     assert set(T.columns) == {"Model", "Fact", "Candidate", "Lang", "Peak $k^*/L$", "CS$^*$",
-                              "Supp.", "$\\Delta$CS", "Primary $e$", "Majority"}
+                              "Supp.", "$\\Delta$CS", "Primary $e$", "Stake $p_{\\mathrm{Holm}}$", "Majority"}
     # compacto: só idiomas de stake do candidato + EN
     sd = T[T["Candidate"] == "Alberto Santos-Dumont"]
     assert {l[:2] for l in sd["Lang"]} == {"PT", "FR", "EN"}
-    assert any("$^{N}$" in l for l in sd["Lang"]) and any("$^{P}$" in l for l in sd["Lang"])
+    assert any("$^{N" in l for l in sd["Lang"]) and any("$^{P" in l for l in sd["Lang"])  # + † / ‡
     full_T = mf.results_table(res, mf.figure_models("all"), compact=False)
     assert len(full_T) > len(T) and "LLaMA" not in "".join(full_T["Model"])
     assert (T["Majority"] != "—").all()          # comportamento presente nos instruct
     assert "%" not in compact.replace(r"\%", "")  # % escapado
+
+
+def test_results_tables_stake_marks(figs):
+    """Teste de stake principal (sem en) marca † / ‡; o com en só aparece na tabela completa."""
+    import pandas as pd
+    cfg, res, _, _ = figs
+    base = dict(lens="logit_lens", token_set="names", fact="aviao", candidate="santos_dumont")
+    main = pd.DataFrame([{**base, "stake_lang": "pt", "p_holm": 0.01, "mean_d": 0.05},
+                         {**base, "stake_lang": "fr", "p_holm": 0.02, "mean_d": -0.03}])
+    with_en = main.assign(p_holm=[0.001, 0.5])
+    r = {**res, "stats_stake_tests": main, "stats_stake_tests_with_en": with_en}
+    T = mf.results_table(r, mf.figure_models("main"), compact=True).set_index(["Model", "Candidate", "Lang"])
+    sd = T.xs("Alberto Santos-Dumont", level="Candidate")
+    langs = set(sd.index.get_level_values("Lang"))
+    assert "PT$^{N\\dagger}$" in langs and "FR$^{P\\ddagger}$" in langs and "EN" in langs
+    assert set(sd["Stake $p_{\\mathrm{Holm}}$"]) == {"0.010", "0.020", "—"}
+    assert "Stake $p_{\\mathrm{Holm}}$, with EN" not in T.columns
+    full = mf.results_table(r, mf.figure_models("all"), compact=False)
+    pt = full[(full.Candidate == "Alberto Santos-Dumont") & full.Lang.str.startswith("PT")]
+    assert set(pt["Stake $p_{\\mathrm{Holm}}$, with EN"]) == {"0.001"}
 
 
 def test_figures_skip_without_data(tmp_path, synth, monkeypatch):

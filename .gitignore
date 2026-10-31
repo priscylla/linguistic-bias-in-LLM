@@ -56,3 +56,8 @@ verification_report.json
 hf_cache/
 lenses/
 reports/tokenization/
+
+# Lentes e relatórios do Tuned Lens arquivados (train_tuned_lens.py), filas geradas
+lenses_stale/
+reports/tuned_lens_stale/
+jobs_*.txt

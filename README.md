@@ -27,7 +27,7 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 hf auth login                            # or export HF_TOKEN="hf_..."; gated: Llama 3.1, Gemma 2 (accept the licenses first)
 python scripts/check_env.py              # Python, packages, GPUs (memory, bf16), disk, HF access; must show 0 FAIL
-pytest                                   # 389 tests, CPU, tiny random models, no downloads
+pytest                                   # 421 tests, CPU, tiny random models, no downloads
 python run_pipeline_dry.py               # whole pipeline on tiny models (CPU, ~2–3 min)
 python verify_setup.py                   # tokenizers only: prompts, name tokenization
 

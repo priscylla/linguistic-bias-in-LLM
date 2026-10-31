@@ -80,16 +80,25 @@ def test_sanity_report_file_name(tmp_path):
 
 
 def test_train_skip_rules(tmp_path):
+    import json
+    from logit_lens.lens_training import recipe_sha256
     tl = load_tuned_lens()
     assert tl["pretrained"] == {}
-    assert ttl.skip_reason("llama", tl, tmp_path / "l", tmp_path / "r") is None
-    (tmp_path / "l" / "llama").mkdir(parents=True)
-    (tmp_path / "l" / "llama" / "translators.pt").write_text("x")
+    quiet = dict(log=lambda *a: None)
+    assert ttl.skip_reason("llama", tl, tmp_path / "l", tmp_path / "r", **quiet) is None   # sem lente
+    lens = tmp_path / "l" / "llama"
+    lens.mkdir(parents=True)
+    (lens / "translators.pt").write_text("x")
+    (lens / "RECIPE").write_text(json.dumps({"recipe_sha256": recipe_sha256(tl)}))
     (tmp_path / "r").mkdir()
     (tmp_path / "r" / "llama_eval.csv").write_text("x")
-    assert "já treinada" in ttl.skip_reason("llama", tl, tmp_path / "l", tmp_path / "r")
-    assert ttl.skip_reason("llama", tl, tmp_path / "l", tmp_path / "r", force=True) is None
-    assert "pré-treinada" in ttl.skip_reason("llama", {**tl, "pretrained": {"llama": "x"}})
+    (tmp_path / "r" / "llama_status.json").write_text(json.dumps({"status": "accepted"}))
+    msg, rc = ttl.skip_reason("llama", tl, tmp_path / "l", tmp_path / "r", **quiet)
+    assert rc == 0 and "já treinada e aprovada" in msg                  # mesma receita, aprovada
+    assert ttl.skip_reason("llama", tl, tmp_path / "l", tmp_path / "r", force=True, **quiet) is None
+    assert not lens.exists() and (tmp_path / "l_stale").exists()        # --force arquiva, não apaga
+    msg, rc = ttl.skip_reason("llama", {**tl, "pretrained": {"llama": "x"}})
+    assert rc == 0 and "pré-treinada" in msg
 
 
 # ══════════════════════════════════════════════════════════════
@@ -160,12 +169,33 @@ def test_make_copy_on_temp_repo(tmp_path):
 
 
 def test_anonymous_copy_of_this_repo(tmp_path):
-    terms = anon.identity_terms()
+    # Termos do próprio repositório (autores dos commits, dono do remote),
+    # não do git config de quem roda: mesmo resultado em qualquer máquina
+    terms = anon.identity_terms(from_config=False)
     if not terms:
-        pytest.skip("sem git config")
+        pytest.skip("não é um checkout git com histórico")
     stats = anon.make_copy(tmp_path / "anon", terms, log=lambda *a: None)
     assert stats["problems"] == [] and ".env" in stats["skipped_secret"]
     assert not (tmp_path / "anon" / ".env").exists()
+
+
+def test_leftovers_whole_word_only():
+    assert anon.leftovers("Leonardo da Vinci".encode(), ["Leo"]) == []      # dentro de outra palavra
+    assert anon.leftovers("by Leo, 2026".encode(), ["Leo"]) == ["Leo"]
+    assert anon.leftovers("SILVA et al.".encode(), ["Silva"]) == ["Silva"]  # sem caixa
+
+
+def test_identity_terms_independent_of_git_config(tmp_path):
+    src = tmp_path / "repo"
+    src.mkdir()
+    (src / "a.txt").write_text("x\n")
+    git = lambda *a: subprocess.run(["git", *a], cwd=src, check=True, capture_output=True)  # noqa: E731
+    git("init", "-q")
+    git("add", ".")
+    git("-c", "user.name=Ana Souza", "-c", "user.email=ana@uni.edu", "commit", "-qm", "init")
+    git("remote", "add", "origin", "https://github.com/asouza/proj.git")
+    terms = anon.identity_terms(src=src, from_config=False)
+    assert {"Ana Souza", "ana@uni.edu", "asouza", "Ana", "Souza"} <= set(terms)
 
 
 # ══════════════════════════════════════════════════════════════

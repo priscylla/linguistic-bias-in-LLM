@@ -17,11 +17,22 @@ Treino (receita do tuned-lens 0.2.0):
     - para cada camada 1..L−1 e cada pedaço de posições:
           KL(final ‖ lens) = Σ_v p_final · (log p_final − log p_lens)
       média sobre os tokens do passo, somada sobre as camadas
+    - gradiente cortado em norma global max_grad_norm (1.0, como o
+      pacote) antes de cada passo; a norma antes do corte é registrada
     - SGD Nesterov, decaimento linear sem warmup
+
+Receita: os hiperparâmetros que mudam o resultado, o corpus e
+RECIPE_VERSION (recipe / recipe_sha256). Vai no checkpoint, em
+lenses/{modelo}/RECIPE e no config.json da lente; um checkpoint de outra
+receita é recusado (RecipeMismatch), nunca retomado.
 
 Retomada: checkpoint com passo, tradutores, otimizador, scheduler,
 posição de cada fonte (documentos lidos), buffer de empacotamento e
 rodízio. Retomar dá o mesmo resultado que não interromper.
+
+Aceitação (acceptance): depois da avaliação held-out, a lente só é
+aceita se não for pior que o Logit Lens (+ tolerância) na última camada
+traduzida e na média da zona de decisão.
 """
 
 import hashlib
@@ -38,6 +49,27 @@ import torch.nn.functional as F
 from data.text_matching import compile_terms, normalize_text
 
 Source = Callable[[], Iterator[Dict]]
+
+# 1: sem corte do gradiente (lentes de 2026-10-29); 2: com max_grad_norm (2026-10-30)
+RECIPE_VERSION = 2
+# Chaves de training que não mudam o resultado (só memória / frequência de checkpoint)
+NOT_IN_RECIPE = ("loss_chunk_tokens", "checkpoint_every")
+
+
+class RecipeMismatch(RuntimeError):
+    """Checkpoint ou lente de outra receita de treino."""
+
+
+def recipe(tl_cfg: Dict) -> Dict:
+    """O que decide o resultado do treino (sem o que só afeta memória)."""
+    t = {k: v for k, v in tl_cfg["training"].items() if k not in NOT_IN_RECIPE}
+    return {"recipe_version": RECIPE_VERSION, "training": t, "corpus": tl_cfg["corpus"],
+            "held_out_mod": tl_cfg["held_out_mod"], "filter_fact_terms": tl_cfg["filter_fact_terms"]}
+
+
+def recipe_sha256(tl_cfg: Dict) -> str:
+    blob = json.dumps(recipe(tl_cfg), sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -239,15 +271,22 @@ def train(lens, model, tokenizer, sources: Dict[str, Source], tl_cfg: Dict, fact
 
     model.requires_grad_(False)          # só os tradutores aprendem
     torch.manual_seed(tcfg["seed"])
+    max_norm = float(tcfg["max_grad_norm"])
+    sha = recipe_sha256(tl_cfg)
     opt, sched = make_optimizer(lens, tcfg, steps)
-    state = {"step": 0, "losses": [], "data": None}
+    state = {"step": 0, "losses": [], "grad_norms": [], "data": None}
     if ckpt_p.exists():
         ck = torch.load(ckpt_p, map_location="cpu", weights_only=False)
+        if ck.get("recipe_sha256") != sha:
+            raise RecipeMismatch(
+                f"{ckpt_p} é de outra receita de treino ({ck.get('recipe_sha256') or 'sem hash: receita 1'}"
+                f" ≠ {sha[:12]}). Não retomo: mova {out} para lenses_stale/ (train_tuned_lens.py faz isso).")
         lens.translators.load_state_dict(ck["translators"])
         opt.load_state_dict(ck["optimizer"])
         sched.load_state_dict(ck["scheduler"])
         torch.set_rng_state(ck["rng"])
-        state = {"step": ck["step"], "losses": ck["losses"], "data": ck["data"]}
+        state = {"step": ck["step"], "losses": ck["losses"], "grad_norms": ck.get("grad_norms", []),
+                 "data": ck["data"]}
         log(f"  retomando do passo {state['step']}/{steps}")
 
     patterns = {l: compile_terms(fact_terms(facts, l)) if tl_cfg["filter_fact_terms"] else None
@@ -266,19 +305,25 @@ def train(lens, model, tokenizer, sources: Dict[str, Source], tl_cfg: Dict, fact
         for _, ids in seqs:
             total += sequence_kl(lens, model, ids, tcfg["loss_chunk_tokens"],
                                  backward_scale=scale).sum() * scale
+        # Corte do gradiente como no pacote (norma global de todos os tradutores)
+        gnorm = float(torch.nn.utils.clip_grad_norm_(lens.parameters(), max_norm))
+        state["grad_norms"].append(gnorm)
         opt.step()
         sched.step()
         state["step"] += 1
         state["losses"].append(float(total))
         log(f"  passo {state['step']}/{steps}  KL (soma das camadas) = {float(total):.4f}  "
-            f"({time.time() - t0:.1f}s)")
+            f"|grad| antes do corte = {gnorm:.2f}  ({time.time() - t0:.1f}s)")
         if state["step"] % tcfg["checkpoint_every"] == 0 or state["step"] == stop:
             _save_checkpoint(ckpt_p, {
-                "step": state["step"], "losses": state["losses"],
+                "step": state["step"], "losses": state["losses"], "grad_norms": state["grad_norms"],
+                "recipe_sha256": sha,
                 "translators": lens.translators.state_dict(),
                 "optimizer": opt.state_dict(), "scheduler": sched.state_dict(),
                 "rng": torch.get_rng_state(), "data": batches.state()})
     return {"step": state["step"], "num_steps": steps, "losses": state["losses"],
+            "grad_norms_preclip": state["grad_norms"], "max_grad_norm": max_norm,
+            "recipe_sha256": sha, "recipe_version": RECIPE_VERSION,
             "corpus_stats": batches.stats(), "done": state["step"] >= steps}
 
 
@@ -320,6 +365,40 @@ def evaluate(lens, model, tokenizer, sources: Dict[str, Source], tl_cfg: Dict,
             rows.append({"lang": lang, "layer": k + 1, "n_tokens": n_tok,
                          "kl_tuned": float(tuned[k] / n_tok), "kl_logit": float(logit[k] / n_tok)})
     return rows
+
+
+# ══════════════════════════════════════════════════════════════
+# Aceitação
+# ══════════════════════════════════════════════════════════════
+
+def acceptance(rows: List[Dict], n_layers: int, decision_zone: float, tol: float) -> Dict:
+    """
+    Teste de aceitação sobre a avaliação held-out (média dos idiomas por
+    camada). Reprova se o Tuned Lens for pior que o Logit Lens + tol na
+    última camada traduzida (L−1) ou na média da zona de decisão
+    (camadas k > L·(1 − zone), as traduzidas). `failing_layers`: camadas
+    da zona em que o Tuned Lens passa o Logit Lens + tol (informativo).
+    """
+    import pandas as pd
+    g = pd.DataFrame(rows).groupby("layer")[["kl_tuned", "kl_logit"]].mean()
+    last = n_layers - 1
+    zone = g[g.index > n_layers * (1 - decision_zone) + 1e-9]
+    lt, ll = float(g.loc[last, "kl_tuned"]), float(g.loc[last, "kl_logit"])
+    # Zona sem camada traduzida (só em modelos minúsculos): critério da zona não se aplica
+    zt = float(zone["kl_tuned"].mean()) if len(zone) else None
+    zl = float(zone["kl_logit"].mean()) if len(zone) else None
+    failing = [{"layer": int(k), "kl_tuned": round(float(r.kl_tuned), 4), "kl_logit": round(float(r.kl_logit), 4)}
+               for k, r in zone.iterrows() if r.kl_tuned > r.kl_logit + tol]
+    reasons = []
+    if not lt <= ll + tol:                              # NaN reprova
+        reasons.append(f"última camada traduzida ({last}): tuned {lt:.3f} > logit {ll:.3f} + {tol}")
+    if zt is not None and not zt <= zl + tol:
+        reasons.append(f"média da zona de decisão: tuned {zt:.3f} > logit {zl:.3f} + {tol}")
+    rnd = lambda x: None if x is None else round(x, 4)  # noqa: E731
+    return {"passed": not reasons, "reasons": reasons, "tolerance_nats": tol,
+            "last_layer": last, "last_kl_tuned": rnd(lt), "last_kl_logit": rnd(ll),
+            "zone_layers": [int(k) for k in zone.index], "zone_kl_tuned": rnd(zt),
+            "zone_kl_logit": rnd(zl), "failing_layers": failing}
 
 
 def write_json(path, obj):

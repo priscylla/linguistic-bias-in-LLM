@@ -150,3 +150,60 @@ def test_stamp_script_verifies_manifest(tmp_path, monkeypatch):
     assert "difere" in sf.verify(tmp_path, man, {"facts.yaml": "b"}, "logit_lens", "llama")
     assert "mudou" in sf.verify(tmp_path, {**man, "config_changes": [{}]}, {"facts.yaml": "a"}, "logit_lens", "llama")
     assert sf.verify(tmp_path, {}, {}, "logit_lens", "llama") == "sem manifest"
+
+
+def test_nothing_to_do_only_when_every_unit_is_current(fresh):
+    f = fresh
+    assert run_lens.nothing_to_do(f["out"], f["cfg"], "llama", "logit")
+    new = _with_name(f["cfg"], "aviao", "santos_dumont", "Alberto2")
+    assert not run_lens.nothing_to_do(f["out"], new, "llama", "logit")        # entrada nova
+    (f["out"] / "probs.parquet").unlink()
+    assert not run_lens.nothing_to_do(f["out"], f["cfg"], "llama", "logit")   # sem tabelas
+    assert not run_lens.nothing_to_do(f["root"] / "vazio", f["cfg"], "llama", "tuned",
+                                      lens_root=f["root"] / "sem_lentes")      # sem lente
+
+
+def _no_load(monkeypatch):
+    import models.model_loader
+    monkeypatch.setattr(models.model_loader, "load_model",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("carregou o modelo")))
+
+
+def test_run_lens_main_skips_model_load_when_nothing_to_do(monkeypatch, tmp_path, capsys):
+    _no_load(monkeypatch)
+    monkeypatch.setattr(run_lens, "nothing_to_do", lambda *a, **k: True)
+    assert run_lens.main(["--model", "llama", "--lens", "logit", "--results-dir", str(tmp_path)]) == 0
+    assert "nada a refazer" in capsys.readouterr().out
+
+
+def test_run_behavioral_main_skips_model_load_when_all_done(monkeypatch, tmp_path, capsys):
+    import run_behavioral
+    from logit_lens.store import ChunkStore
+    _no_load(monkeypatch)
+    monkeypatch.setattr(ChunkStore, "done", lambda self, u: True)
+    out = run_behavioral.behavioral_dir(str(tmp_path), "llama")
+    out.mkdir(parents=True)
+    (out / "answers.parquet").write_bytes(b"x")
+    assert run_behavioral.main(["--model", "llama", "--results-dir", str(tmp_path)]) == 0
+    assert "nada a refazer" in capsys.readouterr().out
+
+
+def test_sanity_skipped_when_already_passed(monkeypatch, tmp_path, capsys):
+    import json
+    from config.loader import load_models
+    from models.runtime import precision_tag
+    spec = load_models()["llama"]
+    rep = {"passed": True, "revision": spec.revision, "precision_tag": precision_tag(spec)}
+    monkeypatch.setattr(run_lens, "SANITY_DIR", tmp_path)
+    p = run_lens.sanity_path("llama", spec, tmp_path)
+    p.write_text(json.dumps(rep))
+    assert run_lens.sanity_already_passed("llama", spec, tmp_path)
+    p.write_text(json.dumps({**rep, "passed": False}))
+    assert not run_lens.sanity_already_passed("llama", spec, tmp_path)
+    p.write_text(json.dumps({**rep, "revision": "outro"}))
+    assert not run_lens.sanity_already_passed("llama", spec, tmp_path)
+    p.write_text(json.dumps(rep))
+    _no_load(monkeypatch)
+    monkeypatch.setattr(run_lens, "sanity_already_passed", lambda m, s: True)
+    assert run_lens.main(["--model", "llama", "--sanity-only"]) == 0
+    assert "sanidade já aprovada" in capsys.readouterr().out

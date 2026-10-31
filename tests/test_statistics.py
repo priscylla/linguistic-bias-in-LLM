@@ -132,6 +132,34 @@ def test_stake_tests_null_effect_not_significant():
     assert (T[T.candidate == "santos_dumont"]["p"] > 0.01).all()
 
 
+def _en_heavy_data():
+    """Sem efeito de stake, mas en muito comprometido com o dominante (CS baixo)."""
+    parts = []
+    rng = np.random.default_rng(7)
+    for m in ("llama", "mistral", "qwen", "gemma", "llama_base", "qwen_base"):
+        vals = {(l, t): list((-0.3 if l == "en" else 0.0) + rng.normal(0, 0.02, 3))
+                for l in LANGS for t in ("F1", "F2", "F3")}
+        parts.append(_M(vals, model=m))
+    return pd.concat(parts, ignore_index=True)
+
+
+def test_stake_tests_without_en_in_comparison():
+    M = _en_heavy_data()
+    full = st.stake_tests(M, CFG.fact_specs, LANGS, SCFG)
+    non_en = st.stake_tests(M, CFG.fact_specs, LANGS, SCFG, exclude_from_comparison=("en",))
+    sd_full = full[(full.candidate == "santos_dumont") & (full.stake_type == "nationality")].iloc[0]
+    sd = non_en[(non_en.candidate == "santos_dumont") & (non_en.stake_type == "nationality")].iloc[0]
+    assert set(sd.non_stake_langs.split(",")) == {"de", "it"} and sd.comparison == "non_stake_no_en"
+    assert sd_full.comparison == "non_stake"
+    assert sd_full.mean_d == pytest.approx(0.1, abs=0.02) and sd_full.p < 0.01   # inflado por en
+    assert abs(sd.mean_d) < 0.02 and sd.p > 0.01                                 # sem en: nada
+    # candidato com stake em en: o grupo já não tinha en, nada muda
+    w_full = full[full.candidate == "wright"].iloc[0]
+    w = non_en[non_en.candidate == "wright"].iloc[0]
+    assert w.non_stake_langs == w_full.non_stake_langs and w.mean_d == pytest.approx(w_full.mean_d)
+    assert (non_en.p_holm >= non_en.p - 1e-12).all()
+
+
 # ══════════════════════════════════════════════════════════════
 # Modelos mistos
 # ══════════════════════════════════════════════════════════════
@@ -200,3 +228,52 @@ def test_internal_behavioral_join():
     r = J.iloc[0]
     assert r.cs_zone == pytest.approx(0.4) and r.cs_zone_completion == pytest.approx(0.2)
     assert r.primary_rate == pytest.approx(0.6)
+
+
+def test_mixed_models_without_llama():
+    D = _D(0.3)
+    _, fits = st.mixed_models(D, CFG.fact_specs, CFG.registry, "en", "cs_zone", exclude_models=st.NO_LLAMA)
+    a = fits[fits.fit == "A_all"].iloc[0]
+    assert a.n_model == 5 and a.n_obs == len(D[(D.lang != "en") & ~D.model.isin(["llama", "llama_base"])])
+
+
+def test_mixed_by_model_one_fit_per_model():
+    coefs, fits = st.mixed_by_model(_D(0.3), CFG.fact_specs, CFG.registry, "en", "cs_zone")
+    assert set(fits.model) == {"llama", "mistral", "qwen", "gemma", "llama_base", "qwen_base", "gemma_base"}
+    assert not fits.formula.str.contains("1|model", regex=False).any()
+    assert fits.formula.str.contains("1|fact", regex=False).all()
+    base = fits[fits.model == "qwen_base"].iloc[0]
+    assert "format" in base.dropped_terms                              # base: só completion
+    nat = coefs[coefs.term.str.contains("nationality")]
+    assert len(nat) == 7 and (nat.coef - 0.3).abs().max() < 0.06
+
+
+def _fake_fit(monkeypatch, converges_with):
+    """MixedLM.fit que só converge com os otimizadores em `converges_with`."""
+    from statsmodels.regression.mixed_linear_model import MixedLM
+    orig = MixedLM.fit
+    calls = []
+
+    def fit(self, *a, method=None, **k):
+        calls.append(method or "default")
+        r = orig(self, *a, **k)
+        r.converged = (method or "default") in converges_with
+        return r
+    monkeypatch.setattr(MixedLM, "fit", fit)
+    return calls
+
+
+def test_unconverged_fit_retried_with_lbfgs_then_powell(monkeypatch):
+    calls = _fake_fit(monkeypatch, {"powell"})
+    _, fits = st.mixed_models(_D(0.3), CFG.fact_specs, CFG.registry, "en", "cs_zone")
+    a = fits[fits.fit == "A_all"].iloc[0]
+    assert a.converged and a.optimizer == "powell" and a.optimizers_tried == "default,lbfgs,powell"
+    assert calls[:3] == ["default", "lbfgs", "powell"]
+
+
+def test_fit_that_never_converges_says_to_report_fit_b(monkeypatch):
+    _fake_fit(monkeypatch, set())
+    _, fits = st.mixed_models(_D(0.3), CFG.fact_specs, CFG.registry, "en", "cs_zone")
+    a = fits[fits.fit == "A_all"].iloc[0]
+    assert not a.converged and "ajuste B" in a.note
+    assert "ajuste B" not in fits[fits.fit == "B_completion"].iloc[0].note

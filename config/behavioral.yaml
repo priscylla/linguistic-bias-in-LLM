@@ -115,113 +115,119 @@ surface_forms:
 # Citadas nas respostas em que nenhum candidato aparece
 # (reports/behavioral_extraction_audit.md). NÃO são candidatos: só
 # alimentam a tabela descritiva behavioral_noncandidates (analyze.py).
-# status: real (existe, mesmo se a atribuição é errada) | invented (não
-# corresponde a uma pessoa real) | unclear (nome deturpado ou não
-# verificável). Classificação da revisão de 2026-10-30, a conferir.
+# status (reclassificação de 2026-10-30, decisão da autora):
+#   related        pessoa real que trabalhou na invenção ou num precursor
+#                  direto dela (ex.: Lilienthal, Muybridge, Sobrero)
+#   misattributed  pessoa real sem ligação com esta invenção (ex.:
+#                  Gilbert N. Lewis no cálculo, Eilert Sundt na dinamite)
+#   fabricated     não existe: nome inventado ou deturpado (ex.: "Einar
+#                  Anker", "Albert von Schönbein")
+# `note` diz o porquê de cada misattributed / fabricated.
 # Formas: mesmas regras das formas de superfície (fronteira de palavra,
 # sem caixa e sem acento).
 non_candidates:
   aviao:
-    - {id: lilienthal, label: Otto Lilienthal, status: real, forms: [Lilienthal]}
-    - {id: ader, label: Clément Ader, status: real, forms: [Clément Ader, Ader]}
-    - {id: cayley, label: George Cayley, status: real, forms: [Cayley]}
-    - {id: chanute, label: Octave Chanute, status: real, forms: [Chanute]}
-    - {id: da_vinci, label: Leonardo da Vinci, status: real, forms: [Leonardo da Vinci, da Vinci, Léonard de Vinci]}
-    - {id: langley, label: Samuel Pierpont Langley, status: real, forms: [Langley]}
-    - {id: whitehead, label: Gustave Whitehead, status: real, forms: [Gustave Whitehead, Whitehead]}
-    - {id: maxim, label: Hiram Maxim, status: real, forms: [Hiram Maxim]}
-    - {id: montgolfier, label: Montgolfier brothers, status: real, forms: [Montgolfier]}
-    - {id: stringfellow, label: John Stringfellow, status: real, forms: [Stringfellow]}
-    - {id: bleriot, label: Louis Blériot, status: real, forms: [Blériot]}
-    - {id: congreve, label: William Congreve, status: real, forms: [Congreve]}
-    - {id: eilmer, label: Eilmer of Malmesbury, status: real, forms: [Eilmer]}
-    - {id: buzjani, label: Abu al-Wafa' Buzjani, status: real, forms: [Buzjani], note: "mathematician, not aviation"}
-    - {id: karl_gunter, label: "Karl Günter (as alias of Whitehead)", status: unclear, forms: [Karl Günter]}
-    - {id: rochechouart, label: Léonard de Rochechouart, status: unclear, forms: [Rochechouart]}
-    - {id: claude_denis, label: "Claude-Denis Chastain / Rozier / Chastellux", status: invented, forms: [Claude-Denis], note: "garbled; Pilâtre de Rozier is real"}
+    - {id: lilienthal, label: Otto Lilienthal, status: related, forms: [Lilienthal]}
+    - {id: ader, label: Clément Ader, status: related, forms: [Clément Ader, Ader]}
+    - {id: cayley, label: George Cayley, status: related, forms: [Cayley]}
+    - {id: chanute, label: Octave Chanute, status: related, forms: [Chanute]}
+    - {id: da_vinci, label: Leonardo da Vinci, status: related, forms: [Leonardo da Vinci, da Vinci, Léonard de Vinci], note: "flying-machine designs"}
+    - {id: langley, label: Samuel Pierpont Langley, status: related, forms: [Langley]}
+    - {id: whitehead, label: Gustave Whitehead, status: related, forms: [Gustave Whitehead, Whitehead]}
+    - {id: maxim, label: Hiram Maxim, status: related, forms: [Hiram Maxim], note: "1894 steam flying machine"}
+    - {id: montgolfier, label: Montgolfier brothers, status: related, forms: [Montgolfier], note: "balloon flight, aviation precursor"}
+    - {id: stringfellow, label: John Stringfellow, status: related, forms: [Stringfellow], note: "powered model aircraft, 1848"}
+    - {id: bleriot, label: Louis Blériot, status: related, forms: [Blériot]}
+    - {id: congreve, label: William Congreve, status: misattributed, forms: [Congreve], note: "Congreve rockets, not aircraft"}
+    - {id: eilmer, label: Eilmer of Malmesbury, status: related, forms: [Eilmer], note: "11th-century glider attempt (answer calls him Chinese)"}
+    - {id: buzjani, label: Abu al-Wafa' Buzjani, status: misattributed, forms: [Buzjani], note: "mathematician, not aviation"}
+    - {id: karl_gunter, label: "Karl Günter (as alias of Whitehead)", status: fabricated, forms: [Karl Günter], note: "not an alias of Whitehead (born Gustav Weißkopf)"}
+    - {id: rochechouart, label: Léonard de Rochechouart, status: fabricated, forms: [Rochechouart], note: "no such aviation pioneer; the 1874 steam monoplane was Félix du Temple's"}
+    - {id: claude_denis, label: "Claude-Denis Chastain / Rozier / Chastellux", status: fabricated, forms: [Claude-Denis], note: "garbled; Pilâtre de Rozier is real"}
   calculo:
-    - {id: cavalieri, label: Bonaventura Cavalieri, status: real, forms: [Cavalieri]}
-    - {id: fermat, label: Pierre de Fermat, status: real, forms: [Fermat]}
-    - {id: archimedes, label: Archimedes, status: real, forms: [Archimedes, Archimède, Archimede, Arquimedes]}
-    - {id: kepler, label: Johannes Kepler, status: real, forms: [Kepler]}
-    - {id: mengoli, label: Pietro Mengoli, status: real, forms: [Mengoli]}
-    - {id: pascal, label: Blaise Pascal, status: real, forms: [Blaise Pascal]}
-    - {id: wallis, label: John Wallis, status: real, forms: [Wallis]}
-    - {id: stevin, label: Simon Stevin, status: real, forms: [Stevin]}
-    - {id: euler, label: Leonhard Euler, status: real, forms: [Euler]}
-    - {id: gregory, label: James Gregory, status: real, forms: [James Gregory]}
-    - {id: maurolico, label: Francesco Maurolico, status: real, forms: [Maurolico]}
-    - {id: spinoza, label: Baruch Spinoza, status: real, forms: [Baruch Sp, Spinoza]}
-    - {id: euclid_megara, label: Euclid of Megara, status: real, forms: [Euclides Megarensis]}
-    - {id: lewis, label: Gilbert N. Lewis, status: real, forms: [Gilbert N. Lewis], note: "chemist, unrelated"}
-    - {id: calandrelli, label: Giovanni Bonaventura Calandrelli, status: unclear, forms: [Calandrelli]}
-    - {id: ceva, label: Gianfrancesco Ceva, status: unclear, forms: [Gianfrancesco Ceva]}
-    - {id: pieroni_bonaventura, label: Pieroni Bonaventura, status: invented, forms: [Pieroni Bonaventura], note: "garbled Cavalieri"}
-    - {id: bonaventura_pascal, label: Bonaventura Pascal, status: invented, forms: [Bonaventura Pascal], note: "mix of Cavalieri and Pascal"}
+    - {id: cavalieri, label: Bonaventura Cavalieri, status: related, forms: [Cavalieri]}
+    - {id: fermat, label: Pierre de Fermat, status: related, forms: [Fermat]}
+    - {id: archimedes, label: Archimedes, status: related, forms: [Archimedes, Archimède, Archimede, Arquimedes], note: "method of exhaustion"}
+    - {id: kepler, label: Johannes Kepler, status: related, forms: [Kepler], note: "volumes of solids (Nova stereometria)"}
+    - {id: mengoli, label: Pietro Mengoli, status: related, forms: [Mengoli]}
+    - {id: pascal, label: Blaise Pascal, status: related, forms: [Blaise Pascal], note: "infinitesimal methods"}
+    - {id: wallis, label: John Wallis, status: related, forms: [Wallis]}
+    - {id: stevin, label: Simon Stevin, status: related, forms: [Stevin]}
+    - {id: euler, label: Leonhard Euler, status: related, forms: [Euler], note: "later formalization"}
+    - {id: gregory, label: James Gregory, status: related, forms: [James Gregory]}
+    - {id: maurolico, label: Francesco Maurolico, status: related, forms: [Maurolico], note: "early quadrature and induction"}
+    - {id: spinoza, label: Baruch Spinoza, status: misattributed, forms: [Baruch Sp, Spinoza], note: "philosopher"}
+    - {id: euclid_megara, label: Euclid of Megara, status: misattributed, forms: [Euclides Megarensis], note: "philosopher; named as a treatise title"}
+    - {id: lewis, label: Gilbert N. Lewis, status: misattributed, forms: [Gilbert N. Lewis], note: "chemist, unrelated"}
+    - {id: calandrelli, label: Giovanni Bonaventura Calandrelli, status: fabricated, forms: [Calandrelli], note: "no 17th-century mathematician of that name (Giuseppe Calandrelli was an 18th-19th c. astronomer)"}
+    - {id: ceva, label: Gianfrancesco Ceva, status: fabricated, forms: [Gianfrancesco Ceva], note: "garbled Giovanni Ceva"}
+    - {id: pieroni_bonaventura, label: Pieroni Bonaventura, status: fabricated, forms: [Pieroni Bonaventura], note: "garbled Cavalieri"}
+    - {id: bonaventura_pascal, label: Bonaventura Pascal, status: fabricated, forms: [Bonaventura Pascal], note: "mix of Cavalieri and Pascal"}
   cinema:
-    - {id: muybridge, label: Eadweard Muybridge, status: real, forms: [Muybridge]}
-    - {id: le_prince, label: Louis Le Prince, status: real, forms: [Louis Le Prince, Le Prince]}
-    - {id: marey, label: Étienne-Jules Marey, status: real, forms: [Marey]}
-    - {id: plateau, label: Joseph Plateau, status: real, forms: [Joseph Plateau]}
-    - {id: daguerre_c, label: Louis Daguerre, status: real, forms: [Daguerre], note: "photography"}
-    - {id: niepce_c, label: Nicéphore Niépce, status: real, forms: [Niépce], note: "photography"}
-    - {id: reynaud, label: Émile Reynaud, status: real, forms: [Reynaud]}
-    - {id: melies, label: Georges Méliès, status: real, forms: [Méliès]}
-    - {id: friese_greene, label: William Friese-Greene, status: real, forms: [Friese-Greene]}
-    - {id: talbot_c, label: William Henry Fox Talbot, status: real, forms: [Fox Talbot, William Talbot], note: "photography"}
-    - {id: dickson, label: William Kennedy Laurie Dickson, status: real, forms: [Dickson]}
-    - {id: heise, label: William Heise, status: real, forms: [William Heise]}
-    - {id: stanford, label: Leland Stanford, status: real, forms: [Leland Stanford]}
-    - {id: skladanowsky, label: Max Skladanowsky, status: real, forms: [Skladanowsky]}
-    - {id: bouly, label: Léon Bouly, status: real, forms: [Bouly]}
-    - {id: stampfer, label: Simon Stampfer, status: real, forms: [Stampfer]}
-    - {id: arago, label: François Arago, status: real, forms: [Arago]}
-    - {id: duboscq, label: Louis-Jules Duboscq, status: real, forms: [Duboscq]}
-    - {id: huygens, label: Christiaan Huygens, status: real, forms: [Huygens]}
-    - {id: oddi, label: Muzio Oddi, status: real, forms: [Muzio Oddi]}
-    - {id: whitley_hartley, label: "Roundhay Garden Scene people (Whitley, Hartley)", status: real, forms: [Whitley, Harriet Hartley]}
-    - {id: dupont, label: Ewald Dupont, status: real, forms: [Ewald Dupont], note: "film director E. A. Dupont, misattributed"}
-    - {id: auguste_le_prince, label: Auguste Le Prince, status: unclear, forms: [Auguste Le Prince]}
-    - {id: arnaud, label: Francis Arnaud, status: unclear, forms: [Francis Arnaud]}
-    - {id: rodrigues, label: Augusto Rodrigues, status: unclear, forms: [Augusto Rodrigues]}
-    - {id: glockenthanner, label: Egidius Glockenthanner, status: invented, forms: [Glockenthanner]}
-    - {id: eiese, label: Eiese, status: invented, forms: [Eiese]}
+    - {id: muybridge, label: Eadweard Muybridge, status: related, forms: [Muybridge]}
+    - {id: le_prince, label: Louis Le Prince, status: related, forms: [Louis Le Prince, Le Prince]}
+    - {id: marey, label: Étienne-Jules Marey, status: related, forms: [Marey]}
+    - {id: plateau, label: Joseph Plateau, status: related, forms: [Joseph Plateau]}
+    - {id: daguerre_c, label: Louis Daguerre, status: related, forms: [Daguerre], note: "photography, cinema precursor"}
+    - {id: niepce_c, label: Nicéphore Niépce, status: related, forms: [Niépce], note: "photography, cinema precursor"}
+    - {id: reynaud, label: Émile Reynaud, status: related, forms: [Reynaud]}
+    - {id: melies, label: Georges Méliès, status: related, forms: [Méliès], note: "early filmmaker"}
+    - {id: friese_greene, label: William Friese-Greene, status: related, forms: [Friese-Greene]}
+    - {id: talbot_c, label: William Henry Fox Talbot, status: related, forms: [Fox Talbot, William Talbot], note: "photography, cinema precursor"}
+    - {id: dickson, label: William Kennedy Laurie Dickson, status: related, forms: [Dickson]}
+    - {id: heise, label: William Heise, status: related, forms: [William Heise]}
+    - {id: stanford, label: Leland Stanford, status: related, forms: [Leland Stanford], note: "commissioned Muybridge"}
+    - {id: skladanowsky, label: Max Skladanowsky, status: related, forms: [Skladanowsky]}
+    - {id: bouly, label: Léon Bouly, status: related, forms: [Bouly]}
+    - {id: stampfer, label: Simon Stampfer, status: related, forms: [Stampfer], note: "stroboscopic disc"}
+    - {id: arago, label: François Arago, status: related, forms: [Arago], note: "announced the daguerreotype"}
+    - {id: duboscq, label: Louis-Jules Duboscq, status: related, forms: [Duboscq], note: "stereoscopic moving images (Bioscope)"}
+    - {id: huygens, label: Christiaan Huygens, status: related, forms: [Huygens], note: "magic lantern"}
+    - {id: oddi, label: Muzio Oddi, status: misattributed, forms: [Muzio Oddi], note: "Italian mathematician; no diorama"}
+    - {id: whitley_hartley, label: "Roundhay Garden Scene people (Whitley, Hartley)", status: related, forms: [Whitley, Harriet Hartley], note: "people filmed in Roundhay Garden Scene"}
+    - {id: dupont, label: Ewald Dupont, status: misattributed, forms: [Ewald Dupont], note: "film director E. A. Dupont"}
+    - {id: auguste_le_prince, label: Auguste Le Prince, status: fabricated, forms: [Auguste Le Prince], note: "Le Prince's brother was Albert; conflates Auguste Lumière"}
+    - {id: arnaud, label: Francis Arnaud, status: fabricated, forms: [Francis Arnaud], note: "no such inventor"}
+    - {id: rodrigues, label: Augusto Rodrigues, status: fabricated, forms: [Augusto Rodrigues], note: "no such Brazilian inventor"}
+    - {id: glockenthanner, label: Egidius Glockenthanner, status: fabricated, forms: [Glockenthanner], note: "no such person"}
+    - {id: eiese, label: Eiese, status: fabricated, forms: [Eiese], note: "no such person"}
   dinamite:
-    - {id: wilbrand, label: Julius Wilbrand, status: real, forms: [Wilbrand], note: "TNT"}
-    - {id: arrhenius, label: Svante Arrhenius, status: real, forms: [Arrhenius]}
-    - {id: lundstrom, label: Johan Edvard Lundström, status: real, forms: [Lundström]}
-    - {id: sundt, label: Eilert Sundt, status: real, forms: [Eilert Sundt], note: "sociologist, misattributed"}
-    - {id: sobrero, label: Ascanio Sobrero, status: real, forms: [Sobrero]}
-    - {id: ehrenborg, label: Gustav Ehrenborg, status: unclear, forms: [Ehrenborg]}
-    - {id: friedel_camille, label: Camille Alphonse Friedel, status: unclear, forms: [Camille Alphonse Friedel], note: "Charles Friedel is real"}
-    - {id: einar_anker, label: Einar Anker, status: invented, forms: [Einar Anker]}
-    - {id: einar_palme, label: Einar Gustaf Emil Palme, status: invented, forms: [Einar Gustaf Emil Palme]}
-    - {id: einar_muller, label: Einar Alexander Müller, status: invented, forms: [Einar Alexander Müller, Einar Alexander Muller, Einar Alexander Mller, Einar Müller, Einar Mller]}
-    - {id: einar_balliet, label: Einar de Balliet, status: invented, forms: [Balliet]}
-    - {id: blix, label: Gustav Blix, status: invented, forms: [Gustav Blix]}
-    - {id: botz, label: Gustav Alfred Bötz, status: invented, forms: [Bötz]}
-    - {id: thoren, label: Nickel Charles Abraham Thoren, status: invented, forms: [Thoren]}
-    - {id: bartholin, label: Johan G. Bartholin, status: invented, forms: [Johan G. Bartholin]}
-    - {id: thorvald, label: "Johan G. Thorvald / Ekdal Thorvaldsen", status: invented, forms: [Johan G. Thorvald, Ekdal Thorvaldsen]}
+    - {id: wilbrand, label: Julius Wilbrand, status: misattributed, forms: [Wilbrand], note: "TNT, not dynamite"}
+    - {id: arrhenius, label: Svante Arrhenius, status: misattributed, forms: [Arrhenius], note: "chemist, unrelated"}
+    - {id: lundstrom, label: Johan Edvard Lundström, status: misattributed, forms: [Lundström], note: "safety match"}
+    - {id: sundt, label: Eilert Sundt, status: misattributed, forms: [Eilert Sundt], note: "sociologist"}
+    - {id: sobrero, label: Ascanio Sobrero, status: related, forms: [Sobrero], note: "nitroglycerin"}
+    - {id: ehrenborg, label: Gustav Ehrenborg, status: fabricated, forms: [Ehrenborg], note: "no such chemist"}
+    - {id: friedel_camille, label: Camille Alphonse Friedel, status: fabricated, forms: [Camille Alphonse Friedel], note: "garbled; Charles Friedel is real"}
+    - {id: einar_anker, label: Einar Anker, status: fabricated, forms: [Einar Anker], note: "no such person"}
+    - {id: einar_palme, label: Einar Gustaf Emil Palme, status: fabricated, forms: [Einar Gustaf Emil Palme], note: "no such person"}
+    - {id: einar_muller, label: Einar Alexander Müller, status: fabricated, forms: [Einar Alexander Müller, Einar Alexander Muller, Einar Alexander Mller, Einar Müller, Einar Mller], note: "no such person"}
+    - {id: einar_balliet, label: Einar de Balliet, status: fabricated, forms: [Balliet], note: "no such person"}
+    - {id: blix, label: Gustav Blix, status: fabricated, forms: [Gustav Blix], note: "no such person"}
+    - {id: botz, label: Gustav Alfred Bötz, status: fabricated, forms: [Bötz], note: "no such person"}
+    - {id: thoren, label: Nickel Charles Abraham Thoren, status: fabricated, forms: [Thoren], note: "no such person"}
+    - {id: bartholin, label: Johan G. Bartholin, status: fabricated, forms: [Johan G. Bartholin], note: "no such person"}
+    - {id: thorvald, label: "Johan G. Thorvald / Ekdal Thorvaldsen", status: fabricated, forms: [Johan G. Thorvald, Ekdal Thorvaldsen], note: "no such person"}
+    - {id: von_schoenbein, label: Albert von Schönbein, status: fabricated, forms: [Albert von Schönbein], note: "garbled Christian Friedrich Schönbein (guncotton)"}
   fotografia:
-    - {id: wedgwood, label: Thomas Wedgwood, status: real, forms: [Wedgwood]}
-    - {id: kepler_f, label: Johannes Kepler, status: real, forms: [Kepler]}
-    - {id: durer, label: Albrecht Dürer, status: real, forms: [Dürer]}
-    - {id: pascal_f, label: Blaise Pascal, status: real, forms: [Blaise Pascal]}
+    - {id: wedgwood, label: Thomas Wedgwood, status: related, forms: [Wedgwood]}
+    - {id: kepler_f, label: Johannes Kepler, status: related, forms: [Kepler], note: "camera obscura optics"}
+    - {id: durer, label: Albrecht Dürer, status: misattributed, forms: [Dürer], note: "perspective drawing aids, not photography"}
+    - {id: pascal_f, label: Blaise Pascal, status: misattributed, forms: [Blaise Pascal], note: "no work on photography"}
   radio:
-    - {id: maxwell, label: James Clerk Maxwell, status: real, forms: [Maxwell]}
-    - {id: hertz, label: Heinrich Hertz, status: real, forms: [Heinrich Hertz]}
-    - {id: tesla, label: Nikola Tesla, status: real, forms: [Tesla]}
-    - {id: lodge, label: Oliver Lodge, status: real, forms: [Oliver Lodge]}
-    - {id: faraday, label: Michael Faraday, status: real, forms: [Faraday]}
-    - {id: fessenden, label: Reginald Fessenden, status: real, forms: [Fessenden]}
-    - {id: armstrong, label: Edwin Armstrong, status: real, forms: [Edwin Armstrong]}
-    - {id: morse, label: Samuel Morse, status: real, forms: [Samuel Morse]}
-    - {id: scott, label: Édouard-Léon Scott de Martinville, status: real, forms: [Scott de Martinville]}
+    - {id: maxwell, label: James Clerk Maxwell, status: related, forms: [Maxwell]}
+    - {id: hertz, label: Heinrich Hertz, status: related, forms: [Heinrich Hertz]}
+    - {id: tesla, label: Nikola Tesla, status: related, forms: [Tesla]}
+    - {id: lodge, label: Oliver Lodge, status: related, forms: [Oliver Lodge]}
+    - {id: faraday, label: Michael Faraday, status: related, forms: [Faraday], note: "induction, precursor"}
+    - {id: fessenden, label: Reginald Fessenden, status: related, forms: [Fessenden]}
+    - {id: armstrong, label: Edwin Armstrong, status: related, forms: [Edwin Armstrong], note: "FM"}
+    - {id: morse, label: Samuel Morse, status: related, forms: [Samuel Morse], note: "telegraph, precursor of wireless telegraphy"}
+    - {id: scott, label: Édouard-Léon Scott de Martinville, status: misattributed, forms: [Scott de Martinville], note: "phonautograph (sound recording)"}
   raios_x:
-    - {id: becquerel, label: Henri Becquerel, status: real, forms: [Becquerel]}
-    - {id: bragg, label: William Henry and William Lawrence Bragg, status: real, forms: [Bragg]}
-    - {id: curie, label: Pierre Curie, status: real, forms: [Curie]}
+    - {id: becquerel, label: Henri Becquerel, status: related, forms: [Becquerel], note: "radioactivity"}
+    - {id: bragg, label: William Henry and William Lawrence Bragg, status: related, forms: [Bragg], note: "X-ray crystallography"}
+    - {id: curie, label: Pierre Curie, status: related, forms: [Curie], note: "radioactivity"}
   tabela_periodica:
-    - {id: newlands, label: John Newlands, status: real, forms: [Newlands]}
-    - {id: lavoisier, label: Antoine Lavoisier, status: real, forms: [Lavoisier]}
+    - {id: newlands, label: John Newlands, status: related, forms: [Newlands], note: "law of octaves"}
+    - {id: lavoisier, label: Antoine Lavoisier, status: related, forms: [Lavoisier], note: "list of elements"}

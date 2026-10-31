@@ -283,12 +283,13 @@ def test_kappa_and_agreement():
     assert c["n_pairs"] == 9 and c["precision"] == pytest.approx(2 / 3) and c["recall"] == pytest.approx(2 / 3)
 
 
-def test_export_script_refuses_overwrite(tmp_path):
+def test_export_script_keeps_existing_sample(tmp_path, capsys):
+    # Amostra existente: mantida, com mensagem, e código 0 (não interrompe run_all_server.sh)
     from scripts import export_validation_sample as ev
     out = tmp_path / "s.csv"
     out.write_text("labels")
-    assert ev.main(["--output", str(out), "--results-dir", str(tmp_path)]) == 1
-    assert out.read_text() == "labels"
+    assert ev.main(["--output", str(out), "--results-dir", str(tmp_path)]) == 0
+    assert out.read_text() == "labels" and "mantida" in capsys.readouterr().out
 
 
 def test_check_behavioral(tmp_path):

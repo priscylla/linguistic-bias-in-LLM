@@ -377,7 +377,20 @@ def test_noncandidate_table():
     assert g.loc[analyze.NOBODY_LISTED, "n_answers"] == 1
     assert (g["n_no_candidate"] == 3).all() and (g["n_answers_cell"] == 4).all()     # Wright não entra
     d = T[T.fact == "dinamite"].iloc[0]
-    assert d.person == "einar_anker" and d.status == "invented"
+    assert d.person == "einar_anker" and d.status == "fabricated"
+
+
+def test_noncandidate_statuses_and_schoenbein():
+    from config.loader import NON_CANDIDATE_STATUS, load_behavioral
+    b = load_behavioral()
+    people = {x["id"]: x for ps in b.non_candidates.values() for x in ps}
+    assert NON_CANDIDATE_STATUS == {"related", "misattributed", "fabricated"}
+    assert {x["status"] for x in people.values()} <= NON_CANDIDATE_STATUS
+    # toda classificação que não é "related" diz o porquê
+    assert all(x.get("note") for x in people.values() if x["status"] != "related")
+    s = people["von_schoenbein"]
+    assert s["status"] == "fabricated" and "Albert von Schönbein" in s["forms"]
+    assert people["lewis"]["status"] == "misattributed" and people["lilienthal"]["status"] == "related"
 
 
 def test_non_candidate_validation():

@@ -35,6 +35,7 @@ Paleta Okabe-Ito + traço por idioma. Lens das figuras: figures.lens
 import argparse
 import os
 import sys
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -44,6 +45,7 @@ matplotlib.use("Agg")
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -233,19 +235,47 @@ def _lang_legend(langs, extra=()):
     return h + list(extra)
 
 
-def _model_legend(models):
+def _model_legend(models, color=None):
+    """Marcador (e cor, salvo `color` fixa: quando a cor codifica outra coisa) por modelo."""
     out = []
     for m in models:
         c, mk = model_style(m)
-        out.append(Line2D([0], [0], marker=mk, color=c, lw=0, markersize=4, label=model_label(m)))
+        out.append(Line2D([0], [0], marker=mk, color=color or c, lw=0, markersize=4, label=model_label(m)))
     return out
+
+
+def _bottom_legend(fig, handles, max_cols=4, fontsize=None):
+    """
+    Legenda abaixo dos painéis, quebrada em linhas de até `max_cols` itens
+    (rótulos de modelo têm ~1,3 in: 4 por linha cabem em \\textwidth).
+    Pendurada abaixo da área do tight_layout, nunca sobre os eixos; com
+    savefig.bbox = tight, a figura cresce para baixo, não para os lados.
+    """
+    kw = {"fontsize": fontsize} if fontsize else {}
+    fig.legend(handles=handles, loc="upper center", ncol=min(len(handles), max_cols),
+               frameon=False, bbox_to_anchor=(0.5, 0.0), **kw)
+
+
+def _wrap_title(text, width):
+    return "\n".join(textwrap.wrap(text, width)) if width else text
+
+
+def column_title(model, n_layers, n_cols):
+    """Título de coluna que cabe na largura do painel (texto ~7 pt)."""
+    width = text_width() / n_cols                  # polegadas por coluna
+    chars = max(6, int(width / 0.068))             # ~0,068 in por caractere no título (7,5 pt)
+    return _wrap_title(f"{model_label(model)} · {n_layers}L", chars)
 
 
 # ══════════════════════════════════════════════════════════════
 # FIG 1 — CULTURAL DIVERGENCE MAP
 # ══════════════════════════════════════════════════════════════
 
-def fig1_divergence_map(metrics, out_base, models, window=3):
+def fig1_divergence_map(metrics, out_base, models, window=3, stake_rows_only=False, row_h=0.85):
+    """
+    stake_rows_only: só candidatos com idioma de stake entre os do estudo
+    (versão compacta do texto principal); a completa vai para o apêndice.
+    """
     cm = _sel(metrics.get("curves_mean"), lens=fcfg()["lens"], format="completion",
               token_set="names")
     if not len(cm):
@@ -253,12 +283,14 @@ def fig1_divergence_map(metrics, out_base, models, window=3):
         return []
     C = _pooled(cm, ["cs", "n_layers"], ["model", "fact", "candidate", "lang", "layer"])
     models = [m for m in models if m in set(C["model"])]
-    panels = [p for p in fig_panels() if len(_sel(C, fact=p[0], candidate=p[1]))]
+    panels = [p for p in fig_panels() if len(_sel(C, fact=p[0], candidate=p[1]))
+              and (not stake_rows_only or set(stake_marks(*p)) & set(CONFIG.languages))]
     if not models or not panels:
         return []
     set_style()
     W = text_width()
-    fig, axes = plt.subplots(len(panels), len(models), figsize=(W, 0.85 * len(panels) + 0.7),
+    narrow = W / len(models) < 1.0
+    fig, axes = plt.subplots(len(panels), len(models), figsize=(W, row_h * len(panels) + 0.9),
                              sharey="row", squeeze=False)
     for r, (fact, cid) in enumerate(panels):
         marks = stake_marks(fact, cid)
@@ -280,8 +312,11 @@ def fig1_divergence_map(metrics, out_base, models, window=3):
             ax.axvspan(decision_start(n_l) - 0.5, n_l + 0.5, color="#000", alpha=0.06, lw=0)
             ax.set_xlim(1, n_l)
             ax.tick_params(length=2, pad=1)
+            if narrow:                                  # colunas estreitas: 2 marcas no eixo x
+                ax.xaxis.set_major_locator(MaxNLocator(nbins=2, integer=True))
             if r == 0:
-                ax.set_title(f"{model_label(model)} ({n_l}L)")
+                ax.set_title(column_title(model, n_l, len(models)),
+                             fontsize=fcfg()["font_size"] - (1 if narrow else 0))
             if c == 0:
                 stk = " ".join(f"{l.upper()}·{t}" for l, t in marks.items())
                 ax.set_ylabel(f"{_fact_label(fact)}\n{_short_name(fact, cid)}"
@@ -290,12 +325,11 @@ def fig1_divergence_map(metrics, out_base, models, window=3):
                 ax.set_xlabel("Layer")
     zone = mpatches.Patch(color="#000", alpha=0.12, label=f"Decision zone (last "
                           f"{int(round(CONFIG.decision_zone * 100))}%)")
-    fig.legend(handles=_lang_legend(CONFIG.languages, [zone]), loc="lower center",
-               ncol=len(CONFIG.languages) + 1, frameon=False, bbox_to_anchor=(0.5, -0.01))
+    _bottom_legend(fig, _lang_legend(CONFIG.languages, [zone]), max_cols=len(CONFIG.languages) + 1)
     smooth = "raw" if window == 1 else f"centered {window}-layer mean"
-    fig.suptitle(f"CS_e = P(e) − P(dominant) per layer · F1–F3 completion (9 prompts) · "
-                 f"{smooth} · thick = stake language (N nationality, P place)", y=1.0)
-    fig.tight_layout(rect=(0, 0.03, 1, 0.98), h_pad=0.3, w_pad=0.3)
+    fig.suptitle(f"CS_e = P(e) − P(dominant) per layer · F1–F3 completion (9 prompts) · {smooth}\n"
+                 f"thick = stake language (N nationality, P place)", y=1.0)
+    fig.tight_layout(rect=(0, 0.0, 1, 0.97), h_pad=0.3, w_pad=0.3)
     return save(fig, out_base)
 
 
@@ -351,11 +385,10 @@ def fig2_delta_cs(metrics, out_base, models, fmt="completion", group="F1-F3"):
     for r in range(nr):
         axes[r][0].set_ylabel(f"ΔCS vs {CONFIG.reference_language.upper()}")
     shade = mpatches.Patch(color="#F0E442", alpha=0.4, label="stake language (N nationality, P place)")
-    fig.legend(handles=_model_legend(models) + [shade], loc="lower center", ncol=len(models) + 1,
-               frameon=False, bbox_to_anchor=(0.5, -0.02))
+    _bottom_legend(fig, _model_legend(models) + [shade])
     what = "F1–F3 completion (9 prompts)" if group == "F1-F3" else f"{group} ({fmt})"
     fig.suptitle(f"ΔCS_e (decision-zone mean) per language · {what} · 95% bootstrap CI", y=1.0)
-    fig.tight_layout(rect=(0, 0.04, 1, 0.98))
+    fig.tight_layout(rect=(0, 0.0, 1, 0.98))
     return save(fig, out_base)
 
 
@@ -406,11 +439,10 @@ def fig3_peak_vs_final(metrics, out_base, models):
     style = [Line2D([0], [0], marker="o", color="#555", lw=0, ms=3.5, label="peak k*"),
              Line2D([0], [0], marker="o", color="white", mec="#555", lw=0, ms=3.5, label="final layer"),
              mpatches.Patch(color="#F0E442", alpha=0.4, label="stake language")]
-    fig.legend(handles=_model_legend(models) + style, loc="lower center", ncol=len(models) + 3,
-               frameon=False, bbox_to_anchor=(0.5, -0.02))
+    _bottom_legend(fig, _model_legend(models) + style)
     fig.suptitle("Peak vs final-layer probability of each candidate · F1–F3 completion · "
                  "controls: dominant candidate", y=1.0)
-    fig.tight_layout(rect=(0, 0.04, 1, 0.98))
+    fig.tight_layout(rect=(0, 0.0, 1, 0.98))
     return save(fig, out_base)
 
 
@@ -425,6 +457,7 @@ def fig4_internal_behavioral(metrics, out_base, models):
     if not len(J):
         print("  –  fig4: sem internal_behavioral")
         return []
+    models = [m for m in models if m in set(J["model"])]    # só os que têm respostas (instruct)
     set_style()
     fig, axes = plt.subplots(1, 2, figsize=(text_width(), 0.42 * text_width()), sharey=True)
     for ax, col, name in zip(axes, ["cs_star", "cs_zone"], ["CS* (peak)", "CS (dec. zone)"]):
@@ -445,10 +478,10 @@ def fig4_internal_behavioral(metrics, out_base, models):
     axes[0].set_ylabel("Primary rate of e")
     handles = [Line2D([0], [0], marker="o", color=lang_color(l), lw=0, ms=3, label=l.upper())
                for l in CONFIG.languages]
-    fig.legend(handles=handles + _model_legend(models), loc="lower center",
-               ncol=len(handles) + len(models), frameon=False,
-               bbox_to_anchor=(0.5, -0.06), fontsize=fcfg()["font_size"] - 1)
-    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    # Cor = idioma, marcador = modelo: modelos na legenda em cinza
+    _bottom_legend(fig, handles + _model_legend(models, color="#555"), max_cols=5,
+                   fontsize=fcfg()["font_size"] - 1)
+    fig.tight_layout(rect=(0, 0.0, 1, 1))
     return save(fig, out_base)
 
 
@@ -500,9 +533,9 @@ def fig5_names_vs_indicators(metrics, out_base, models):
     handles = [Line2D([0], [0], marker=mk, color="#000" if k == 0 else "#0072B2", lw=0, ms=3.5,
                       label=lab) for k, (_, _, lab, mk) in enumerate(SETS)]
     handles.append(Line2D([0], [0], color="#555", lw=0.8, label="range across models"))
-    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, bbox_to_anchor=(0.5, -0.02))
+    _bottom_legend(fig, handles)
     fig.suptitle("Name-based vs indicator-based ΔCS (decision zone) · mean over models", y=1.0)
-    fig.tight_layout(rect=(0, 0.05, 1, 0.98))
+    fig.tight_layout(rect=(0, 0.0, 1, 0.98))
     return save(fig, out_base)
 
 
@@ -523,6 +556,10 @@ def fig6_lens_comparison(metrics, out_base, models, report_dir="reports/tuned_le
         print("  –  fig6: sem resultados do Tuned Lens")
         return []
     cells = _sel(cells, model=models)
+    models = [m for m in models if m in set(cells["model"])]   # só os que têm Tuned Lens
+    if not models:
+        print("  –  fig6: nenhum modelo com Tuned Lens")
+        return []
     peaks = _sel(metrics.get("lens_agreement_peaks"), token_set="names", model=models)
     ev = tuned_eval(report_dir)
     ev = _sel(ev, model=models) if len(ev) else ev
@@ -552,7 +589,10 @@ def fig6_lens_comparison(metrics, out_base, models, report_dir="reports/tuned_le
     data = [peaks[peaks["model"] == m]["abs_d_peak_depth"].dropna() for m in models]
     ax.boxplot(data, widths=0.5, showfliers=False, medianprops={"color": "#000"})
     ax.set_xticks(range(1, len(models) + 1))
-    ax.set_xticklabels([model_label(m).split(" ")[0] for m in models])
+    # Rótulos curtos: sem "Instruct" quando todos são instruct (Tuned Lens só nesses)
+    all_instruct = all(CONFIG.registry[m].kind == "instruct" for m in models if m in CONFIG.registry.models)
+    short = [model_label(m).replace(" Instruct", "") if all_instruct else model_label(m) for m in models]
+    ax.set_xticklabels([_wrap_title(s, 7) for s in short], fontsize=fcfg()["font_size"] - 1.5)
     ax.set_ylabel("|Δ peak depth| (k*/L)")
     ax.set_title("(b) Peak layer shift")
 
@@ -573,9 +613,8 @@ def fig6_lens_comparison(metrics, out_base, models, report_dir="reports/tuned_le
         ax.legend(handles=[Line2D([0], [0], color="#555", ls="--", lw=0.8, label="Logit Lens"),
                            Line2D([0], [0], color="#555", lw=0.9, label="Tuned Lens")],
                   frameon=False, loc="upper right")
-    fig.legend(handles=_model_legend(models), loc="lower center", ncol=len(models), frameon=False,
-               bbox_to_anchor=(0.5, -0.06))
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    _bottom_legend(fig, _model_legend(models))
+    fig.tight_layout(rect=(0, 0.0, 1, 1))
     return save(fig, out_base)
 
 
@@ -818,8 +857,31 @@ def _majority(rates, none):
     return out
 
 
+def stake_p(metrics, table="stats_stake_tests", with_d=False) -> dict:
+    """
+    {(fato, candidato, idioma de stake): p de Holm} do teste de stake (lens
+    das figuras, nomes); com with_d, (p, d médio).
+    """
+    T = _sel(metrics.get(table), lens=fcfg()["lens"], token_set="names")
+    if not len(T):
+        return {}
+    return {(r.fact, r.candidate, r.stake_lang): ((r.p_holm, r.mean_d) if with_d else r.p_holm)
+            for r in T.itertuples()}
+
+
+def _fmt_p(p):
+    if p is None or pd.isna(p):
+        return "—"
+    return "$<$0.001" if p < 0.001 else f"{p:.3f}"
+
+
 def results_table(metrics, models, compact: bool) -> pd.DataFrame:
-    """Linha = modelo × fato × idioma × candidato não dominante (F1–F3 agrupadas)."""
+    """
+    Linha = modelo × fato × idioma × candidato não dominante (F1–F3 agrupadas).
+    Teste de stake (Holm): o principal (sem en no grupo de comparação) nas
+    duas tabelas, † no idioma quando p < 0,05; a tabela completa (apêndice)
+    traz também o teste com en no grupo.
+    """
     D = _sel(metrics.get("delta_cs"), lens=fcfg()["lens"], format="completion", token_set="names",
              dominant=False)
     if not len(D):
@@ -831,6 +893,7 @@ def results_table(metrics, models, compact: bool) -> pd.DataFrame:
     maj = _majority(rates, metrics.get("behavioral_none"))
     prim = (_sel(rates, kind="all").set_index(["model", "fact", "lang", "candidate"])["primary_rate"]
             if rates is not None and len(rates) else pd.Series(dtype=float))
+    p_main, p_with_en = stake_p(metrics, with_d=True), stake_p(metrics, "stats_stake_tests_with_en")
     rows = []
     for r in P.itertuples():
         marks = stake_marks(r.fact, r.candidate)
@@ -838,13 +901,23 @@ def results_table(metrics, models, compact: bool) -> pd.DataFrame:
             continue
         k = (r.model, r.fact, r.lang, r.candidate)
         mj = maj.get(k[:3])
-        rows.append({
+        pm, dm = p_main.get((r.fact, r.candidate, r.lang), (None, None)) if r.lang in marks else (None, None)
+        # † efeito de stake significativo (d > 0), ‡ significativo no sentido oposto (d < 0)
+        sig = "" if pm is None or pm >= 0.05 else (r"\dagger" if dm > 0 else r"\ddagger")
+        row = {
             "Model": model_label(r.model), "Fact": _fact_label(r.fact),
             "Candidate": _cand_label(r.fact, r.candidate),
-            "Lang": r.lang.upper() + ("$^{" + marks[r.lang] + "}$" if r.lang in marks else ""),
+            "Lang": r.lang.upper() + ("$^{" + marks[r.lang] + sig + "}$" if r.lang in marks else ""),
             "Peak $k^*/L$": r.k_star_depth, "CS$^*$": r.cs_star, "Supp.": r.suppression,
             "$\\Delta$CS": r.d_cs_zone,
             "Primary $e$": prim.get(k, np.nan),
+            "Stake $p_{\\mathrm{Holm}}$": _fmt_p(pm),
+        }
+        if not compact:
+            pw = p_with_en.get((r.fact, r.candidate, r.lang)) if r.lang in marks else None
+            row["Stake $p_{\\mathrm{Holm}}$, with EN"] = _fmt_p(pw)
+        rows.append({
+            **row,
             "Majority": ("—" if mj is None else
                          ("none" if mj[0] == "none" else _cand_label(r.fact, mj[0])) + f" ({mj[1]:.0%})"),
             "_order": (list(CONFIG.models).index(r.model) if r.model in CONFIG.models else 99,
@@ -884,7 +957,10 @@ def to_latex(T: pd.DataFrame, caption: str, label: str, longtable: bool) -> str:
     body = [" & ".join(cell(c, v) for c, v in zip(cols, row)) + r" \\"
             for row in T.itertuples(index=False)]
     note = (r"\multicolumn{%d}{l}{\footnotesize $^N$ nationality stake, $^P$ place-of-event stake; "
-            r"F1--F3 completion prompts pooled; $\Delta$CS = decision-zone CS minus EN.}\\" % len(cols))
+            r"$^\dagger$/$^\ddagger$ stake test significant with the stake language above/below the "
+            r"non-stake languages other than EN (Holm $p<0.05$); F1--F3 completion prompts pooled; "
+            r"$\Delta$CS = decision-zone CS minus EN.}\\"
+            % len(cols))
     if longtable:
         return "\n".join([r"\begin{small}", r"\begin{longtable}{%s}" % align,
                           r"\caption{%s}\label{%s}\\" % (caption, label), r"\toprule", head,
@@ -940,9 +1016,12 @@ def make_all(metrics, figs, out_dir, scopes, results_dir=None, tables_dir=None,
         sfx = "" if scope == "main" else "_all"
         models = figure_models(scope)
         if "fig1" in figs:
+            # Texto principal: compacta (modelos principais, só linhas com stake);
+            # apêndice: todos os modelos e candidatos
             for w in CONFIG.smoothing_windows:
                 paths += fig1_divergence_map(metrics, out_dir / f"fig1_divergence_map{sfx}{smoothing_suffix(w)}",
-                                             models, window=w)
+                                             models, window=w, stake_rows_only=(scope == "main"),
+                                             row_h=0.62 if scope == "main" else 0.85)
         if "fig2" in figs:
             paths += fig2_delta_cs(metrics, out_dir / f"fig2_delta_cs{sfx}", models)
             paths += fig2_delta_cs(metrics, out_dir / f"fig2_delta_cs_qa{sfx}", models, "qa", "QA")

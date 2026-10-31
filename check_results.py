@@ -17,6 +17,7 @@ E soma as GPU-horas registradas por modelo.
 
 import os
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -139,7 +140,30 @@ def check_behavioral(model_key: str, results_dir: str, config: ExperimentConfig,
     return problems
 
 
-def check_all_results(results_dir: str = None, config: ExperimentConfig = None) -> bool:
+def check_tuned_status(report_dir="reports/tuned_lens", models=None) -> list:
+    """
+    Problemas de cada modelo do Tuned Lens (config/tuned_lens.yaml) cuja
+    lente não está aprovada: reprovada no teste de aceitação ou sem status
+    (treino não terminou, ou lente antiga). Lê {modelo}_status.json.
+    """
+    import json
+    from config.loader import load_tuned_lens
+    out = []
+    for m in models or load_tuned_lens()["models"]:
+        p = Path(report_dir) / f"{m}_status.json"
+        try:
+            st = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            out.append(f"[tuned] {m}: sem {p.name} (lente não treinada com a receita atual, ou treino não terminou)")
+            continue
+        if st.get("status") != "accepted":
+            reasons = "; ".join((st.get("acceptance") or {}).get("reasons", []))
+            out.append(f"[tuned] {m}: lente reprovada no teste de aceitação ({reasons}); sem remedição")
+    return out
+
+
+def check_all_results(results_dir: str = None, config: ExperimentConfig = None,
+                      tuned_report_dir="reports/tuned_lens") -> bool:
     config      = config or ExperimentConfig()
     results_dir = results_dir or config.results_dir
 
@@ -165,6 +189,10 @@ def check_all_results(results_dir: str = None, config: ExperimentConfig = None) 
             print(f"  {'✅' if not p else '❌'} {model} (tuned lens)  "
                   f"{gpu_h[f'{model}/tuned']:.2f} GPU-h")
             problems += [f"[tuned] {x}" for x in p]
+    tp = check_tuned_status(tuned_report_dir)
+    for x in tp:
+        print(f"  ❌ {x}")
+    problems += tp
     # Comportamental: modelos instruct
     for model, spec in config.registry.models.items():
         if spec.kind != "instruct":

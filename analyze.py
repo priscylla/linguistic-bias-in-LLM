@@ -63,14 +63,20 @@ formas de superfície confirmadas):
     behavioral_report.csv   perguntas de config/behavioral.yaml (report)
     behavioral_noncandidates.csv  descritivo: pessoas não candidatas citadas
                             nas respostas sem candidato, por fato × modelo ×
-                            idioma, com status real / invented / unclear
+                            idioma, com status related / misattributed / fabricated
+    behavioral_none         fração de respostas sem candidato por modelo × fato × idioma
+    behavioral_switches     troca de escrita / idioma nas respostas (behavior/switches.py)
     kind = all (greedy + amostras) | greedy | sample
 
 Estatística (Fase 6, analysis/statistics.py):
     stats_ci                IC bootstrap de cs_zone, CS*, supressão, CS final e ΔCS
-    stats_stake_tests.csv   stake × não-stake por entidade (permutação, Holm)
+    stats_stake_tests.csv   stake × não-stake por entidade (permutação, Holm), grupo de
+                            comparação sem en (principal)
+    stats_stake_tests_with_en.csv  o mesmo com en no grupo (apêndice)
     stats_mixed_coefs.csv   modelos mistos A (todas) e B (completion)
     stats_mixed_fits.csv    fórmula, n, convergência, variâncias
+    stats_mixed_*_no_llama  os mesmos ajustes sem o Llama 3.1 (base e instruct)
+    stats_mixed_*_by_model  ajuste A dentro de cada modelo (efeito de stake por modelo)
     internal_behavioral     métrica interna × taxas comportamentais por célula
 
 Concordância Tuned Lens × Logit Lens (mesmas células):
@@ -434,8 +440,9 @@ def noncandidate_table(answers: pd.DataFrame, attr: pd.DataFrame, b) -> pd.DataF
     non_candidates) citadas nas respostas em que nenhum candidato aparece,
     por fato × modelo × idioma. Uma resposta conta uma vez por pessoa; a
     linha NOBODY_LISTED conta as respostas sem candidato e sem pessoa da
-    lista (ex.: "não há um único inventor"). status: real | invented |
-    unclear. Não entra em nenhuma métrica.
+    lista (ex.: "não há um único inventor"). status: related |
+    misattributed | fabricated (config/behavioral.yaml). Não entra em
+    nenhuma métrica.
     """
     from data.text_matching import compile_terms, normalize_text
     key = ["model", "fact", "lang", "paraphrase", "sample_id", "kind"]
@@ -465,6 +472,39 @@ def noncandidate_table(answers: pd.DataFrame, attr: pd.DataFrame, b) -> pd.DataF
             .reset_index(drop=True)
 
 
+def switch_table(answers: pd.DataFrame, attr: pd.DataFrame) -> pd.DataFrame:
+    """
+    Descritivo: troca de escrita e de idioma por modelo × fato × idioma
+    (behavior/switches.py), em todas as respostas e nas sem candidato.
+    """
+    from behavior.switches import switches
+    cols = BCELL + ["n_answers", "n_script_switch", "n_language_switch", "n_partial_language_switch",
+                    "n_no_candidate", "n_no_candidate_script_switch", "n_no_candidate_language_switch",
+                    "scripts", "switched_to"]
+    if answers is None or not len(answers) or not len(attr):
+        return pd.DataFrame(columns=cols)
+    key = ["model", "fact", "lang", "paraphrase", "sample_id", "kind"]
+    J = answers[key + ["text"]].merge(attr[key + ["primary"]], on=key)
+    S = pd.DataFrame([switches(t, l) for t, l in zip(J["text"], J["lang"])], index=J.index)
+    J = pd.concat([J, S], axis=1)
+    J["none"] = J["primary"] == "none"
+    J["lang_any"] = J["language_switch"] | J["partial_language_switch"]
+    rows = []
+    for k, g in J.groupby(BCELL):
+        n = g[g["none"]]
+        rows.append({**dict(zip(BCELL, k)), "n_answers": len(g),
+                     "n_script_switch": int(g["script_switch"].sum()),
+                     "n_language_switch": int(g["language_switch"].sum()),
+                     "n_partial_language_switch": int(g["partial_language_switch"].sum()),
+                     "n_no_candidate": len(n),
+                     "n_no_candidate_script_switch": int(n["script_switch"].sum()),
+                     "n_no_candidate_language_switch": int(n["lang_any"].sum()),
+                     "scripts": ",".join(sorted({x for v in g["scripts"] for x in v.split(",") if x})),
+                     "switched_to": ",".join(sorted({x for v in g["other_sentence_langs"]
+                                                     for x in v.split(",") if x}))})
+    return pd.DataFrame(rows, columns=cols)
+
+
 def compute_behavioral(answers: pd.DataFrame, config: ExperimentConfig, b=None) -> Dict[str, pd.DataFrame]:
     """Extração e taxas. Recusa (UnconfirmedError) sem as formas de superfície confirmadas."""
     from behavior.extraction import Extractor
@@ -480,7 +520,8 @@ def compute_behavioral(answers: pd.DataFrame, config: ExperimentConfig, b=None) 
             "indicator_rates": indicator_rates(ind, attr) if len(ind) else pd.DataFrame(),
             "empirical_dominant": empirical_dominant(attr, config),
             "behavioral_report": behavioral_report(ment, b),
-            "behavioral_noncandidates": noncandidate_table(answers, attr, b)}
+            "behavioral_noncandidates": noncandidate_table(answers, attr, b),
+            "behavioral_switches": switch_table(answers, attr)}
 
 
 def load_answers(results_dir: str):
@@ -572,8 +613,11 @@ def main(argv=None):
         df.to_parquet(out / f"{name}.parquet", index=False)
         print(f"  OK  {out / name}.parquet  ({len(df)} linhas)")
     for name in ("metrics", "delta_cs", "lens_agreement_summary", "behavioral_rates",
-                 "empirical_dominant", "behavioral_report", "behavioral_noncandidates", "stats_stake_tests",
-                 "stats_mixed_coefs", "stats_mixed_fits", "internal_behavioral"):
+                 "empirical_dominant", "behavioral_report", "behavioral_noncandidates",
+                 "behavioral_none", "behavioral_switches",
+                 "stats_stake_tests", "stats_stake_tests_with_en", "stats_mixed_coefs", "stats_mixed_fits",
+                 "stats_mixed_coefs_no_llama", "stats_mixed_fits_no_llama",
+                 "stats_mixed_coefs_by_model", "stats_mixed_fits_by_model", "internal_behavioral"):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)
     print("\nPróximo passo: python make_figures.py")

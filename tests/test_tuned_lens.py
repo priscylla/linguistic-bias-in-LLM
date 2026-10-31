@@ -61,11 +61,17 @@ def fake_source(lang, n=4000, inject=()):
     return lambda: iter(docs)
 
 
-def tiny_tl(**training):
+def tiny_tl(acceptance_tol=1e9, **training):
+    """
+    Config mínima de treino. O teste de aceitação fica frouxo por padrão
+    (modelo minúsculo, poucos passos); os testes de aceitação passam
+    acceptance_tol (negativo força a reprovação).
+    """
     cfg = copy.deepcopy(TL)
     cfg["training"].update(dict(num_steps=6, tokens_per_step=64, seq_len=16,
                                 loss_chunk_tokens=8, checkpoint_every=2), **training)
     cfg["eval"]["tokens_per_language"] = 64
+    cfg["acceptance"] = {"tolerance_nats": acceptance_tol}
     return cfg
 
 
@@ -293,11 +299,15 @@ def test_tuned_lens_config_valid_and_checks():
     assert validate_tuned_lens(exp, TL, REG) == []
     assert TL["models"] == ["llama", "mistral", "qwen", "gemma"]
     assert TL["training"]["num_steps"] * TL["training"]["tokens_per_step"] == 250 * 2**16
+    assert TL["training"]["max_grad_norm"] == 1.0 and TL["acceptance"]["tolerance_nats"] == 0.05
     bad = copy.deepcopy(TL)
     bad["models"].append("llama_base")
     bad["corpus"]["fr"]["revision"] = "main"
     bad["training"]["tokens_per_step"] = 1000
+    bad["training"]["max_grad_norm"] = 0
+    bad["acceptance"] = {}
     errs = validate_tuned_lens(exp, bad, REG)
+    assert any("max_grad_norm" in e for e in errs) and any("tolerance_nats" in e for e in errs)
     assert any("não é instruct" in e for e in errs)
     assert any("fr: revision" in e for e in errs)
     assert any("múltiplo" in e for e in errs)

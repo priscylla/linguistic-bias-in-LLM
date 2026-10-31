@@ -10,7 +10,16 @@
 #   4. checagem final (check_results)
 #   5. empacotamento dos resultados (com as lentes treinadas)
 #
-# Leva cerca de 18–20 h. Rode dentro de tmux/screen ou com nohup:
+# Retomável: tudo o que já está feito é pulado sem carregar o modelo
+# (unidades com impressão digital válida, sanidade já aprovada, amostra de
+# validação existente). Lentes do Tuned Lens de outra receita (toda lente
+# treinada antes de 2026-10-30, sem o corte do gradiente) são arquivadas
+# em lenses_stale/ e retreinadas por train_tuned_lens.py; uma lente
+# reprovada no teste de aceitação não é remedida, o job falha e o pacote
+# é feito mesmo assim (PACK_INFO.json lista tuned_lenses_failed).
+#
+# Do zero leva cerca de 18–20 h; só o retreino do Tuned Lens, ~5–6 h.
+# Rode dentro de tmux/screen ou com nohup:
 #   nohup ./run_all_server.sh > run_all.log 2>&1 &
 #   tail -f run_all.log
 #
@@ -46,6 +55,9 @@ case "$FROM" in [0-5]) ;; *) echo "--from deve ser 0 a 5" >&2; exit 2 ;; esac
 cd "$(dirname "$0")" || exit 1
 mkdir -p logs
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
+# O treino do Tuned Lens lê o corpus do Hub em streaming: precisa de rede,
+# mesmo que o shell tenha HF_HUB_OFFLINE=1 de um run anterior
+unset HF_HUB_OFFLINE
 
 ts()   { date '+%Y-%m-%d %H:%M:%S'; }
 step() { echo; echo "=== [$(ts)] $* ==="; }
@@ -98,17 +110,24 @@ fi
 
 # ── Etapas 2 e 3: as duas filas ao mesmo tempo ──
 if [ "$FROM" -le 3 ]; then
+  # Treino (ou pulo, se a lente já é desta receita e aprovada) e remedição.
+  # A remedição roda só se existir {modelo}_eval.csv, escrito apenas para
+  # lente aprovada (independe do código de saída do treino, que já abortou
+  # com 134 depois de gravar tudo). Lente reprovada: só _eval_rejected.csv,
+  # o test -f falha, a remedição não roda e a fila marca o job como falho.
+  # O status vai para reports/tuned_lens/{modelo}_status.json.
   cat > jobs_tuned.txt <<'EOF'
-[gpu=0] python train_tuned_lens.py --model gemma   && python run_lens.py --model gemma   --lens tuned
-[gpu=1] python train_tuned_lens.py --model llama   && python run_lens.py --model llama   --lens tuned
-[gpu=2] python train_tuned_lens.py --model qwen    && python run_lens.py --model qwen    --lens tuned
-[gpu=3] python train_tuned_lens.py --model mistral && python run_lens.py --model mistral --lens tuned
+[gpu=0] [timeout=8h] python train_tuned_lens.py --model gemma;   test -f reports/tuned_lens/gemma_eval.csv   && python run_lens.py --model gemma   --lens tuned
+[gpu=1] [timeout=5h] python train_tuned_lens.py --model llama;   test -f reports/tuned_lens/llama_eval.csv   && python run_lens.py --model llama   --lens tuned
+[gpu=2] [timeout=5h] python train_tuned_lens.py --model qwen;    test -f reports/tuned_lens/qwen_eval.csv    && python run_lens.py --model qwen    --lens tuned
+[gpu=3] [timeout=5h] python train_tuned_lens.py --model mistral; test -f reports/tuned_lens/mistral_eval.csv && python run_lens.py --model mistral --lens tuned
 EOF
   cat > jobs_main.txt <<'EOF'
 # Gemma 2 27B em bf16 (~55 GB): só na GPU 3, depois do treino do Mistral, com 60 GB livres.
-# Nunca na GPU 0, onde treina o Gemma 2 9B.
-[gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] python run_behavioral.py --model gemma27
-[gpu=3] [after=reports/tuned_lens/mistral_eval.csv] [mem=60] python run_lens.py --model gemma27 --lens logit
+# Nunca na GPU 0, onde treina o Gemma 2 9B. Espera o status do Mistral (escrito
+# aprovado ou reprovado), não o _eval.csv, que não existe se a lente for reprovada.
+[gpu=3] [after=reports/tuned_lens/mistral_status.json] [mem=60] python run_behavioral.py --model gemma27
+[gpu=3] [after=reports/tuned_lens/mistral_status.json] [mem=60] python run_lens.py --model gemma27 --lens logit
 # O resto em qualquer GPU, os mais longos primeiro
 python run_behavioral.py --model gemma
 python run_behavioral.py --model llama
@@ -143,6 +162,17 @@ EOF
   wait "$PID_TUNED"; RC_TUNED=$?
   echo "[$(ts)] fila do Tuned Lens terminou (código $RC_TUNED)"
   grep -h "^fim:" logs/tuned.log || true
+
+  # Lentes reprovadas ou sem status (lidas de reports/tuned_lens/*_status.json)
+  python - <<'PY' || true
+import json
+from pathlib import Path
+from config.loader import load_tuned_lens
+for m in load_tuned_lens()["models"]:
+    p = Path("reports/tuned_lens") / f"{m}_status.json"
+    st = json.loads(p.read_text())["status"] if p.exists() else "sem status (treino não terminou?)"
+    print(f"  Tuned Lens {m}: {st}")
+PY
 
   if [ "$RC_MAIN" -ne 0 ] || [ "$RC_TUNED" -ne 0 ]; then
     echo

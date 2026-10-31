@@ -35,6 +35,20 @@ class LensMismatch(RuntimeError):
     """Os tradutores salvos não são deste modelo (id, commit ou formas)."""
 
 
+class LensRejected(RuntimeError):
+    """A lente foi reprovada no teste de aceitação (config.json meta.acceptance)."""
+
+
+def update_meta(lens_dir, extra: Dict):
+    """Acrescenta chaves a config.json["meta"] sem regravar os tradutores."""
+    p = Path(lens_dir) / "config.json"
+    info = json.loads(p.read_text(encoding="utf-8"))
+    info["meta"] = {**info.get("meta", {}), **extra}
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(p)
+
+
 class TunedLens(Lens):
 
     name = "tuned_lens"
@@ -94,13 +108,21 @@ class TunedLens(Lens):
                                          encoding="utf-8")
 
     @classmethod
-    def load(cls, model, lens_dir, architecture=None, expected_revision: Optional[str] = None):
+    def load(cls, model, lens_dir, architecture=None, expected_revision: Optional[str] = None,
+             allow_rejected: bool = False):
         """
         Carrega tradutores treinados. Recusa (LensMismatch) se as formas
-        ou o commit do modelo não batem com os do treino.
+        ou o commit do modelo não batem com os do treino, e (LensRejected)
+        uma lente reprovada no teste de aceitação, salvo allow_rejected
+        (reavaliação com train_tuned_lens.py --eval-only).
         """
         lens_dir = Path(lens_dir)
         info = json.loads((lens_dir / "config.json").read_text(encoding="utf-8"))
+        acc = (info.get("meta") or {}).get("acceptance") or {}
+        if acc.get("passed") is False and not allow_rejected:
+            raise LensRejected(
+                f"{lens_dir}: lente reprovada no teste de aceitação ({'; '.join(acc.get('reasons', []))}). "
+                f"Não é usada; retreine (train_tuned_lens.py).")
         dtype = next(k for k, v in DTYPES.items() if str(v) == info["translator_dtype"])
         lens = cls(model, architecture, translator_dtype=dtype)
         mine = lens.identity_info()

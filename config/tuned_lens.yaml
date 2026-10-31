@@ -12,7 +12,18 @@
 # scripts/ingredients.py, nn/lenses.py): tradutor afim por camada
 # h + A·h + b, A e b começam em zero (= Logit Lens); perda
 # KL(final ‖ lens) na mesma posição; SGD Nesterov, momento 0.9,
-# lr = 1.0 · (1 − 0.9), weight decay 1e-3, sem warmup, decaimento linear.
+# lr = 1.0 · (1 − 0.9), weight decay 1e-3, sem warmup, decaimento linear,
+# gradiente cortado em norma global 1.0 antes de cada passo
+# (train_loop.py, linha 430).
+#
+# Versão da receita (logit_lens/lens_training.py RECIPE_VERSION):
+#   1  até 2026-10-29: SEM o corte do gradiente. O primeiro passo era
+#      ~140× maior que o do pacote e as últimas camadas terminavam piores
+#      que o Logit Lens (reports/results_checks.md §1). Lentes da versão 1
+#      são arquivadas em lenses_stale/ e retreinadas automaticamente.
+#   2  2026-10-30: com o corte (max_grad_norm), decisão da autora.
+# O hash da receita (hiperparâmetros abaixo + corpus + versão) vai para
+# lenses/{modelo}/RECIPE, config.json e PACK_INFO.json.
 
 models: [llama, mistral, qwen, gemma]     # modelos instruct (chaves de models.yaml)
 
@@ -65,6 +76,18 @@ training:
   translator_dtype: float32
   checkpoint_every: 10          # passos
   seed: 42
+  max_grad_norm: 1.0            # corte do gradiente (norma global), como no pacote
+
+# Teste de aceitação depois da avaliação held-out (train_tuned_lens.py).
+# A lente é reprovada se, na média dos idiomas, o KL do Tuned Lens passar
+# o do Logit Lens + tolerância na última camada traduzida (L−1) ou na
+# média da zona de decisão. Reprovada: o relatório vai para
+# {modelo}_eval_rejected.csv (não {modelo}_eval.csv), o status para
+# {modelo}_status.json, o script sai com código 4 e a remedição não roda.
+# Para um modelo reprovado, a autora decidiu tentar 2^18 tokens por passo
+# (python train_tuned_lens.py --model M --tokens-per-step 262144).
+acceptance:
+  tolerance_nats: 0.05
 
 eval:
   tokens_per_language: 65536    # held-out, KL por camada e idioma

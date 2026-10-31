@@ -5,7 +5,7 @@ Final report of the code revision described in `REVISION_PLAN.md` (Phases 0–8)
 ## Status
 
 - **Code:** all phases are implemented and committed. The pre-revision code is tagged `pre-facct-revision`.
-- **Tests:** 389 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s), on Python 3.13 and 3.12.
+- **Tests:** 421 pytest tests pass on CPU with tiny random models (`pytest`, about 30 s), on Python 3.13 and 3.12.
 - **Dry run:** `python run_pipeline_dry.py` runs the whole pipeline on tiny models (CPU, no network) and passes: sanity, Logit Lens, behavioral generation, Tuned Lens training and re-measurement, analysis and statistics, 40 figures, both LaTeX tables, integrity checks, validation agreement. About 105 s, about 1.1 GB RAM.
 - **No real-model runs**, no downloads of weights, and no Tuned Lens training were done. Everything that needs a GPU is a command in `RUNNING_server.md` (the co-author's 4-GPU server), `RUNNING_multiGPU.md` and `RUNNING_1GPU.md`; each starts with `scripts/check_env.py` and ends with `scripts/pack_results.py`.
 - **Runs are unblocked:** every value is confirmed (next section).

@@ -5,6 +5,8 @@ Exporta a amostra para validação manual da extração (Fase 5).
     python scripts/export_validation_sample.py
     python scripts/export_validation_sample.py --force     # sobrescreve (perde rótulos!)
 
+Se a amostra já existe, não faz nada e sai com 0 (rótulos preservados).
+
 Amostra estratificada (config/behavioral.yaml validation: per_cell
 respostas por modelo × idioma, semente fixa) das respostas em
 results/behavioral/*/. Grava reports/validation/sample.csv com colunas
@@ -36,8 +38,10 @@ def main(argv=None):
 
     out = Path(args.output)
     if out.exists() and not args.force:
-        print(f"❌ {out} já existe (pode ter rótulos). Use --force para sobrescrever.")
-        return 1
+        # Não é erro: a amostra já foi exportada (e pode ter rótulos). Sai com 0
+        # para não interromper run_all_server.sh.
+        print(f"⏭  {out} já existe (pode ter rótulos): mantida. Use --force para sobrescrever.")
+        return 0
     answers = load_answers(args.results_dir)
     if answers is None:
         print("❌ sem respostas em results/behavioral/ (rode run_behavioral.py)")

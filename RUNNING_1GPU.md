@@ -47,7 +47,7 @@ python3.12 -m venv .venv && source .venv/bin/activate   # Python >= 3.11, fresh 
 pip install -r requirements.txt         # Linux + CUDA; driver < 580: first pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
 hf auth login                           # = huggingface-cli login; or export HF_TOKEN="hf_..." (never commit it)
 python scripts/check_env.py             # FIRST: Python, packages, GPUs (memory, bf16), disk, HF access; must show 0 FAIL
-pytest                                  # 389 tests, all green
+pytest                                  # 421 tests, all green
 python run_pipeline_dry.py              # whole pipeline on tiny models; must end with "dry run ok"
 python verify_setup.py                  # tokenizers: gated access, last token of every prompt, name tokenization
 ```

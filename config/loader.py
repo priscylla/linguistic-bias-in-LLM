@@ -655,12 +655,18 @@ def validate_tuned_lens(exp: dict, tl: dict, reg: Registry) -> List[str]:
         errs.append("tuned_lens.training: tokens_per_step precisa ser múltiplo de seq_len")
     if t.get("translator_dtype") not in PRECISIONS:
         errs.append("tuned_lens.training.translator_dtype inválido")
+    g = t.get("max_grad_norm")
+    if not isinstance(g, (int, float)) or isinstance(g, bool) or g <= 0:
+        errs.append("tuned_lens.training.max_grad_norm: número positivo (corte do gradiente)")
+    tol = (tl.get("acceptance") or {}).get("tolerance_nats")
+    if not isinstance(tol, (int, float)) or isinstance(tol, bool) or tol < 0:
+        errs.append("tuned_lens.acceptance.tolerance_nats: número >= 0")
     if not isinstance(tl.get("held_out_mod"), int) or tl["held_out_mod"] < 2:
         errs.append("tuned_lens.held_out_mod: inteiro >= 2")
     return errs
 
 
-NON_CANDIDATE_STATUS = {"real", "invented", "unclear"}
+NON_CANDIDATE_STATUS = {"related", "misattributed", "fabricated"}
 
 
 def validate_non_candidates(facts: Dict[str, Fact], b: Behavioral) -> List[str]:

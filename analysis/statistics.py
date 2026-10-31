@@ -29,6 +29,11 @@ métrica(l) − métrica(en).
    entre fatos/entidades.
    CS (e não ΔCS) porque ΔCS(en) = 0 por definição e en é idioma de
    stake (Wright, Bell, Edison, Newton).
+   Teste principal (stats_stake_tests, decisão da autora em 2026-10-30):
+   o grupo de comparação são só os idiomas sem stake e diferentes de en
+   (en é o idioma mais comprometido com o dominante e inflava d). A
+   versão com en no grupo vai para o apêndice (stats_stake_tests_with_en).
+   Mesmo Holm nas duas.
 
 3. Modelos mistos (statsmodels MixedLM, efeitos aleatórios cruzados de
    fato e modelo como componentes de variância), linhas = célula ×
@@ -37,6 +42,14 @@ métrica(l) − métrica(en).
        A (todas):      ΔCS ~ stake_type + format + base_vs_instruct
        B (completion): ΔCS ~ stake_type + formulation + base_vs_instruct
    Termos com um único nível nos dados ficam fora (registrado).
+   As linhas de en ficam fora (ΔCS(en) = 0 por definição); o coeficiente
+   de stake compara idiomas de stake com idiomas sem stake ≠ en.
+   Ajuste que não converge é refeito com outro otimizador (lbfgs, depois
+   powell); a coluna `optimizer` diz qual convergiu e `note` registra
+   quando nenhum convergiu (usar então o ajuste B).
+   Sensibilidade: o mesmo sem o Llama 3.1 (base e instruct,
+   stats_mixed_*_no_llama) e o ajuste A dentro de cada modelo
+   (stats_mixed_*_by_model, só efeito aleatório de fato).
 
 4. Junção métrica interna × comportamento por célula modelo × fato ×
    idioma × candidato: formato QA (mesmos prompts das respostas) e
@@ -163,15 +176,24 @@ def holm(p: List[float]) -> List[float]:
     return out.tolist()
 
 
-def stake_tests(M: pd.DataFrame, facts: Dict, languages: List[str], scfg: Dict) -> pd.DataFrame:
+def stake_tests(M: pd.DataFrame, facts: Dict, languages: List[str], scfg: Dict,
+                exclude_from_comparison=()) -> pd.DataFrame:
+    """
+    `exclude_from_comparison`: idiomas fora do grupo de comparação além
+    dos de stake (ex.: ("en",): o inglês é o idioma mais comprometido com
+    o dominante e puxa a média do grupo para baixo, inflando d). Para
+    candidatos com stake em en, en é o próprio idioma testado e o grupo
+    não muda.
+    """
     S = stake_scores(M, scfg["primary_metric"])
+    comparison = "non_stake" + "".join(f"_no_{l}" for l in exclude_from_comparison)
     unit = ["model", "lens", "format", "token_set", "prompt_type"]
     U = S.groupby(unit + ["fact", "candidate", "lang"])["score"].mean().reset_index()
     rows = []
     for (fact, cid), g in U.groupby(["fact", "candidate"]):
         cand = facts[fact].candidate(cid)
         any_stake = set(cand.stake_languages())
-        non = [l for l in languages if l not in any_stake]
+        non = [l for l in languages if l not in any_stake and l not in exclude_from_comparison]
         for s in cand.stakes:
             for (lens, ts), h in g.groupby(["lens", "token_set"]):
                 w = h.pivot_table(index=unit, columns="lang", values="score")
@@ -184,7 +206,7 @@ def stake_tests(M: pd.DataFrame, facts: Dict, languages: List[str], scfg: Dict) 
                 t = sign_flip_test(d.to_numpy(), scfg["permutation_exact_max_n"],
                                    scfg["permutation_mc"],
                                    _rng(scfg["seed"], (fact, cid, s.language, s.type, lens, ts)))
-                rows.append({"fact": fact, "candidate": cid, "dominant": cand.dominant,
+                rows.append({"comparison": comparison, "fact": fact, "candidate": cid, "dominant": cand.dominant,
                              "stake_lang": s.language, "stake_type": s.type,
                              "lens": lens, "token_set": ts, "non_stake_langs": ",".join(cols),
                              "n_units": len(d), "mean_d": float(d.mean()) if len(d) else np.nan,
@@ -222,6 +244,9 @@ def mixed_rows(D: pd.DataFrame, facts: Dict, registry, ref: str, metric: str) ->
     return R
 
 
+FIT_METHODS = (None, "lbfgs", "powell")     # None = padrão do statsmodels (bfgs → cg → lbfgs)
+
+
 def _fit(R: pd.DataFrame, fixed: List[str], name: str) -> Dict:
     import statsmodels.formula.api as smf
     used, dropped = [], []
@@ -236,16 +261,33 @@ def _fit(R: pd.DataFrame, fixed: List[str], name: str) -> Dict:
             "n_fact": R["fact"].nunique(), "n_model": R["model"].nunique()}
     if len(R) < 5:
         return {**info, "converged": False, "error": "poucas linhas", "coefs": pd.DataFrame()}
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        try:
-            if vc:
-                md = smf.mixedlm(formula, R, groups=np.ones(len(R)), re_formula="0", vc_formula=vc)
-            else:
-                md = smf.mixedlm(formula, R, groups=np.ones(len(R)))
-            res = md.fit(reml=True)
-        except Exception as e:      # registra e segue (ex.: matriz singular)
-            return {**info, "converged": False, "error": str(e), "coefs": pd.DataFrame()}
+    if vc:
+        md = smf.mixedlm(formula, R, groups=np.ones(len(R)), re_formula="0", vc_formula=vc)
+    else:
+        md = smf.mixedlm(formula, R, groups=np.ones(len(R)))
+    res, w, tried, err = None, [], [], None
+    # Padrão do statsmodels; se não convergir, lbfgs e depois powell
+    for method in FIT_METHODS:
+        with warnings.catch_warnings(record=True) as wm:
+            warnings.simplefilter("always")
+            try:
+                r = md.fit(reml=True) if method is None else md.fit(reml=True, method=method)
+            except Exception as e:      # registra e tenta o próximo (ex.: matriz singular)
+                err = str(e)
+                tried.append(method or "default")
+                continue
+        tried.append(method or "default")
+        if res is None or (r.converged and not res.converged):
+            res, w = r, wm
+        if r.converged:
+            break
+    info["optimizers_tried"] = ",".join(tried)
+    if res is None:
+        return {**info, "converged": False, "error": err, "coefs": pd.DataFrame()}
+    info["optimizer"] = tried[-1] if res.converged else None
+    if not res.converged:
+        info["note"] = ("não convergiu com " + "/".join(tried)
+                        + (": reportar o ajuste B" if name.startswith("A") else ""))
     ci = res.conf_int()
     fe = res.fe_params.index
     coefs = pd.DataFrame({"term": fe, "coef": res.fe_params.values, "se": res.bse[fe].values,
@@ -258,9 +300,14 @@ def _fit(R: pd.DataFrame, fixed: List[str], name: str) -> Dict:
             **{f"var_{k}": float(v) for k, v in vcs.items()}, "coefs": coefs}
 
 
-def mixed_models(D: pd.DataFrame, facts: Dict, registry, ref: str, metric: str):
-    """(coeficientes, resumo) dos ajustes A e B por lens × conjunto."""
+def mixed_models(D: pd.DataFrame, facts: Dict, registry, ref: str, metric: str,
+                 exclude_models=()):
+    """
+    (coeficientes, resumo) dos ajustes A e B por lens × conjunto.
+    `exclude_models`: chaves de modelo fora do ajuste (ex.: sem o Llama 3.1).
+    """
     R = mixed_rows(D, facts, registry, ref, metric)
+    R = R[~R["model"].isin(list(exclude_models))]
     coefs, info = [], []
     for (lens, ts), g in R.groupby(["lens", "token_set"]):
         fits = [_fit(g, ["stake_type", "format", "base_vs_instruct"], "A_all")]
@@ -275,6 +322,29 @@ def mixed_models(D: pd.DataFrame, facts: Dict, registry, ref: str, metric: str):
                 coefs.append(c.assign(**meta, fit=f["fit"]))
     return (pd.concat(coefs, ignore_index=True) if coefs else pd.DataFrame(),
             pd.DataFrame(info))
+
+
+def mixed_by_model(D: pd.DataFrame, facts: Dict, registry, ref: str, metric: str):
+    """
+    Efeito de stake por modelo: o ajuste A dentro de cada modelo
+    (ΔCS ~ stake_type + format + (1|fact)); termos de um só nível saem
+    (base_vs_instruct sempre, format nos modelos base, só completion).
+    """
+    R = mixed_rows(D, facts, registry, ref, metric)
+    coefs, info = [], []
+    for (model, lens, ts), g in R.groupby(["model", "lens", "token_set"]):
+        f = _fit(g, ["stake_type", "format", "base_vs_instruct"], "A_all")
+        c = f.pop("coefs")
+        meta = {"model": model, "lens": lens, "token_set": ts, "metric": f"d_{metric}"}
+        info.append({**meta, **f})
+        if len(c):
+            coefs.append(c.assign(**meta, fit=f["fit"]))
+    return (pd.concat(coefs, ignore_index=True) if coefs else pd.DataFrame(),
+            pd.DataFrame(info))
+
+
+# Llama 3.1 (base e instruct): ajuste de sensibilidade sem ele
+NO_LLAMA = ("llama", "llama_base")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -309,10 +379,17 @@ def run_statistics(res: Dict[str, pd.DataFrame], config) -> Dict[str, pd.DataFra
     if "metrics" in res and len(res["metrics"]):
         M = res["metrics"]
         out["stats_ci"] = bootstrap_ci(M, scfg, ref)
-        out["stats_stake_tests"] = stake_tests(M, config.fact_specs, config.languages, scfg)
-        coefs, info = mixed_models(res["delta_cs"], config.fact_specs, config.registry, ref,
-                                   scfg["primary_metric"])
+        # Principal: comparação sem en; apêndice: com en no grupo
+        out["stats_stake_tests"] = stake_tests(M, config.fact_specs, config.languages, scfg,
+                                               exclude_from_comparison=(ref,))
+        out["stats_stake_tests_with_en"] = stake_tests(M, config.fact_specs, config.languages, scfg)
+        D, pm = res["delta_cs"], scfg["primary_metric"]
+        coefs, info = mixed_models(D, config.fact_specs, config.registry, ref, pm)
         out["stats_mixed_coefs"], out["stats_mixed_fits"] = coefs, info
+        coefs, info = mixed_models(D, config.fact_specs, config.registry, ref, pm, exclude_models=NO_LLAMA)
+        out["stats_mixed_coefs_no_llama"], out["stats_mixed_fits_no_llama"] = coefs, info
+        coefs, info = mixed_by_model(D, config.fact_specs, config.registry, ref, pm)
+        out["stats_mixed_coefs_by_model"], out["stats_mixed_fits_by_model"] = coefs, info
     if "delta_cs" in res and "behavioral_rates" in res:
         out["internal_behavioral"] = internal_behavioral(res["delta_cs"], res["behavioral_rates"],
                                                          scfg["pooled_types"])

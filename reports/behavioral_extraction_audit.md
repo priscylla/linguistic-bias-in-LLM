@@ -126,11 +126,16 @@ After applying both, `analyze.py` changed exactly the 12 simulated answers. No-c
 `results/metrics/behavioral_noncandidates.csv` (`analyze.py`) lists, per fact × model × language, every person from `config/behavioral.yaml` `non_candidates` named in the answers with no candidate. Each row has:
 - `n_answers`, the number of such answers;
 - the cell totals (`n_no_candidate`, `n_answers_cell`);
-- a status: **real** (exists, even if misattributed), **invented** (no such person) or **unclear** (garbled or unverifiable).
+- a status:
+  - **related**: a real person who worked on the invention or a direct precursor;
+  - **misattributed**: a real person with no connection to this invention;
+  - **fabricated**: no such person (invented or garbled names).
 
-The status is the revision's own judgment (2026-10-30) and should be checked. The list is descriptive only: these people are not candidates and enter no metric.
+  Every non-related entry has a note saying why (reclassification of 2026-10-30, which replaced real / invented / unclear and resolved the unclear names).
 
-All 302 no-candidate answers name at least one listed person, except 2 (one calculus, one dynamite) that name nobody on the list. Most named, in answers with no candidate:
+The list is descriptive only: these people are not candidates and enter no metric.
+
+All 302 no-candidate answers name at least one listed person, except 1. That is a Qwen calculus answer in Portuguese that switches to Chinese and names Newton and Leibniz in Chinese characters, which the extraction cannot read. The other former exception, "Albert von Schönbein" (Llama, dynamite, de), is now on the list as fabricated. Most named, in answers with no candidate:
 
 | Fact | No-candidate answers | Most named |
 | --- | --- | --- |
@@ -138,11 +143,19 @@ All 302 no-candidate answers name at least one listed person, except 2 (one calc
 | cinema | 121 | Eadweard Muybridge 78, Louis Le Prince 69, Étienne-Jules Marey 67, Joseph Plateau 28, Louis Daguerre 20 |
 | calculo | 43 | Bonaventura Cavalieri 41, Archimedes 31, Pierre de Fermat 21, Pietro Mengoli 4, Johannes Kepler 4 |
 | radio | 17 | James Clerk Maxwell 14, Heinrich Hertz 12, Nikola Tesla 5 |
-| dinamite | 10 | mostly invented people (Llama, de and pt): "Einar Anker", "Einar Gustaf Emil Palme", "Gustav Blix", … |
+| dinamite | 10 | mostly fabricated people (Llama, de and pt): "Einar Anker", "Einar Gustaf Emil Palme", "Gustav Blix", "Albert von Schönbein", … |
 | fotografia | 4 | Thomas Wedgwood 4 |
 | tabela_periodica | 3 | John Newlands 3, Antoine Lavoisier 2 |
 | raios_x | 1 | Becquerel, Curie, the Braggs |
 
 Status, counted over answer × person mentions:
-- 686 real, 9 unclear, 16 invented;
-- every invented mention is from Llama: dynamite de 7 and pt 2, airplane fr/it 3, cinema de 2, calculus fr/it 2.
+- related 672, misattributed 14, fabricated 26.
+- **Fabricated:** Llama 22, Qwen 3, Mistral 1. Dynamite de 10 and pt 2; the rest spread over airplane, calculus and cinema.
+- **Misattributed:** Llama 9, Qwen 2, Mistral 2, Gemma 1. Examples: Gilbert N. Lewis for calculus, Eilert Sundt for dynamite, Scott de Martinville for radio.
+
+The full review is in `reports/noncandidates_review.md`:
+- every person, with an example;
+- the full answers for the fabricated and misattributed names;
+- language concentration;
+- the share of no-candidate answers per fact × model × language;
+- script and language switches (48 script switches, 40 of them Qwen into Chinese, and 5 whole-answer language switches in 9,075 answers).

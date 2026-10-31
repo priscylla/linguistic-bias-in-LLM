@@ -10,16 +10,19 @@ O que entra: os arquivos versionados (git ls-files), sem o histórico git
 (.git não é copiado) e sem segredos (.env, *.env, arquivos de token).
 Resultados, figuras, lentes e caches não são versionados e ficam de fora.
 
-O que é trocado, em todo arquivo de texto:
-    nome e e-mail do git config (user.name, user.email), o usuário do
-    GitHub do remote origin e os termos de --scrub      → "Anonymous"
+O que é trocado, em todo arquivo de texto (palavras inteiras, sem caixa):
+    nome e e-mail dos autores dos commits (git log), do git config
+    (user.name, user.email), o usuário do GitHub do remote origin e os
+    termos de --scrub                                   → "Anonymous"
     qualquer e-mail                                     → anonymous@example.com
     tokens do Hugging Face (hf_...)                     → hf_REDACTED
     caminhos de home (/Users/<x>/, /home/<x>/)          → ~/
     URLs do repositório (github.com/<usuário>/<repo>)   → anonymous repository
 
-Depois da cópia, tudo é varrido de novo (texto e binário); se sobrar
-qualquer termo, o script falha (código 1) e lista os arquivos. Nenhum
+Depois da cópia, tudo é varrido de novo (texto e binário), com a mesma
+regra de palavra inteira da troca (um termo dentro de outra palavra, como
+um primeiro nome dentro de "Leonardo", não conta); se sobrar qualquer
+termo, o script falha (código 1) e lista os arquivos. Nenhum
 relatório com os termos originais é gravado dentro da cópia.
 """
 
@@ -46,10 +49,18 @@ def _git(*args, cwd=ROOT) -> str:
         return ""
 
 
-def identity_terms(extra=()) -> list:
-    """Nome, e-mail e usuário do GitHub do repositório + termos extras."""
-    terms = [_git("config", "user.name"), _git("config", "user.email")]
-    m = re.search(r"github\.com[:/]([^/]+)/", _git("remote", "get-url", "origin"))
+def identity_terms(extra=(), src=ROOT, from_config=True) -> list:
+    """
+    Nomes e e-mails dos autores dos commits, usuário do GitHub do remote,
+    o git config local (from_config) e termos extras. Sem o git config,
+    o resultado só depende do repositório (igual em qualquer máquina).
+    """
+    terms = []
+    for line in _git("log", "--format=%an%n%ae", cwd=src).splitlines():
+        terms.append(line)
+    if from_config:
+        terms += [_git("config", "user.name", cwd=src), _git("config", "user.email", cwd=src)]
+    m = re.search(r"github\.com[:/]([^/]+)/", _git("remote", "get-url", "origin", cwd=src))
     if m:
         terms.append(m.group(1))
     terms += list(extra)
@@ -88,10 +99,15 @@ def scrub_text(text: str, terms: list, repo_slug: str = None) -> tuple:
     return text, n
 
 
+def _word(term: str) -> re.Pattern:
+    return re.compile(r"(?<!\w)" + re.escape(term) + r"(?!\w)", re.I)
+
+
 def leftovers(data: bytes, terms: list) -> list:
-    low = data.lower()
-    hits = [t for t in terms if t.lower().encode("utf-8") in low]
-    if HF_TOKEN.search(data.decode("utf-8", "ignore")):
+    """Termos que sobraram como palavra inteira (mesma regra de scrub_text)."""
+    text = data.decode("utf-8", "ignore")
+    hits = [t for t in terms if _word(t).search(text)]
+    if HF_TOKEN.search(text):
         hits.append("hf_ token")
     return hits
 
