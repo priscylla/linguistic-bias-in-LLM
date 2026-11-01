@@ -168,7 +168,8 @@ def test_analyze_and_figures(run_dir, tmp_path, monkeypatch):
                         "--output-dir", str(figs), "--fig", fig, "--scope", "main"]) == 0
     assert {p.name for p in figs.iterdir()} == {
         f"{b}.{e}" for b in ("fig1_divergence_map_w3", "fig1_divergence_map_raw",
-                             "fig3_peak_vs_final") for e in ("pdf", "png")}
+                             "fig1_divergence_teaser_w3", "fig1_divergence_teaser_raw",
+                             "fig3_peak_vs_final", "fig3_peak_vs_final_disputed") for e in ("pdf", "png")}
     tables  = mf.load_tables(str(root), ("layers", "token_sets"))
     metrics = mf.load_metrics(out)
     run = mf.heatmap_run(tables, metrics, "llama", "aviao", "pt")

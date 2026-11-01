@@ -34,6 +34,14 @@ results/metrics/ (2026-11-01):
 6. narrative_markers       por indicador × idioma: taxa de menção sobre todas
                            as respostas (todos os modelos), a partir de
                            indicator_rates (já sem grafias duplicadas).
+7. dilution                decomposição do ΔCS dos não dominantes (nomes, zona
+                           de decisão: camadas com profundidade > 0.7 em
+                           curves_mean; F1–F3 e QA): cada idioma ≠ en contra en
+                           na mesma célula (modelo × fato × formato × formulação
+                           × candidato), ΔCS = ΔP(local) − ΔP(dominante).
+                           Por tipo de stake (none / nationality /
+                           place_of_event), o contraste nationality − none, e
+                           por candidato no seu idioma de stake; por lens.
 """
 
 import warnings
@@ -152,8 +160,17 @@ def nationality_robustness(D: pd.DataFrame, facts: Dict, registry, ref: str) -> 
 
 # ── 4. Interno × comportamental ──
 
-def internal_behavioral_corr(J: pd.DataFrame) -> pd.DataFrame:
+def _spearman(a, b):
+    """ρ de Spearman; NaN se houver menos de 3 pares ou uma das séries for constante."""
     from scipy.stats import spearmanr
+    a, b = pd.Series(a), pd.Series(b)
+    if len(a) < 3 or a.nunique() < 2 or b.nunique() < 2:
+        return np.nan, np.nan
+    r = spearmanr(a, b)
+    return float(r[0]), float(r[1])
+
+
+def internal_behavioral_corr(J: pd.DataFrame) -> pd.DataFrame:
     if J is None or not len(J):
         return pd.DataFrame()
     J = J[~J["dominant"].astype(bool)]
@@ -162,7 +179,7 @@ def internal_behavioral_corr(J: pd.DataFrame) -> pd.DataFrame:
         for measure, col in (("qa_cs_zone", "cs_zone"), ("completion_cs_zone", "cs_zone_completion")):
             for rate in ("primary_rate", "mention_rate"):
                 d = g.dropna(subset=[col, rate])
-                rho, p = spearmanr(d[col], d[rate]) if len(d) > 2 else (np.nan, np.nan)
+                rho, p = _spearman(d[col], d[rate])
                 rows.append({"lens": lens, "measure": measure, "rate": rate, "n_cells": len(d),
                              "spearman_rho": rho, "p": p})
         d = g.dropna(subset=["cs_zone", "primary_rate", "mention_rate"]).copy()
@@ -170,7 +187,7 @@ def internal_behavioral_corr(J: pd.DataFrame) -> pd.DataFrame:
         cs = d["cs_zone"] - d.groupby(key)["cs_zone"].transform("mean")
         for rate in ("primary_rate", "mention_rate"):
             r = d[rate] - d.groupby(key)[rate].transform("mean")
-            rho, p = spearmanr(cs, r) if len(d) > 2 else (np.nan, np.nan)
+            rho, p = _spearman(cs, r)
             rows.append({"lens": lens, "measure": "qa_cs_zone_within_candidate", "rate": rate,
                          "n_cells": len(d), "spearman_rho": rho, "p": p})
     return pd.DataFrame(rows)
@@ -207,11 +224,52 @@ def narrative_markers(rates: pd.DataFrame) -> pd.DataFrame:
     return T
 
 
+# ── 7. Diluição: ΔCS = ΔP(local) − ΔP(dominante) ──
+
+def dilution_rows(curves_mean: pd.DataFrame, facts: Dict, ref: str = "en", zone: float = 0.30) -> pd.DataFrame:
+    """Uma linha por célula × idioma ≠ ref: ΔP(local), −ΔP(dominante), ΔCS e o tipo de stake."""
+    C = curves_mean[(curves_mean["token_set"] == "names") & (curves_mean["depth"] > 1 - zone + 1e-9)]
+    C = C[[not facts[f].candidate(c).dominant for f, c in zip(C["fact"], C["candidate"])]]
+    cell = ["model", "lens", "fact", "format", "prompt_type", "candidate"]
+    Z = C.groupby(cell + ["lang"])[["prob", "p_dom"]].mean().reset_index()
+    en = Z[Z["lang"] == ref].drop(columns="lang").rename(columns={"prob": "prob_ref", "p_dom": "p_dom_ref"})
+    X = Z[Z["lang"] != ref].merge(en, on=cell)
+    X["d_p_local"] = X["prob"] - X["prob_ref"]
+    X["neg_d_p_dom"] = -(X["p_dom"] - X["p_dom_ref"])
+    X["d_cs"] = X["d_p_local"] + X["neg_d_p_dom"]
+
+    def stype(f, c, l):
+        return next((s.type for s in facts[f].candidate(c).stakes if s.language == l), "none")
+    X["stake_type"] = [stype(f, c, l) for f, c, l in zip(X["fact"], X["candidate"], X["lang"])]
+    return X
+
+
+def dilution(curves_mean: pd.DataFrame, facts: Dict, ref: str = "en", zone: float = 0.30) -> pd.DataFrame:
+    X = dilution_rows(curves_mean, facts, ref, zone)
+    cols = ["d_cs", "d_p_local", "neg_d_p_dom"]
+    rows = []
+    for lens, g in X.groupby("lens"):
+        by = g.groupby("stake_type")[cols].mean()
+        n = g.groupby("stake_type").size()
+        for st in by.index:
+            rows.append({"lens": lens, "level": "stake_type", "group": st, "fact": None, "candidate": None,
+                         "lang": None, "n_rows": int(n[st]), **by.loc[st].to_dict()})
+        if {"nationality", "none"} <= set(by.index):
+            rows.append({"lens": lens, "level": "contrast", "group": "nationality_minus_none", "fact": None,
+                         "candidate": None, "lang": None, "n_rows": int(n["nationality"] + n["none"]),
+                         **(by.loc["nationality"] - by.loc["none"]).to_dict()})
+        st = g[g["stake_type"] != "none"]
+        for (f, c, l, t), h in st.groupby(["fact", "candidate", "lang", "stake_type"]):
+            rows.append({"lens": lens, "level": "candidate_stake_language", "group": t, "fact": f,
+                         "candidate": c, "lang": l, "n_rows": len(h), **h[cols].mean().to_dict()})
+    return pd.DataFrame(rows)
+
+
 # ── Orquestração ──
 
 PAPER_TABLES = ("decision_depth", "decision_depth_summary", "final_layer_wins",
                 "stats_nationality_robustness", "internal_behavioral_corr", "peak_drop",
-                "narrative_markers")
+                "narrative_markers", "dilution")
 
 
 def run_paper_numbers(res: Dict[str, pd.DataFrame], config) -> Dict[str, pd.DataFrame]:
@@ -221,6 +279,7 @@ def run_paper_numbers(res: Dict[str, pd.DataFrame], config) -> Dict[str, pd.Data
         out["decision_depth"] = T
         out["decision_depth_summary"] = decision_depth_summary(T)
         out["final_layer_wins"] = final_layer_wins(T, F)
+        out["dilution"] = dilution(res["curves_mean"], F, config.reference_language, config.decision_zone)
     if "delta_cs" in res and len(res["delta_cs"]):
         out["stats_nationality_robustness"] = nationality_robustness(
             res["delta_cs"], F, config.registry, config.reference_language)

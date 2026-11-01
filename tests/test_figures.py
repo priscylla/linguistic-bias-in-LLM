@@ -154,3 +154,44 @@ def test_real_config_width_measured():
     from config.experiment_config import ExperimentConfig
     f = ExperimentConfig().experiment["figures"]
     assert f["text_width_in"] == 5.95 and "manuscript" in f["document_class"]   # 430.00462pt
+
+
+def test_paper_figures_and_tables(figs):
+    cfg, res, tmp, paths = figs
+    names = {p.split("/")[-1] for p in paths}
+    assert {"fig3_peak_vs_final_disputed.pdf", "fig7_dilution.pdf", "fig7_dilution.png"} <= names
+    teaser = [p for p in mf.TEASER_PANELS if p[0] in cfg.fact_specs]
+    assert bool(teaser) == ("fig1_divergence_teaser_w3.pdf" in names)
+    cand = (tmp / "tables" / "candidates_main.tex").read_text()
+    assert r"\label{tab:candidates_main}" in cand and r"\resizebox{\textwidth}" in cand
+    assert "Stake test, Logit (11)" in cand and "Stake test, Tuned (4)" in cand
+    T = mf.candidates_table(res)
+    disputed_non_dom = [c.id for f in cfg.fact_specs.values() if f.kind == "disputed"
+                        for c in f.candidates if c.stakes and not c.dominant]
+    assert len(T) and T["Candidate"].iloc[0] == mf.short_label(
+        *next((k, c.id) for k, f in cfg.fact_specs.items() for c in f.candidates if c.id == disputed_non_dom[0]))
+    en_rows = T[T["Stake"].str.startswith("EN")]
+    assert en_rows["CS EN"].isna().all() and en_rows["Win EN"].isna().all()   # stake em en: sem repetir
+    compact = (tmp / "tables" / "results_compact.tex").read_text()
+    assert "pooled test across models" in compact and "repeated on each model's row" in compact
+
+
+def test_no_super_titles_and_short_labels():
+    import inspect
+    assert "suptitle" not in inspect.getsource(mf)
+    assert mf.short_label("calculo", "leibniz") == "Leibniz"
+    assert mf.short_label("radio", "landell") == "Landell de Moura"
+    assert mf.short_label("cinema", "lumiere") == "Lumière brothers"
+    assert mf.short_label("fotografia", "talbot") == "Talbot"
+    assert mf._fact_label("tabela_periodica") == "Periodic table"
+
+
+def test_fig4_uses_every_instruct_model(synth, tmp_path, monkeypatch):
+    # fig4 recebe todos os modelos (o texto principal também mostra Gemma 2 27B), não só main_models
+    cfg, res = synth
+    monkeypatch.setattr(mf, "CONFIG", cfg)
+    seen = []
+    monkeypatch.setattr(mf, "fig4_internal_behavioral", lambda m, out, models: seen.append(list(models)) or [])
+    mf.make_all(res, ["fig4"], tmp_path, ["main"])
+    assert seen == [mf.figure_models("all")]
+    assert set(mf.figure_models("all")) > set(cfg.experiment["figures"]["main_models"])

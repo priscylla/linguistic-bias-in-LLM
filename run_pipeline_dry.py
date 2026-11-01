@@ -218,6 +218,8 @@ def main(argv=None):
     res = analyze.compute_all(load_tables(str(results)), config)
     res.update(analyze.compute_behavioral(analyze.load_answers(str(results)), config, beh))
     res.update(run_statistics(res, config))
+    from analysis.paper_numbers import run_paper_numbers
+    res.update(run_paper_numbers(res, config))
     metrics_dir = results / "metrics"
     metrics_dir.mkdir(parents=True, exist_ok=True)
     for name, df in res.items():

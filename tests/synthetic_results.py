@@ -89,6 +89,8 @@ def build(seed=0):
     b = dataclasses.replace(load_behavioral(), status="confirmed")
     res.update(analyze.compute_behavioral(answers_table(cfg, rng), cfg, b))
     res.update(run_statistics(res, cfg))
+    from analysis.paper_numbers import run_paper_numbers
+    res.update(run_paper_numbers(res, cfg))
     return cfg, res
 
 

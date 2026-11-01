@@ -98,3 +98,23 @@ def test_control_fact_has_one_candidate_column():
     C = _curves([0.0, 0.2, 0.6], [0.0, 0.2, 0.6], fact="penicilina", alt="fleming")
     T = pn.decision_depth(C, F).iloc[0]
     assert T.winner == "fleming" and T.winner_is_dominant and T.kind == "control"
+
+
+def _zone_rows(lang, prob, p_dom, depths=(0.5, 0.8, 0.9)):
+    """Linhas de curves_mean de uma célula (Santos-Dumont, F1); só as de profundidade > 0.7 contam."""
+    return pd.DataFrame({"model": "m", "lens": "logit_lens", "fact": "aviao", "format": "completion",
+                         "prompt_type": "F1", "token_set": "names", "candidate": "santos_dumont", "lang": lang,
+                         "depth": list(depths), "prob": [9.0, prob, prob], "p_dom": [9.0, p_dom, p_dom]})
+
+
+def test_dilution_decomposition():
+    C = pd.concat([_zone_rows("en", 0.05, 0.60), _zone_rows("pt", 0.10, 0.40), _zone_rows("de", 0.05, 0.55)])
+    D = pn.dilution(C, F, "en", 0.30)
+    pt = D[(D.level == "candidate_stake_language") & (D.lang == "pt")].iloc[0]
+    assert pt.group == "nationality"
+    assert pt.d_p_local == pytest.approx(0.05) and pt.neg_d_p_dom == pytest.approx(0.20)
+    assert pt.d_cs == pytest.approx(pt.d_p_local + pt.neg_d_p_dom)          # ΔCS = ΔP(local) − ΔP(dom)
+    none = D[(D.level == "stake_type") & (D.group == "none")].iloc[0]     # de: sem stake
+    assert none.d_p_local == pytest.approx(0.0) and none.neg_d_p_dom == pytest.approx(0.05)
+    con = D[D.group == "nationality_minus_none"].iloc[0]
+    assert con.d_cs == pytest.approx(0.25 - 0.05) and con.neg_d_p_dom == pytest.approx(0.15)

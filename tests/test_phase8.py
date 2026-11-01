@@ -211,7 +211,7 @@ def test_dry_run_quick(tmp_path):
                                  "5_analysis_statistics", "6_figures_tables", "7_check_results",
                                  "8_validation"}
     assert rep["checks"]["check_results_problems"] == []
-    assert rep["checks"]["tables"] == ["results_compact.tex", "results_full.tex"]
+    assert rep["checks"]["tables"] == ["candidates_main.tex", "results_compact.tex", "results_full.tex"]
     w = rep["workload"]["tiny_instruct"]
     assert w["logit_lens"]["forwards_prompts"] > 0 and w["behavioral"]["answers"] > 0
     assert (out / "figures" / "fig2_delta_cs.pdf").exists()
