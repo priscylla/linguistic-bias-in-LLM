@@ -160,3 +160,40 @@ EN and DE prompts were unchanged in Phase 0 (already correct). The prompts above
 - **Consequence:** the behavioral measure is reported as "named first", not "credited".
 
 All Wilson intervals were recomputed from the counts (z = 1.96) and match the values above.
+
+## Compute (2026-11-01)
+
+From `scripts/compute_summary.py` (CPU only; reads the run_queue logs, the run manifests and the Tuned Lens training reports).
+- **One job, one GPU:** every job ran on one GPU, Gemma 2 27B included, so its wall time counts as its GPU-hours.
+- **Final:** runs whose outputs are in the current `results/`, `lenses/` or `reports/sanity/`. Each job is matched by time to the manifest session, `translators.pt` or sanity report it wrote.
+- **Discarded:** superseded runs:
+  - the first Logit Lens round (measurement version 1, 2026-10-29);
+  - the unclipped Tuned Lenses of 2026-10-29, with their evaluation and measurements;
+  - re-measurements later redone.
+
+| Stage | Final (GPU-h) | Discarded (GPU-h) |
+| --- | ---: | ---: |
+| Sanity checks (11 models) | 1.74 | 0.00 |
+| Logit Lens measurements (11 models) | 0.22 | 1.57 |
+| Behavioral generation: Gemma 2 9B / Gemma 2 27B / Llama 3.1 / Mistral / Qwen 2.5 | 0.48 / 0.49 / 0.41 / 0.32 / 0.30 (1.98) | 0.00 |
+| Tuned Lens training: Gemma 2 9B / Llama 3.1 / Mistral / Qwen 2.5 | 6.02 / 4.25 / 2.88 / 3.13 (16.28) | 4.65 / 2.21 / 1.17 / 2.07 (10.10) |
+| Tuned Lens held-out evaluation and model loads | 1.07 | 0.34 |
+| Tuned Lens re-measurement (4 models) | 0.24 | 0.17 |
+| **Total** | **21.55** | **12.19** |
+| **All** | | **33.74** |
+
+**Hardware:** 4 × NVIDIA H100 NVL (99.9 GB each).
+
+**Software:** torch 2.11.0+cu130, CUDA 13.0 (driver 580.82.07), transformers 5.7.0, Python 3.12.16.
+
+**Notes:**
+- **Tuned Lens jobs:** each one trained, evaluated and re-measured in a single job. Training time comes from `*_train.json`. Re-measurement time is the manifest session plus a model load. Evaluation is the remainder of the job's wall time. The job totals are exact; the split between evaluation and re-measurement is approximate.
+- **Estimated (no wall time logged):** three jobs run by hand on 2026-10-30, totaling 0.10 GPU-h, all discarded:
+  - one Logit Lens measurement (Llama 3.1 base);
+  - two Tuned Lens re-measurements with the unclipped lenses (Llama, Mistral).
+
+  Each is its logged measurement minutes plus the median model-load time of the queued jobs.
+- **Not in the totals:**
+  - 27 skipped jobs (1.83 h of wall time), where all outputs were already current and no model was loaded;
+  - one hung job on 2026-10-29 (Llama 3.1 base, Logit Lens), with no status line and an empty log: it never loaded the model, and its duration was not logged.
+- **Unclipped training reports:** these came from the first pack. The server archived them under `reports/tuned_lens_stale/` (not packed), and they were restored locally to `reports/tuned_lens_stale/2026-10-29_unclipped/` (not versioned).
