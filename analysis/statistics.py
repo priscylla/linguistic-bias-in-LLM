@@ -51,6 +51,12 @@ métrica(l) − métrica(en).
    stats_mixed_*_no_llama) e o ajuste A dentro de cada modelo
    (stats_mixed_*_by_model, só efeito aleatório de fato).
 
+3b. "O dominante é inglês" (2026-11-01): ΔCS médio dos não dominantes
+   nos idiomas sem stake e ≠ en, por grupo (dominant: o dominante do fato
+   é inglês; local: o candidato medido é inglês; neither), com IC por
+   bootstrap sobre modelos (stats_english_decomposition); e o ajuste A
+   com o termo dom_en (stats_mixed_*_domen).
+
 4. Junção métrica interna × comportamento por célula modelo × fato ×
    idioma × candidato: formato QA (mesmos prompts das respostas) e
    média de F1–F3 (completion).
@@ -348,6 +354,80 @@ NO_LLAMA = ("llama", "llama_base")
 
 
 # ══════════════════════════════════════════════════════════════
+# 3b. "O dominante é inglês": decomposição e termo dom_en
+# ══════════════════════════════════════════════════════════════
+
+def english_nationals(facts: Dict, fact: str) -> set:
+    """Candidatos do fato com stake de nacionalidade em en (Wright, Bell, Newton, Edison, Talbot, ...)."""
+    return {c.id for c in facts[fact].candidates
+            if any(s.language == "en" and s.type == "nationality" for s in c.stakes)}
+
+
+def dominant_is_english(facts: Dict, fact: str) -> bool:
+    return facts[fact].dominant.id in english_nationals(facts, fact)
+
+
+def english_group(facts: Dict, fact: str, cid: str) -> str:
+    """
+    Grupo de uma linha (candidato não dominante `cid` do fato):
+        dominant  o dominante do fato é o inglês (avião, telefone, cálculo)
+        local     o próprio candidato medido é o inglês (Edison, Talbot)
+        neither   nenhum dos dois (inclusive Daguerre e Florence na
+                  fotografia, onde o inglês é Talbot, outro candidato)
+    """
+    if dominant_is_english(facts, fact):
+        return "dominant"
+    return "local" if cid in english_nationals(facts, fact) else "neither"
+
+
+def english_decomposition(D: pd.DataFrame, facts: Dict, ref: str, metric: str, B: int, seed: int,
+                          token_sets=("names",)) -> pd.DataFrame:
+    """
+    ΔCS médio (zona de decisão) dos candidatos não dominantes nos idiomas
+    sem stake do candidato e ≠ en, por grupo (english_group), por lens.
+    IC 95% por bootstrap sobre modelos (modelos reamostrados com reposição;
+    a estatística é a média sobre todas as linhas dos modelos sorteados).
+    """
+    y = f"d_{metric}"
+    R = D[~D["dominant"] & (D["lang"] != ref) & D["token_set"].isin(token_sets)].dropna(subset=[y])
+    R = R[[l not in {s.language for s in facts[f].candidate(c).stakes}
+           for f, c, l in zip(R["fact"], R["candidate"], R["lang"])]].copy()
+    R["group"] = [english_group(facts, f, c) for f, c in zip(R["fact"], R["candidate"])]
+    rows = []
+    for (lens, ts, grp), g in R.groupby(["lens", "token_set", "group"], sort=True):
+        per = g.groupby("model")[y].agg(["sum", "size"])
+        rng = _rng(seed, ("english_decomposition", lens, ts, grp))
+        idx = rng.integers(0, len(per), size=(B, len(per)))
+        boot = per["sum"].to_numpy()[idx].sum(1) / per["size"].to_numpy()[idx].sum(1)
+        rows.append({"lens": lens, "token_set": ts, "group": grp, "metric": y, "n_rows": len(g),
+                     "n_models": len(per), "facts": ",".join(sorted(g["fact"].unique())),
+                     "candidates": ",".join(sorted(g["candidate"].unique())),
+                     "mean": float(g[y].mean()), "ci_low": float(np.quantile(boot, 0.025)),
+                     "ci_high": float(np.quantile(boot, 0.975))})
+    return pd.DataFrame(rows)
+
+
+def mixed_models_domen(D: pd.DataFrame, facts: Dict, registry, ref: str, metric: str):
+    """
+    Ajuste A com o termo dom_en (1 se o dominante do fato é inglês) por
+    lens × conjunto: ΔCS ~ stake_type + format + base_vs_instruct + dom_en
+    + (1|fact) + (1|model).
+    """
+    R = mixed_rows(D, facts, registry, ref, metric)
+    R["dom_en"] = [int(dominant_is_english(facts, f)) for f in R["fact"]]
+    coefs, info = [], []
+    for (lens, ts), g in R.groupby(["lens", "token_set"]):
+        f = _fit(g, ["stake_type", "format", "base_vs_instruct", "dom_en"], "A_all_domen")
+        c = f.pop("coefs")
+        meta = {"lens": lens, "token_set": ts, "metric": f"d_{metric}"}
+        info.append({**meta, **f})
+        if len(c):
+            coefs.append(c.assign(**meta, fit=f["fit"]))
+    return (pd.concat(coefs, ignore_index=True) if coefs else pd.DataFrame(),
+            pd.DataFrame(info))
+
+
+# ══════════════════════════════════════════════════════════════
 # 4. Interno × comportamental
 # ══════════════════════════════════════════════════════════════
 
@@ -390,6 +470,10 @@ def run_statistics(res: Dict[str, pd.DataFrame], config) -> Dict[str, pd.DataFra
         out["stats_mixed_coefs_no_llama"], out["stats_mixed_fits_no_llama"] = coefs, info
         coefs, info = mixed_by_model(D, config.fact_specs, config.registry, ref, pm)
         out["stats_mixed_coefs_by_model"], out["stats_mixed_fits_by_model"] = coefs, info
+        out["stats_english_decomposition"] = english_decomposition(
+            D, config.fact_specs, ref, pm, scfg["bootstrap"], scfg["seed"])
+        coefs, info = mixed_models_domen(D, config.fact_specs, config.registry, ref, pm)
+        out["stats_mixed_coefs_domen"], out["stats_mixed_fits_domen"] = coefs, info
     if "delta_cs" in res and "behavioral_rates" in res:
         out["internal_behavioral"] = internal_behavioral(res["delta_cs"], res["behavioral_rates"],
                                                          scfg["pooled_types"])

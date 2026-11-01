@@ -23,6 +23,27 @@ from data.text_matching import compile_terms, normalize_text, strip_accents
 NONE = "none"
 
 
+# Ordem para escolher a grafia exibida de um indicador (en tem prioridade)
+SPELLING_ORDER = ("pt", "en", "de", "it", "fr")
+
+
+def dedupe_spellings(by_lang: Dict[str, List[str]]) -> List[str]:
+    """
+    Uma grafia por forma normalizada (normalize_text: sem caixa e sem
+    acento, a mesma regra da busca): a inglesa se houver, senão a primeira
+    na ordem pt, en, de, it, fr. Devolve as grafias em ordem alfabética.
+    """
+    langs = sorted(by_lang, key=lambda l: (SPELLING_ORDER.index(l) if l in SPELLING_ORDER
+                                           else len(SPELLING_ORDER), l))
+    chosen = {}
+    for l in langs:
+        for w in by_lang[l] or []:
+            n = normalize_text(w)
+            if n not in chosen or (l == "en" and chosen[n][0] != "en"):
+                chosen[n] = (l, w)
+    return sorted(w for _, w in chosen.values())
+
+
 class Extractor:
 
     def __init__(self, facts: Dict, behavioral, languages: List[str]):
@@ -40,14 +61,15 @@ class Extractor:
                     pats[c.id] = (compile_terms([x for x in forms if x not in exact]),
                                   compile_terms([x for x in forms if x in exact], casefold=False))
                 self.cand[(k, l)] = pats
-        # fato -> [(candidato, tipo, palavra, padrão)]
+        # fato -> [(candidato, tipo, palavra, padrão)]: um indicador por forma
+        # normalizada (a busca ignora caixa e acento, então "Kinetoscope" e
+        # "kinétoscope" são o mesmo indicador; antes viravam duas linhas iguais)
         self.ind = {}
         for k, f in facts.items():
             rows = []
             for c in f.candidates:
                 for t, by_lang in c.indicators.items():
-                    words = sorted({w for ws in by_lang.values() for w in ws})
-                    for w in words:
+                    for w in dedupe_spellings(by_lang):
                         rows.append((c.id, t, w, compile_terms([w])))
             self.ind[k] = rows
 

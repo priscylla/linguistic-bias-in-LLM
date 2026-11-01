@@ -277,3 +277,46 @@ def test_fit_that_never_converges_says_to_report_fit_b(monkeypatch):
     a = fits[fits.fit == "A_all"].iloc[0]
     assert not a.converged and "ajuste B" in a.note
     assert "ajuste B" not in fits[fits.fit == "B_completion"].iloc[0].note
+
+
+# ══════════════════════════════════════════════════════════════
+# "O dominante é inglês" (2026-11-01)
+# ══════════════════════════════════════════════════════════════
+
+def test_english_group_rule():
+    F = CFG.fact_specs
+    assert st.english_group(F, "aviao", "santos_dumont") == "dominant"     # Wright é o dominante
+    assert st.english_group(F, "calculo", "leibniz") == "dominant"
+    assert st.english_group(F, "cinema", "edison_cinema") == "local"       # o próprio medido é inglês
+    assert st.english_group(F, "fotografia", "talbot") == "local"
+    assert st.english_group(F, "fotografia", "daguerre") == "neither"      # o inglês é outro (Talbot)
+    assert st.english_group(F, "radio", "popov") == "neither"
+
+
+def _D_domen(effect=0.05, seed=1):
+    """
+    _D sem efeito aleatório de fato (dom_en é um termo do fato: com só 7
+    fatos, um desvio por fato o confundiria) e com +effect nas linhas dos
+    fatos cujo dominante é inglês.
+    """
+    D = _D(0.0, seed)
+    non_en = D["lang"] != "en"
+    D.loc[non_en, "d_cs_zone"] -= D[non_en].groupby("fact")["d_cs_zone"].transform("mean")
+    bump = D["fact"].map(lambda f: effect if st.dominant_is_english(CFG.fact_specs, f) else 0.0)
+    D["d_cs_zone"] = D["d_cs_zone"] + bump.where(non_en, 0.0)
+    return D
+
+
+def test_english_decomposition_recovers_groups():
+    T = st.english_decomposition(_D_domen(0.05), CFG.fact_specs, "en", "cs_zone", 2000, 42).set_index("group")
+    assert set(T.index) == {"dominant", "local", "neither"}
+    assert T.loc["dominant", "mean"] - T.loc["neither", "mean"] == pytest.approx(0.05, abs=0.02)
+    assert (T["ci_low"] <= T["mean"]).all() and (T["mean"] <= T["ci_high"]).all()
+    assert (T["n_models"] == 7).all() and "edison_cinema" in T.loc["local", "candidates"]
+
+
+def test_mixed_models_domen_recovers_dom_en():
+    coefs, fits = st.mixed_models_domen(_D_domen(0.05), CFG.fact_specs, CFG.registry, "en", "cs_zone")
+    assert fits["converged"].all() and "C(dom_en)" in fits.iloc[0].formula
+    d = coefs[coefs.term.str.contains("dom_en")].iloc[0]
+    assert d.coef == pytest.approx(0.05, abs=0.01) and d.ci_low > 0

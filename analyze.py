@@ -77,6 +77,8 @@ Estatística (Fase 6, analysis/statistics.py):
     stats_mixed_fits.csv    fórmula, n, convergência, variâncias
     stats_mixed_*_no_llama  os mesmos ajustes sem o Llama 3.1 (base e instruct)
     stats_mixed_*_by_model  ajuste A dentro de cada modelo (efeito de stake por modelo)
+    stats_english_decomposition  ΔCS médio por grupo "dominante inglês / local inglês / nenhum"
+    stats_mixed_*_domen     ajuste A com o termo dom_en (dominante do fato é inglês)
     internal_behavioral     métrica interna × taxas comportamentais por célula
 
 Concordância Tuned Lens × Logit Lens (mesmas células):
@@ -617,7 +619,9 @@ def main(argv=None):
                  "behavioral_none", "behavioral_switches",
                  "stats_stake_tests", "stats_stake_tests_with_en", "stats_mixed_coefs", "stats_mixed_fits",
                  "stats_mixed_coefs_no_llama", "stats_mixed_fits_no_llama",
-                 "stats_mixed_coefs_by_model", "stats_mixed_fits_by_model", "internal_behavioral"):
+                 "stats_mixed_coefs_by_model", "stats_mixed_fits_by_model",
+                 "stats_english_decomposition", "stats_mixed_coefs_domen", "stats_mixed_fits_domen",
+                 "internal_behavioral"):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)
     print("\nPróximo passo: python make_figures.py")
