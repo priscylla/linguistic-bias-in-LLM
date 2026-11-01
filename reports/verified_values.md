@@ -167,24 +167,38 @@ From `scripts/compute_summary.py` (CPU only; reads the run_queue logs, the run m
 - **One job, one GPU:** every job ran on one GPU, Gemma 2 27B included, so its wall time counts as its GPU-hours.
 - **Final:** runs whose outputs are in the current `results/`, `lenses/` or `reports/sanity/`. Each job is matched by time to the manifest session, `translators.pt` or sanity report it wrote.
 - **Discarded:** superseded runs:
-  - the first Logit Lens round (measurement version 1, 2026-10-29);
+  - the first Logit Lens round (measurement version 1: 2026-10-29, and Llama 3.1 base by hand on 2026-10-30);
   - the unclipped Tuned Lenses of 2026-10-29, with their evaluation and measurements;
   - re-measurements later redone.
 
 | Stage | Final (GPU-h) | Discarded (GPU-h) |
 | --- | ---: | ---: |
-| Sanity checks (11 models) | 1.74 | 0.00 |
-| Logit Lens measurements (11 models) | 0.22 | 1.57 |
-| Behavioral generation: Gemma 2 9B / Gemma 2 27B / Llama 3.1 / Mistral / Qwen 2.5 | 0.48 / 0.49 / 0.41 / 0.32 / 0.30 (1.98) | 0.00 |
-| Tuned Lens training: Gemma 2 9B / Llama 3.1 / Mistral / Qwen 2.5 | 6.02 / 4.25 / 2.88 / 3.13 (16.28) | 4.65 / 2.21 / 1.17 / 2.07 (10.10) |
+| Sanity checks (11 models, 2026-10-29) | 1.74 | 0.00 |
+| Logit Lens measurements (11 models; final = version-2 rerun of 2026-10-30) | 0.22 | 1.57 |
+| Behavioral generation: Gemma 2 9B / Gemma 2 27B / Llama 3.1 / Mistral / Qwen 2.5 | 0.48 / 0.49 / 0.41 / 0.32 / 0.30 (2.00) | 0.00 |
+| Tuned Lens training: Gemma 2 9B / Llama 3.1 / Mistral / Qwen 2.5 | 6.02 / 4.25 / 2.88 / 3.13 (16.28) | 4.65 / 2.21 / 1.17 / 2.07 (10.11) |
 | Tuned Lens held-out evaluation and model loads | 1.07 | 0.34 |
 | Tuned Lens re-measurement (4 models) | 0.24 | 0.17 |
 | **Total** | **21.55** | **12.19** |
 | **All** | | **33.74** |
 
-**Hardware:** 4 × NVIDIA H100 NVL (99.9 GB each).
+**Hardware:** 4 × NVIDIA H100 NVL, 94 GB each (product specification). The driver reports 99.9 × 10⁹ bytes of device memory, which is the figure in `reports/check_env.json`.
 
 **Software:** torch 2.11.0+cu130, CUDA 13.0 (driver 580.82.07), transformers 5.7.0, Python 3.12.16.
+
+**Reconciliation with `check_results.py`** ("GPU-horas registradas" 3.57):
+- **What check_results sums:** each manifest's `gpu_hours`, i.e. the measurement time of *all* its sessions, superseded ones included. That is 1.37 (Logit Lens) + 0.23 (Tuned Lens) + 1.98 (behavioral). Adding check_results' two-decimal per-model values instead gives 1.38 for the Logit Lens.
+
+| Stage | check_results (all sessions) | = current sessions | + superseded sessions | Jobs, final | Jobs, discarded |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Logit Lens | 1.37 | 0.18 | 1.19 | 0.22 | 1.57 |
+| Tuned Lens re-measurement | 0.23 | 0.23 | 0.00 | 0.24 | 0.17 |
+| Behavioral generation | 1.98 | 1.98 | 0.00 | 2.00 | 0.00 |
+
+- **Logit Lens:** each manifest holds two sessions, the version-1 round (1.19 h, superseded) and the version-2 rerun of 2026-10-30 (0.18 h; its units are the current results). The version-2 round was fast because every model was already in the local cache. The 11 rerun jobs took 0.22 h, so 0.04 h was model loading.
+  - **Version-1 round:** its jobs took 1.57 h against 1.19 h of measurement. The 0.38 h difference is model loading on the first run.
+- **Tuned Lens:** the superseded measurements with the unclipped lenses (0.17 h of jobs) are not in the current manifests: the server archived them with the old lenses. The final 0.24 h is the 0.23 h of sessions plus model loads.
+- **Behavioral:** 2.00 h of jobs against 1.98 h of generation; the 0.02 h is model loading.
 
 **Notes:**
 - **Tuned Lens jobs:** each one trained, evaluated and re-measured in a single job. Training time comes from `*_train.json`. Re-measurement time is the manifest session plus a model load. Evaluation is the remainder of the job's wall time. The job totals are exact; the split between evaluation and re-measurement is approximate.

@@ -27,6 +27,16 @@ skipped     the job found all its outputs current and loaded no model (reported
             separately, not in the totals)
 estimated   no wall time in the logs: measurement minutes from the job's own log
             plus the median model-load overhead of the same stage in the queues
+
+Reconciliation with check_results.py: its "GPU-horas registradas" is the sum of
+each manifest's gpu_hours, i.e. the measurement time of ALL sessions of that
+manifest, superseded ones included (the Logit Lens manifests hold the version-1
+session of 2026-10-29 and the version-2 session of 2026-10-30). The script
+prints that sum split into current and superseded sessions, next to the queue
+wall times; the difference is model loading and start-up.
+
+GPU memory: the product specification (PRODUCT_MEMORY_GB); check_env.json
+holds the device's total_memory in units of 10^9 bytes as the driver reports it.
 """
 
 import json
@@ -47,6 +57,8 @@ LABELS = {"sanity": "Sanity checks", "logit": "Logit Lens measurements",
 SKIP_MARKS = ("modelo não carregado", "sanidade já aprovada", "já treinada e aprovada",
               "lente já treinada em")
 SLACK = 120          # s de folga ao casar a janela do job com sessões e arquivos
+# Memória por GPU segundo a especificação do produto (o driver reporta outro número)
+PRODUCT_MEMORY_GB = {"NVIDIA H100 NVL": 94}
 
 
 @dataclass
@@ -279,7 +291,9 @@ def hardware(root: Path) -> Dict:
         out["python"] = d.get("python")
         for c in d.get("checks", []):
             if re.fullmatch(r"gpu \d+", c.get("name", "")):
-                out["gpus"].append(c["detail"].split(", compute")[0])
+                m = re.match(r"(.+?), ([\d.]+) GB", c["detail"])
+                if m:
+                    out["gpus"].append((m.group(1), float(m.group(2))))
             if c.get("name") == "torch":
                 m = re.match(r"(\S+), CUDA build ([\d.]+), NVIDIA driver (\S+)", c["detail"])
                 if m:
@@ -292,11 +306,30 @@ def hardware(root: Path) -> Dict:
     return out
 
 
+def reconcile(root: Path, parts: List[Part]) -> List[Dict]:
+    """
+    Por etapa medida por run_lens / run_behavioral: o que check_results.py soma
+    (todas as sessões dos manifests), separado em sessões atuais e substituídas,
+    ao lado do tempo de parede dos jobs final / discarded.
+    """
+    sess = sessions(root)
+    rows = []
+    for stage in ("logit", "tuned_remeasure", "behavioral"):
+        cur = sum(ss[-1]["wall_time_s"] for (st, _), ss in sess.items() if st == stage and ss)
+        allw = sum(s["wall_time_s"] for (st, _), ss in sess.items() if st == stage for s in ss)
+        jf = sum(p.seconds for p in parts if p.stage == stage and p.status == "final")
+        jd = sum(p.seconds for p in parts if p.stage == stage and p.status == "discarded")
+        rows.append({"stage": stage, "check_results_h": allw / 3600, "current_sessions_h": cur / 3600,
+                     "superseded_sessions_h": (allw - cur) / 3600, "jobs_final_h": jf / 3600,
+                     "jobs_discarded_h": jd / 3600})
+    return rows
+
+
 def summarize(root: Path = ROOT) -> Dict:
     jobs = queue_jobs(root) + manual_jobs(root)
     classify(jobs, root)
     parts = [p for j in jobs for p in j.parts]
-    return {"parts": parts, "hardware": hardware(root)}
+    return {"parts": parts, "hardware": hardware(root), "reconcile": reconcile(root, parts)}
 
 
 def _h(s):
@@ -337,9 +370,25 @@ def report(summary: Dict) -> str:
     est = [p for p in parts if p.estimated and p.status in ("final", "discarded")]
     if est:
         L.append(f"Estimated parts: {len(est)} ({_h(sum(p.seconds for p in est)):.2f} h), marked above")
+    L += ["", "Reconciliation with check_results.py (manifest measurement time, GPU-h)",
+          f"{'Stage':28} {'check_results':>13} {'= current':>10} {'+ superseded':>13} "
+          f"{'jobs final':>11} {'jobs discarded':>15}"]
+    for r in summary["reconcile"]:
+        L.append(f"{LABELS[r['stage']][:28]:28} {r['check_results_h']:13.2f} {r['current_sessions_h']:10.2f} "
+                 f"{r['superseded_sessions_h']:13.2f} {r['jobs_final_h']:11.2f} {r['jobs_discarded_h']:15.2f}")
+    L.append("check_results sums every session of each manifest, superseded ones included; jobs final − "
+             "current sessions and jobs discarded − superseded sessions are model loading and start-up.")
     hw = summary["hardware"]
     gpus = hw["gpus"]
-    L += ["", "Hardware: " + (f"{len(gpus)} × {gpus[0]}" if gpus and len(set(gpus)) == 1 else "; ".join(gpus) or "—"),
+    names = sorted({n for n, _ in gpus})
+    if len(names) == 1:
+        spec = PRODUCT_MEMORY_GB.get(names[0])
+        mem = (f", {spec} GB each (product specification; the driver reports "
+               f"{gpus[0][1]:.1f} × 10^9 bytes)" if spec else f", {gpus[0][1]:.1f} × 10^9 bytes each")
+        hw_line = f"{len(gpus)} × {names[0]}{mem}"
+    else:
+        hw_line = "; ".join(f"{n} ({g:.1f} × 10^9 bytes)" for n, g in gpus) or "—"
+    L += ["", "Hardware: " + hw_line,
           f"Software: torch {hw['torch']}, CUDA {hw['cuda']} (driver {hw['driver']}), "
           f"transformers {hw['transformers']}, Python {hw['python']}"]
     return "\n".join(L)
