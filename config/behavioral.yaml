@@ -21,7 +21,7 @@ generation:
   # semente de cada prompt = sha256(seed, modelo, fato, idioma, paráfrase)
 
 validation:
-  per_cell: 13               # respostas por modelo × idioma (≈ 5 × 6 × 13 = 390)
+  per_cell: 13               # respostas por modelo × idioma (5 modelos × 5 idiomas × 13 = 325)
   seed: 42
 
 # Perguntas do relatório (Fase 5)

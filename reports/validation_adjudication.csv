@@ -1,0 +1,16 @@
+uid,line_in_sample_csv,field,auto,human,verdict,note
+llama|aviao|de|1|1,138,primary,santos_dumont,none,annotator_omission,
+llama|aviao|en|2|8,148,primary,wright,none,annotator_omission,
+llama|calculo|fr|1|6,158,primary,leibniz,none,annotator_omission,
+llama|dinamite|it|3|10,177,primary,nobel,none,annotator_omission,"Nobel mentioned; annotator labeled by credit, rule is mention"
+mistral|cinema|pt|2|8,260,primary,lumiere,edison_cinema,extractor_error,'Lumière' inside a film title ('La Sortie des usines Lumière')
+qwen|calculo|fr|3|7,297,primary,leibniz,newton,annotator_omission,Leibniz named first
+gemma27|telefone|fr|2|2,95,cited,"bell,meucci",bell,annotator_omission,
+llama|aviao|de|1|1,138,cited,santos_dumont,,annotator_omission,
+llama|aviao|en|2|8,148,cited,wright,,annotator_omission,
+llama|calculo|fr|1|6,158,cited,leibniz,,annotator_omission,
+llama|calculo|it|1|5,172,cited,"newton,leibniz",newton,annotator_omission,
+llama|telefone|it|1|0,175,cited,"bell,meucci",bell,annotator_omission,
+llama|dinamite|it|3|10,177,cited,nobel,,annotator_omission,"Nobel mentioned; annotator labeled by credit, rule is mention"
+llama|tabela_periodica|pt|3|7,195,cited,"mendeleev,meyer",mendeleev,annotator_omission,
+mistral|fotografia|it|1|0,242,cited,"niepce,daguerre",niepce,annotator_omission,

@@ -130,3 +130,31 @@ Every fact, translation, model ID or license used by the pipeline is logged here
 | Tuned Lens acceptance test | `config/tuned_lens.yaml` acceptance.tolerance_nats = 0.05; `train_tuned_lens.py` | after the held-out evaluation, a lens is rejected if its KL (mean over languages) exceeds the Logit Lens's + 0.05 nats at the last translated layer or on the decision-zone mean. A rejected lens: `{m}_eval_rejected.csv` instead of `{m}_eval.csv`, status file, exit code 4, no re-measurement, listed in `PACK_INFO.json` `tuned_lenses_failed`; `TunedLens.load` refuses it. Fallback for a rejected model: 2^18 tokens per step (`--tokens-per-step 262144`) | Priscylla Silva | 2026-10-30 |
 
 EN and DE prompts were unchanged in Phase 0 (already correct). The prompts above are paraphrase 1 of each formulation since Phase 1 (moved from `data/prompts.py`, now removed); all PT/EN prompts were confirmed on 2026-10-29 (rows above).
+
+## Extraction validation (2026-11-01)
+
+**Sample:**
+- 325 answers: 13 per model × language (5 instruct models × 5 languages).
+- Drawn with the seed in `config/behavioral.yaml` (`validation.seed` 42, `per_cell` 13) by `scripts/export_validation_sample.py`.
+- Labeled by one author, blind: the automatic columns were hidden.
+- The labeled file, `reports/validation/sample.csv`, is the record of the blind labeling. It holds model answers, so it is not versioned (`reports/validation/` is in `.gitignore`).
+
+**Blind agreement** (`reports/validation/agreement.json`, `scripts/validation_agreement.py`):
+- **First-cited candidate:** 319/325 = 98.2%, Wilson 95% CI [96.0, 99.2], Cohen's κ 0.98. Per language from 96.9% (fr) to 98.5% (de, en, it, pt).
+- **Cited set:** 658 answer × candidate pairs, κ 0.97, precision 0.98, recall 1.00.
+
+**Adjudication** (`reports/validation_adjudication.csv`: uid and verdict per disagreement, no answer text; disagreements listed by `scripts/check_disagreements.py`):
+- **First-cited:** 5 of the 6 disagreements were annotator omissions.
+  - Record 177: Nobel is mentioned; the annotator labeled by credit, but the rule is mention.
+  - Record 297: Leibniz is named first.
+- **Extractor error:** 1, at record 260. "Lumière" appears inside a film title (*La Sortie des usines Lumière*).
+- **Cited set:** 9 of 9 disagreements were annotator omissions.
+- **Adjudicated extractor accuracy:**
+  - first-cited 324/325 = 99.7%, Wilson 95% CI [98.3, 99.9];
+  - cited set 0 errors in 658 pairs (Wilson lower bound 99.4%).
+- **Record numbers:** these are CSV records with the header as 1, as reported by `scripts/check_disagreements.py`. They are not physical lines: 211 answers contain line breaks.
+
+**"credited≠first":** 72 of 325 answers (22.2%, Wilson 95% CI [18.0, 27.0]) were noted by the annotator as crediting someone other than the first-named candidate. These are mostly shared or contested credit, and some give the credit to a non-candidate (e.g. Louis Le Prince for cinema).
+- **Consequence:** the behavioral measure is reported as "named first", not "credited".
+
+All Wilson intervals were recomputed from the counts (z = 1.96) and match the values above.

@@ -61,3 +61,6 @@ reports/tokenization/
 lenses_stale/
 reports/tuned_lens_stale/
 jobs_*.txt
+
+# Amostra de validação rotulada e saídas derivadas: contêm respostas dos modelos, nunca versionar
+reports/validation/
