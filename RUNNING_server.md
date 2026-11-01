@@ -57,7 +57,7 @@ nvidia-smi                                                 # driver version (fir
 pip install -r requirements.txt
 hf auth login                                              # same as huggingface-cli login; or export HF_TOKEN=hf_...
 python scripts/check_env.py                                # must end with 0 FAIL
-pytest                                                     # 429 tests, CPU
+pytest                                                     # 436 tests, CPU
 python run_pipeline_dry.py                                 # whole pipeline on tiny models; must end with "dry run ok"
 python verify_setup.py                                     # tokenizers: gated access, prompts, name tokenization
 mkdir -p logs

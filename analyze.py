@@ -79,6 +79,15 @@ Estatística (Fase 6, analysis/statistics.py):
     stats_mixed_*_by_model  ajuste A dentro de cada modelo (efeito de stake por modelo)
     stats_english_decomposition  ΔCS médio por grupo "dominante inglês / local inglês / nenhum"
     stats_mixed_*_domen     ajuste A com o termo dom_en (dominante do fato é inglês)
+
+Números do artigo (analysis/paper_numbers.py):
+    decision_depth(_summary)      emergência, meia altura e decisão por prompt; vencedor final
+    final_layer_wins              fração de vitórias na última camada por candidato × idioma
+    stats_nationality_robustness  coeficiente de nacionalidade sob outras métricas, sem um
+                                  fato, e por formulação
+    internal_behavioral_corr      ρ de Spearman entre CS interno e taxas comportamentais
+    peak_drop                     fração de pico e queda por papel
+    narrative_markers             taxa de menção de cada indicador por idioma
     internal_behavioral     métrica interna × taxas comportamentais por célula
 
 Concordância Tuned Lens × Logit Lens (mesmas células):
@@ -611,6 +620,9 @@ def main(argv=None):
     # junção interno × comportamental
     from analysis.statistics import run_statistics
     res.update(run_statistics(res, config))
+    # Números do artigo (analysis/paper_numbers.py)
+    from analysis.paper_numbers import PAPER_TABLES, run_paper_numbers
+    res.update(run_paper_numbers(res, config))
     for name, df in res.items():
         df.to_parquet(out / f"{name}.parquet", index=False)
         print(f"  OK  {out / name}.parquet  ({len(df)} linhas)")
@@ -621,7 +633,7 @@ def main(argv=None):
                  "stats_mixed_coefs_no_llama", "stats_mixed_fits_no_llama",
                  "stats_mixed_coefs_by_model", "stats_mixed_fits_by_model",
                  "stats_english_decomposition", "stats_mixed_coefs_domen", "stats_mixed_fits_domen",
-                 "internal_behavioral"):
+                 "internal_behavioral", *PAPER_TABLES):
         if name in res:
             res[name].to_csv(out / f"{name}.csv", index=False)
     print("\nPróximo passo: python make_figures.py")
