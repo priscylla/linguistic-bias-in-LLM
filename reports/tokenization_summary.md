@@ -43,17 +43,17 @@ The stem is forced ("l", "un") and each candidate is measured as apostrophe + na
 
 | Models | Lang | Article | Trigger token | prefix_depth1 | prefix_depth2 | own_token |
 | --- | --- | --- | --- | --- | --- | --- |
-| gemma_base, gemma, gemma27 | it | l' | `' l'` | 1086 | 12 | 198 |
-| gemma_base, gemma, gemma27 | it | un' | `' un'` | 1086 | 12 | 198 |
+| gemma_base, gemma, gemma27 | it | l' | `' l'` | 1104 | 12 | 198 |
+| gemma_base, gemma, gemma27 | it | un' | `' un'` | 1104 | 12 | 198 |
 | gemma_base, gemma, gemma27 | fr | l' | `' l'` | 1092 | 0 | 198 |
-| llama_base, llama, qwen_base, qwen | it | l' | `' l'` | 838 | 42 | 416 |
-| llama_base, llama, qwen_base, qwen | it | un' | `' un'` | 838 | 42 | 416 |
+| llama_base, llama, qwen_base, qwen | it | l' | `' l'` | 847 | 42 | 425 |
+| llama_base, llama, qwen_base, qwen | it | un' | `' un'` | 847 | 42 | 425 |
 | llama_base, llama, qwen_base, qwen | fr | l' | `' l'` | 860 | 18 | 412 |
-| mistral_base, mistral | it | l' | `'l'` | 1050 | 48 | 198 |
-| mistral_base, mistral | it | un' | `'un'` | 1050 | 48 | 198 |
+| mistral_base, mistral | it | l' | `'l'` | 1068 | 48 | 198 |
+| mistral_base, mistral | it | un' | `'un'` | 1068 | 48 | 198 |
 | mistral_base, mistral | fr | l' | `'l'` | 1056 | 36 | 198 |
-| sabia_base, sabia | it | l' | `'l'` | 1002 | 96 | 198 |
-| sabia_base, sabia | it | un' | `'un'` | 1002 | 96 | 198 |
+| sabia_base, sabia | it | l' | `'l'` | 1020 | 96 | 198 |
+| sabia_base, sabia | it | un' | `'un'` | 1020 | 96 | 198 |
 | sabia_base, sabia | fr | l' | `'l'` | 1008 | 84 | 198 |
 
 ## Prompt types per fact
