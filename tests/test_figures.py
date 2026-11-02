@@ -195,3 +195,25 @@ def test_fig4_uses_every_instruct_model(synth, tmp_path, monkeypatch):
     mf.make_all(res, ["fig4"], tmp_path, ["main"])
     assert seen == [mf.figure_models("all")]
     assert set(mf.figure_models("all")) > set(cfg.experiment["figures"]["main_models"])
+
+
+def test_place_stake_only_in_its_own_figure(figs):
+    cfg, res, tmp, paths = figs
+    # figuras: só nacionalidade; tabelas do apêndice e figA_place: também lugar
+    assert mf.stake_marks("aviao", "santos_dumont") == {"pt": "N"}
+    assert mf.stake_marks("aviao", "santos_dumont", place=True) == {"pt": "N", "fr": "P"}
+    T = mf.candidates_table(res)
+    assert not T["Stake"].str.contains("P}").any()                      # sem a linha FR^P
+    full = mf.results_table(res, mf.figure_models("all"), compact=False)
+    sd = full[full["Candidate"] == "Alberto Santos-Dumont"]
+    assert any("$^{P" in l for l in sd["Lang"])                          # apêndice mantém o P
+    names = {p.split("/")[-1] for p in paths}
+    assert ("figA_place_santos_dumont.pdf" in names) == ("aviao" in cfg.fact_specs)
+
+
+def test_figure_legends_say_nationality():
+    import inspect
+    src = inspect.getsource(mf)
+    assert "stake language (N nationality, P place)" not in src
+    assert src.count('label="stake language (nationality)"') == 2         # fig2 e fig3
+    assert 'label="P (place of event)"' in inspect.getsource(mf.figA_place_santos_dumont)

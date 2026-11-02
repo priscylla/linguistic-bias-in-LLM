@@ -184,10 +184,18 @@ def fig_panels(include_controls=False):
     return out
 
 
-def stake_marks(fact, cid):
-    """{idioma: 'N' (nationality) | 'P' (place_of_event)}."""
+def stake_marks(fact, cid, place=False):
+    """
+    {idioma: 'N' (nationality) | 'P' (place_of_event)}. As figuras marcam só
+    nacionalidade (padrão); o stake de lugar (Santos-Dumont em fr) é um caso
+    único, mostrado à parte em figA_place_santos_dumont e nas tabelas do apêndice.
+    """
     return {s.language: ("N" if s.type == "nationality" else "P")
-            for s in CONFIG.fact_specs[fact].candidate(cid).stakes}
+            for s in CONFIG.fact_specs[fact].candidate(cid).stakes
+            if place or s.type == "nationality"}
+
+
+STAKE_SHADE = {"N": "#F0E442", "P": "#56B4E9"}          # nacionalidade (amarelo) | lugar (azul)
 
 
 def _sel(df, **kw):
@@ -346,7 +354,7 @@ def _delta_panels(ax, d, models, langs, marks, metric_col="delta"):
     x = np.arange(len(langs))
     for j, l in enumerate(langs):
         if l in marks:
-            ax.axvspan(j - 0.5, j + 0.5, color="#F0E442", alpha=0.25, lw=0)
+            ax.axvspan(j - 0.5, j + 0.5, color=STAKE_SHADE[marks[l]], alpha=0.25, lw=0)
             ax.text(j, 1.0, marks[l], transform=ax.get_xaxis_transform(), ha="center",
                     va="bottom", fontsize=fcfg()["font_size"] - 1.5, fontweight="bold")
     width = 0.7 / max(1, len(models))
@@ -389,7 +397,7 @@ def fig2_delta_cs(metrics, out_base, models, fmt="completion", group="F1-F3"):
         ax.set_title(_panel_title(fact, cid), pad=8)
     for r in range(nr):
         axes[r][0].set_ylabel(f"ΔCS vs {CONFIG.reference_language.upper()}")
-    shade = mpatches.Patch(color="#F0E442", alpha=0.4, label="stake language (N nationality, P place)")
+    shade = mpatches.Patch(color=STAKE_SHADE["N"], alpha=0.4, label="stake language (nationality)")
     _bottom_legend(fig, _model_legend(models) + [shade])
     fig.tight_layout(rect=(0, 0.0, 1, 1))
     return save(fig, out_base)
@@ -421,7 +429,7 @@ def fig3_peak_vs_final(metrics, out_base, models, include_controls=True):
         marks = stake_marks(fact, cid)
         for j, l in enumerate(langs):
             if l in marks:
-                ax.axvspan(j - 0.5, j + 0.5, color="#F0E442", alpha=0.25, lw=0)
+                ax.axvspan(j - 0.5, j + 0.5, color=STAKE_SHADE[marks[l]], alpha=0.25, lw=0)
         for i, m in enumerate(models):
             c, mk = model_style(m)
             g = _sel(P, model=m, fact=fact, candidate=cid).set_index("lang")
@@ -441,7 +449,7 @@ def fig3_peak_vs_final(metrics, out_base, models, include_controls=True):
         axes[r][0].set_ylabel("P(e)")
     style = [Line2D([0], [0], marker="o", color="#555", lw=0, ms=3.5, label="peak k*"),
              Line2D([0], [0], marker="o", color="white", mec="#555", lw=0, ms=3.5, label="final layer"),
-             mpatches.Patch(color="#F0E442", alpha=0.4, label="stake language")]
+             mpatches.Patch(color=STAKE_SHADE["N"], alpha=0.4, label="stake language (nationality)")]
     _bottom_legend(fig, _model_legend(models) + style)
     fig.tight_layout(rect=(0, 0.0, 1, 1))
     return save(fig, out_base)
@@ -515,7 +523,7 @@ def fig5_names_vs_indicators(metrics, out_base, models):
         marks = stake_marks(fact, cid)
         for j, l in enumerate(langs):
             if l in marks:
-                ax.axvspan(j - 0.5, j + 0.5, color="#F0E442", alpha=0.25, lw=0)
+                ax.axvspan(j - 0.5, j + 0.5, color=STAKE_SHADE[marks[l]], alpha=0.25, lw=0)
         for k, (ts, grp, _, mk) in enumerate(SETS):
             d = _sel(ci, fact=fact, candidate=cid, token_set=ts, prompt_group=grp)
             for j, l in enumerate(langs):
@@ -687,6 +695,67 @@ def fig7_dilution(metrics, out_base):
     ax.legend(frameon=False, loc="upper center", ncol=2, fontsize=fcfg()["font_size"] - 1.5,
               columnspacing=0.8, handlelength=1.0)
     fig.tight_layout()
+    return save(fig, out_base)
+
+
+# ══════════════════════════════════════════════════════════════
+# FIG A (apêndice) — stake de lugar: Santos-Dumont em fr
+# ══════════════════════════════════════════════════════════════
+
+PLACE_CASE = ("aviao", "santos_dumont")
+
+
+def figA_place_santos_dumont(metrics, out_base):
+    """
+    Único stake de lugar do estudo (Santos-Dumont, fr: o voo do 14-bis em
+    Paris), ao lado do de nacionalidade (pt). (a) ΔCS na zona de decisão
+    contra EN por idioma e modelo, com IC bootstrap (como a fig2; modelos
+    instruct com Tuned Lens, lens das figuras, nomes, F1–F3). (b) fração de
+    prompts em que Santos-Dumont vence na última camada, por idioma (os 11
+    modelos e todos os prompts, como final_layer_wins).
+    """
+    from config.loader import load_tuned_lens
+    fact, cid = PLACE_CASE
+    if fact not in CONFIG.fact_specs:
+        return []
+    metric = CONFIG.experiment["statistics"]["primary_metric"]
+    ci = _sel(metrics.get("stats_ci"), lens=fcfg()["lens"], format="completion", token_set="names",
+              prompt_group="F1-F3", metric=metric, fact=fact, candidate=cid)
+    T = _sel(metrics.get("decision_depth"), lens=fcfg()["lens"], fact=fact)
+    if not len(ci) or "delta" not in ci or not len(T):
+        print("  –  figA_place: sem stats_ci ou decision_depth")
+        return []
+    tuned = set(load_tuned_lens()["models"])
+    models = [m for m in CONFIG.models if m in tuned and m in set(ci["model"])]
+    marks = stake_marks(fact, cid, place=True)                      # pt: N, fr: P
+    set_style()
+    fig, axes = plt.subplots(1, 2, figsize=(text_width(), 2.3), gridspec_kw={"width_ratios": [1.3, 1]})
+
+    langs = [l for l in CONFIG.languages if l != CONFIG.reference_language]
+    _delta_panels(axes[0], ci, models, langs, marks)
+    axes[0].set_ylabel(f"ΔCS vs {CONFIG.reference_language.upper()}")
+    axes[0].set_title("(a) ΔCS, decision zone (F1–F3)")
+
+    ax = axes[1]
+    all_langs = CONFIG.languages
+    share = [float((T[T["lang"] == l]["winner"] == cid).mean()) if (T["lang"] == l).any() else np.nan
+             for l in all_langs]
+    for j, l in enumerate(all_langs):
+        if l in marks:
+            ax.axvspan(j - 0.5, j + 0.5, color=STAKE_SHADE[marks[l]], alpha=0.25, lw=0)
+            ax.text(j, 1.0, marks[l], transform=ax.get_xaxis_transform(), ha="center",
+                    va="bottom", fontsize=fcfg()["font_size"] - 1.5, fontweight="bold")
+    ax.bar(range(len(all_langs)), share, width=0.6, color="#333333")
+    ax.set_xticks(range(len(all_langs)))
+    ax.set_xticklabels([l.upper() for l in all_langs])
+    ax.set_xlim(-0.5, len(all_langs) - 0.5)
+    ax.set_ylabel("Share of prompts (all models)")
+    ax.set_title("(b) Final-layer winner")
+
+    shades = [mpatches.Patch(color=STAKE_SHADE["N"], alpha=0.4, label="N (nationality)"),
+              mpatches.Patch(color=STAKE_SHADE["P"], alpha=0.4, label="P (place of event)")]
+    _bottom_legend(fig, _model_legend(models) + shades, max_cols=3)
+    fig.tight_layout(rect=(0, 0.0, 1, 1))
     return save(fig, out_base)
 
 
@@ -954,7 +1023,7 @@ def results_table(metrics, models, compact: bool) -> pd.DataFrame:
     p_main, p_with_en = stake_p(metrics, with_d=True), stake_p(metrics, "stats_stake_tests_with_en")
     rows = []
     for r in P.itertuples():
-        marks = stake_marks(r.fact, r.candidate)
+        marks = stake_marks(r.fact, r.candidate, place=True)          # tabelas do apêndice: N e P
         if compact and r.lang not in set(marks) | {CONFIG.reference_language}:
             continue
         k = (r.model, r.fact, r.lang, r.candidate)
@@ -1082,6 +1151,8 @@ def candidates_table(metrics) -> pd.DataFrame:
         others = [l for l in CONFIG.languages if l not in stake_langs and l != ref]
         t = T[T["fact"] == fact]
         for s in c.stakes:
+            if s.type != "nationality":          # lugar (Santos-Dumont em fr): só no apêndice
+                continue
             l = s.language
             win = lambda langs: float((t[t["lang"].isin(langs)]["winner"] == c.id).mean()) if len(t[t["lang"].isin(langs)]) else np.nan  # noqa: E731
             dl = _sel(dil, fact=fact, candidate=c.id, lang=l)
@@ -1130,8 +1201,9 @@ def candidates_latex(T: pd.DataFrame) -> str:
         body.append(" & ".join([_tex_escape(v[0]), v[1], num(v[2]), num(v[3]), num(v[4]), pct(v[5]), pct(v[6]),
                                 pct(v[7]), num(v[8]), num(v[9]), num(v[10]), _fmt_p(v[11]), num(v[12]),
                                 _fmt_p(v[13]), pct(v[14]), pct(v[15])]) + r" \\")
-    note = (r"\multicolumn{16}{l}{\footnotesize Logit Lens, name tokens, all models; $^N$ nationality, $^P$ place "
-            r"of event; ``other'' = the candidate's non-stake languages other than EN. CS of a dominant candidate "
+    note = (r"\multicolumn{16}{l}{\footnotesize Logit Lens, name tokens, all models; $^N$ nationality stake "
+            r"(the place-of-event stake is a single case, in the appendix); ``other'' = the candidate's "
+            r"non-stake languages other than EN. CS of a dominant candidate "
             r"(dom.) is $P(\mathrm{dom}) - $ mean $P$(alternatives), as in the stake test. $\Delta P$ compares the "
             r"stake language with EN in the same prompt cell ($\Delta$CS $= \Delta P(\mathrm{local}) - "
             r"\Delta P(\mathrm{dom})$). Stake test: stake language vs non-stake languages other than EN, Holm "
@@ -1177,7 +1249,7 @@ def save_fig(fig, path):
 # MAIN
 # ══════════════════════════════════════════════════════════════
 
-FIGURES = ["fig1", "fig2", "fig3", "fig4", "fig5", "fig6", "fig7", "figA", "tables"]
+FIGURES = ["fig1", "fig2", "fig3", "fig4", "fig5", "fig6", "fig7", "figA_place", "figA", "tables"]
 TEASER_PANELS = [("calculo", "leibniz"), ("telefone", "meucci"), ("aviao", "santos_dumont"),
                  ("fotografia", "talbot")]
 
@@ -1218,6 +1290,8 @@ def make_all(metrics, figs, out_dir, scopes, results_dir=None, tables_dir=None,
             paths += fig6_lens_comparison(metrics, out_dir / f"fig6_lens_comparison{sfx}", models, report_dir)
         if "fig7" in figs and scope == "main":
             paths += fig7_dilution(metrics, out_dir / "fig7_dilution")
+        if "figA_place" in figs and scope == "main":
+            paths += figA_place_santos_dumont(metrics, out_dir / "figA_place_santos_dumont")
     if "figA" in figs and results_dir is not None:
         raw = load_tables(results_dir, ("layers", "token_sets"))
         if raw:
