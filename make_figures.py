@@ -642,6 +642,8 @@ def _pooled_rate(df, col):
 
 def fig7_dilution(metrics, out_base):
     dil = _sel(metrics.get("dilution"), lens=fcfg()["lens"], level="candidate_stake_language")
+    if len(dil):                         # só nacionalidade; o local do evento fica no apêndice
+        dil = dil[dil["group"] == "nationality"]
     rates = _sel(metrics.get("behavioral_rates"), kind="all")
     marks = metrics.get("narrative_markers")
     if not len(dil) or rates is None or not len(rates) or marks is None or not len(marks):
