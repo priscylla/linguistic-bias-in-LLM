@@ -387,7 +387,7 @@ def fig2_delta_cs(metrics, out_base, models, fmt="completion", group="F1-F3"):
         return []
     langs = [l for l in CONFIG.languages if l != CONFIG.reference_language]
     set_style()
-    nr, nc = _grid(len(panels))
+    nr, nc = _grid(len(panels), ncols=4)
     fig, axes = plt.subplots(nr, nc, figsize=(text_width(), 1.55 * nr + 0.5),
                              sharey=True, squeeze=False)
     for ax in axes.flat[len(panels):]:
